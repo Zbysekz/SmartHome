@@ -1,0 +1,76 @@
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
+2018-02-05 18:57:41 >> Cannot write to database.. trying again
+2018-02-05 18:57:41 >> For query: INSERT,m_key_d, valueFalse
