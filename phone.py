@@ -456,5 +456,5 @@ def Log(s):
     print("LOGGED:"+str(s))
 
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("phone_log.txt","a") as file:
+    with open("logs/phone.log","a") as file:
         file.write(dateStr+" >> "+str(s)+"\n")

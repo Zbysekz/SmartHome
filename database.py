@@ -67,5 +67,5 @@ def Log(str):
     print("LOGGED:"+str)
     from datetime import datetime
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("database_log.txt","a") as file:
+    with open("logs/database.log","a") as file:
         file.write(dateStr+" >> "+str+"\n")

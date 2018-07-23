@@ -91,7 +91,7 @@ def Log(str):
     print("LOGGED:"+str)
     from datetime import datetime
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("serialData_log.txt","a") as file:
+    with open("logs/serialData.log","a") as file:
         file.write(dateStr+" >> "+str+"\n")
         
 def calculateCRC(data):
