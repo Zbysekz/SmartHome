@@ -6,7 +6,7 @@ os.sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/comm')
 
 #for calculation of AVGs - the routines are located in web folder
 import importlib.machinery
-avgModule = importlib.machinery.SourceFileLoader('getMeas',os.path.abspath("/var/www/html/getMeas.py")).load_module()
+avgModule = importlib.machinery.SourceFileLoader('getMeas',os.path.abspath("/var/www/SmartHomeWeb/getMeas.py")).load_module()
 
 import comm
 import time,threading
