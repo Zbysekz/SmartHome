@@ -4,5 +4,7 @@
 
 cd /
 cd home/pi/scripts
-sudo lxterminal -e "sudo python3 /home/pi/scripts/Main.py"
+sudo lxterminal -e "sudo python3 /home/pi/scripts/main.py"
+
 cd /
+

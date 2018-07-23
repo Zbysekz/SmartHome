@@ -17,7 +17,7 @@ import RPi.GPIO as GPIO
 
 
 #-------------DEFINITIONS-----------------------
-RESTART_ON_EXCEPTION = True
+RESTART_ON_EXCEPTION = False
 PIN_BTN_PC = 26
 
 MY_NUMBER1 = "420602187490"
@@ -55,12 +55,13 @@ def main():
             try:
                 comm.Init()
                 initTCP=False #succeeded
-            except OSError():
+            except OSError as e:
+                Log("ff")
                 nOfTries+=1
-                if(nOfTries>50):
+                if(nOfTries>30):
                     raise Exception('Too much tries to create TCP port', ' ')
-                print("Trying to create it again..")
-                time.sleep(5)
+                print("Trying to create TCP port again..")
+                time.sleep(10)
                 
         Log("Ok")
         
@@ -84,6 +85,7 @@ def main():
         
         database.updateState(alarm,locked)
     except Exception as inst:
+        print(inst)
         Log(type(inst))    # the exception instance
         Log(inst.args)     # arguments stored in .args
         Log(inst)
