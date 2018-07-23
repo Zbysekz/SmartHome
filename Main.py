@@ -15,27 +15,38 @@ from datetime import datetime
 from datetime import timedelta
 import RPi.GPIO as GPIO
 
-pin_btnPC = 26
+
+#-------------DEFINITIONS-----------------------
+RESTART_ON_EXCEPTION = True
+PIN_BTN_PC = 26
+
+MY_NUMBER1 = "420602187490"
+
+IP_METEO = '192.168.0.10'
+IP_KEYBOARD = '192.168.0.11'
+#-----------------------------------------------
+
+#-------------STATE VARIABLES-------------------
 alarm=False
-locked=False
+locked=True #locked after startup
+#-----------------------------------------------
+
+#------------AUXILIARY VARIABLES----------------
 alarmCounting=False#when door was opened and system locked
 watchDogAlarmThread=0
 alarmCnt=0
 keyboardRefreshCnt=0
 usingPhonePort=False#flag for reserving serial port to be used only by one thread at a time
 
-MY_NUMBER1 = "420602187490"
-
-IP_METEO = '192.168.0.10'
-IP_KEYBOARD = '192.168.0.11'
-
 avgCalcDone=False
 avgCalcDone2=False
+#-----------------------------------------------
+
 
 ###############################################################################################################
 def main():
     global watchDogAlarmThread
-    Log("Starting main.py...start")
+    Log("Entry point main.py")
     try:
         Log("Initializing TCP port...")
         initTCP=True
@@ -57,42 +68,47 @@ def main():
         phone.Connect()
         Log("Ok")
         
-        timerAlarm()#it will call itself periodically
+        timerGeneral()#it will call itself periodically - new thread
       
-        timerPhone()#it will call itself periodically
+        timerPhone()#it will call itself periodically - new thread
     
         
-        Log("Initializing pin for PC button..")
+        Log("Initializing pin for PC button...")
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(pin_btnPC, GPIO.OUT)
+        GPIO.setup(PIN_BTN_PC, GPIO.OUT)
         GPIO.setwarnings(False)
+        Log("Ok")
         
         global locked,alarm
-   
         import database
+        
         database.updateState(alarm,locked)
     except Exception as inst:
         Log(type(inst))    # the exception instance
         Log(inst.args)     # arguments stored in .args
         Log(inst)
-        Log("Rebooting Raspberry PI in one minute")
-        import os
-        os.system("shutdown -r 1")#reboot after one minute
-        input("Reboot in one minute. Press Enter to continue...")
+        if RESTART_ON_EXCEPTION:
+            Log("Rebooting Raspberry PI in one minute")
+            import os
+            os.system("shutdown -r 1")#reboot after one minute
+            input("Reboot in one minute. Press Enter to continue...")
         return
 ######################## MAIN LOOP ####################################################################################
     while(1):
-        #periodical call
+
+        #TCP server communication - remote devices--------
         comm.Handle()
 
         data = comm.DataReceived()
         if(data!=[]):
             IncomingData(data)
-        watchDogAlarmThread=0;
+        #-------------------------------------------------
+
+        watchDogAlarmThread=0; #to be able to detect lag in this loop
         
-######################## ALARM LOOP ##################################################################################
+######################## General timer thread ##########################################################################
      
-def timerAlarm():#it is calling itself periodically
+def timerGeneral():#it is calling itself periodically
     global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,usingPhonePort
     
     if keyboardRefreshCnt >= 4:
@@ -100,26 +116,31 @@ def timerAlarm():#it is calling itself periodically
         KeyboardRefresh()
     else:
         keyboardRefreshCnt+=1
+
     
-    if alarmCounting:
+    if alarmCounting:#user must make unlock until counter expires
         Log("Alarm check")
         alarmCnt+=1
         if alarmCnt>=10:
             alarmCnt=0
             
             Log("ALARM!!!!")
-            
-            if(alarm == False):
-                usingPhonePort=True
-                phone.SendSMS(MY_NUMBER1,"Home system: door alarm !!")
-                usingPhonePort=False
             alarm=True
+            alarmCounting=False
+
+            while(usingPhonePort):#wait until phone port is free
+                pass
+            
+            usingPhonePort=True
+            phone.SendSMS(MY_NUMBER1,"Home system: door alarm !!")
+            usingPhonePort=False
+            
             
             import database
             database.updateState(alarm,locked)
             KeyboardRefresh()
     
-    CalculateAvgs()
+    HandleAvgCalculation()
          
     if watchDogAlarmThread > 4:
         Log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
@@ -127,14 +148,14 @@ def timerAlarm():#it is calling itself periodically
         os.system("shutdown -r 1")#reboot after one minute
     
     else:
-        threading.Timer(8,timerAlarm).start()
+        threading.Timer(8,timerGeneral).start()
         watchDogAlarmThread+=1
 
 ####################################################################################################################
-def CalculateAvgs():
+def HandleAvgCalculation():
     global avgCalcDone,avgCalcDone2
     
-    #kazdou nultou hodinu udelat prumery za den
+    #eevry zero hour calculate current day average
     if datetime.now().hour == 0:
         if not avgCalcDone:
             Log("Calculating AVGs...")
@@ -154,7 +175,7 @@ def CalculateAvgs():
     else:
         avgCalcDone=False
         
-    #kazdou nultou minutu udelat prumery za hodinu
+    #every zero minute calculate current hour avarages
     if datetime.now().minute == 0:
         if not avgCalcDone2:
             
@@ -184,14 +205,18 @@ def CalculateAvgs():
         
 
 def timerPhone():
-    if not usingPhonePort:
-        phone.ReceiveCmds()
+    global usingPhonePort
     
-    if not usingPhonePort:
-        phone.CheckUnreadSMS()
+    while(usingPhonePort):#wait until phone port is free
+        pass
     
-    if not usingPhonePort:
-        phone.CheckSMSsent()
+    usingPhonePort=True
+    
+    phone.ReceiveCmds()
+    phone.CheckUnreadSMS()
+    phone.CheckSMSsent()
+
+    usingPhonePort=False
     
     #process incoming SMS
     for sms in phone.getIncomeSMSList():
@@ -235,10 +260,10 @@ def IncomingSMS(data):
             TogglePCbutton()
     
 def TogglePCbutton():
-    global pin_btnPC
-    GPIO.output(pin_btnPC,True)
+    global PIN_BTN_PC
+    GPIO.output(PIN_BTN_PC,True)
     time.sleep(2)
-    GPIO.output(pin_btnPC,False)
+    GPIO.output(PIN_BTN_PC,False)
     
 def IncomingData(data):
     import database
@@ -260,7 +285,7 @@ def IncomingData(data):
         
         global alarmCounting,locked
      
-        if(doorSW and locked and not alarmCounting):
+        if(doorSW and locked and not alarm and not alarmCounting):
             alarmCounting=True
             Log("LOCKED and DOORS opened")
     elif data[0]==101:#data z meteostanic
@@ -287,7 +312,8 @@ def IncomingEvent(data):
         if data[1]==2:#lock
             locked=True
         if data[1]==4:#doors opened and locked
-            alarmCounting=True
+            if not alarm:
+                alarmCounting=True
             Log("LOCKED and DOORS opened event")
     if data[0]==1:
         if data[1]==1:#unlock PIN
@@ -322,7 +348,7 @@ def Log(s):
     print("LOGGED:"+str(s))
 
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("main_log.txt","a") as file:
+    with open("logs/main.log","a") as file:
         file.write(dateStr+" >> "+str(s)+"\n")
 
 if __name__ == "__main__":
