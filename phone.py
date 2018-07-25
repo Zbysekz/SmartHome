@@ -8,6 +8,7 @@ from datetime import datetime
 smsc = "420602909909";#vodafone 420608005681
 
 
+commCheck = 0
 sendingSMS = 0
 receivingSMS = 0
 serPort = 0
@@ -55,7 +56,9 @@ def CheckSMSsent():#kontrola jestli se sms skutecne poslala, kdyz ne, zkousi zno
         numberOfTries = MAX_TRIES
 
 def CheckUnreadSMS():
-    global unreadSMSTimer,UNREAD_SMS_TIME
+    global unreadSMSTimer,UNREAD_SMS_TIME,commCheck
+    
+    commCheck+=1#to detect that phone is not responding
     
     if unreadSMSTimer == 0:
         unreadSMSTimer = UNREAD_SMS_TIME
@@ -73,7 +76,7 @@ def CheckUnreadSMS():
 
 def ReceiveCmds():
     global sendingSMS,receivingSMS,MAX_TRIES,numberOfTries,incomeSMSList,idOfStoredSMS
-    global serPort
+    global serPort,commCheck
     
     rcvLines = ReceiveLinesFromSerial()
     #rcvLine = serPort.readline() #nejde pouzit, protoze kdyz je mobil vyplej tak se zasekne - asi nefunguje timout v knihovne?
@@ -112,6 +115,7 @@ def ReceiveCmds():
                 
             elif (b"OK\r" in rcvLine):
                 Log("OK received!")
+                commCheck=0#to detect that phone is not responding
                 if(sendingSMS==2):
                     Log("CMGW OK received!")
                     sendingSMS=3
@@ -451,6 +455,9 @@ def MaskUpper(value,count):#zamaskuje horní bity  pro count=3 : 110xxxxx vrát�
         value &= 0x01
         
     return value
+
+def getCommState():
+    return True if commCheck>5 else False
 
 def Log(s):
     print("LOGGED:"+str(s))
