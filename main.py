@@ -6,9 +6,10 @@ os.sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/comm')
 
 #for calculation of AVGs - the routines are located in web folder
 import importlib.machinery
-avgModule = importlib.machinery.SourceFileLoader('getMeas',os.path.abspath("/var/www/SmartHomeWeb/getMeas.py")).load_module()
+avgModule = importlib.machinery.SourceFileLoader('getMeas',os.path.abspath("/var/www/html/getMeas.py")).load_module()
 
 import comm
+import database
 import time,threading
 import phone
 from datetime import datetime
@@ -17,7 +18,7 @@ import RPi.GPIO as GPIO
 
 
 #-------------DEFINITIONS-----------------------
-RESTART_ON_EXCEPTION = False
+RESTART_ON_EXCEPTION = True
 PIN_BTN_PC = 26
 
 MY_NUMBER1 = "420602187490"
@@ -80,12 +81,8 @@ def main():
         GPIO.setwarnings(False)
         Log("Ok")
         
-        global locked,alarm
-        import database
-        
         database.updateState(alarm,locked)
     except Exception as inst:
-        print(inst)
         Log(type(inst))    # the exception instance
         Log(inst.args)     # arguments stored in .args
         Log(inst)
@@ -138,7 +135,6 @@ def timerGeneral():#it is calling itself periodically
             usingPhonePort=False
             
             
-            import database
             database.updateState(alarm,locked)
             KeyboardRefresh()
     
@@ -244,17 +240,17 @@ def IncomingSMS(data):
             Log("Get status by SMS command.")
         elif(data[0].startswith("lock")):
             locked = True
-            import database
+
             database.updateState(alarm,locked)
             Log("Locked by SMS command.")
         elif(data[0].startswith("unlock")):
             locked = False
-            import database
+
             database.updateState(alarm,locked)
             Log("Unlocked by SMS command.")
         elif(data[0].startswith("deactivate alarm")):
             alarm = False
-            import database
+
             database.updateState(alarm,locked)
             Log("Alarm deactivated by SMS command.")
         elif(data[0].startswith("toggle PC")):
@@ -268,7 +264,7 @@ def TogglePCbutton():
     GPIO.output(PIN_BTN_PC,False)
     
 def IncomingData(data):
-    import database
+
     #print ("DATA INCOME!!:"+str(data))
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
@@ -300,11 +296,26 @@ def IncomingData(data):
         if(len(data)>=2):
             Log("Incoming event!")
             comm.SendACK(data,IP_KEYBOARD)
-            database.insertEvent(data[0],data[1])
+            database.insertEvent(getEventString1(data[0]),getEventString2(data[1]))
             IncomingEvent(data)
         else:
             Log("ERROR receving event!")
-        
+            
+def getEventString1(id):#get text by event id
+    textList = ["First event",
+                "Second event"]
+    if(id>len(textList) or id <0):
+        return "id."+str(id)
+    return textList[id]
+    
+
+def getEventString2(id):#get text by event sub id
+    textList = ["First subevent",
+                "Second subevent"]
+    if(id>len(textList) or id <0):
+        return "id."+str(id)
+    return textList[id]
+    
 def IncomingEvent(data):
     global locked,alarm,alarmCounting,alarmCnt
     
@@ -333,7 +344,7 @@ def IncomingEvent(data):
     
     if(lockLast!=locked or alarmLast != alarm):
         KeyboardRefresh()
-        import database
+
         database.updateState(alarm,locked)
         
 
