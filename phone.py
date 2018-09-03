@@ -23,6 +23,7 @@ lastReceiver = ""
 lastText = ""
 incomeSMSList=[]
 idOfStoredSMS=0
+clearBufferWhenPhoneOffline=0
 
 def Connect():
     global serPort
@@ -56,7 +57,7 @@ def CheckSMSsent():#kontrola jestli se sms skutecne poslala, kdyz ne, zkousi zno
         numberOfTries = MAX_TRIES
 
 def CheckUnreadSMS():
-    global unreadSMSTimer,UNREAD_SMS_TIME,commCheck
+    global unreadSMSTimer,UNREAD_SMS_TIME,commCheck,serPort
     
     commCheck+=1#to detect that phone is not responding
     
@@ -135,13 +136,22 @@ def ReceiveCmds():
                     
 
 def ReceiveLinesFromSerial():
-    global serPort
+    global serPort,clearBufferWhenPhoneOffline
 
     maxChars = 200#maximalne tolik znaku lze precist
     rcvLine = bytes()
     rcvLines = []
     ptr=0
     ch = serPort.read(maxChars)
+    
+    if len(ch)==maxChars:#if we have received maximum characters, increase var and then reset input buffer - when phone is offline, input buffer is full of zeroes
+        clearBufferWhenPhoneOffline += 1
+    
+    if (clearBufferWhenPhoneOffline>3):
+        Log("Serial input buffer reset!")
+        clearBufferWhenPhoneOffline=0
+        serPort.reset_input_buffer()
+        return []
     
     while(ptr<len(ch)):
     
