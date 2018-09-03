@@ -4,7 +4,7 @@
 
 cd /
 cd home/pi/scripts
-sudo lxterminal -e "sudo python3 /home/pi/scripts/main.py"
+sudo lxterminal -e "sudo python3 /home/pi/scripts/main.py delayStart"
 
 cd /
 
