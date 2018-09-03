@@ -21,7 +21,7 @@ import sys
 
 
 #-------------DEFINITIONS-----------------------
-RESTART_ON_EXCEPTION = False
+RESTART_ON_EXCEPTION = True
 PIN_BTN_PC = 26
 
 MY_NUMBER1 = "420602187490"
