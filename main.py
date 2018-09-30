@@ -41,6 +41,7 @@ watchDogAlarmThread=0
 alarmCnt=0
 keyboardRefreshCnt=0
 usingPhonePort=False#flag for reserving serial port to be used only by one thread at a time
+wifiCheckCnt=0
 
 avgCalcDone=False
 avgCalcDone2=False
@@ -110,7 +111,7 @@ def main():
 ######################## General timer thread ##########################################################################
      
 def timerGeneral():#it is calling itself periodically
-    global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,usingPhonePort
+    global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,usingPhonePort,wifiCheckCnt
     
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt=0
@@ -118,6 +119,12 @@ def timerGeneral():#it is calling itself periodically
     else:
         keyboardRefreshCnt+=1
 
+    if wifiCheckCnt >= 30:
+        wifiCheckCnt = 0
+        if not comm.Ping("192.168.0.1"):
+           Log("UNABLE TO REACH ROUTER!")
+    else:
+        wifiCheckCnt = wifiCheckCnt + 1
     
     if alarmCounting:#user must make unlock until counter expires
         Log("Alarm check")
@@ -255,7 +262,7 @@ def IncomingSMS(data):
         elif(data[0].startswith("deactivate alarm")):
             alarm = False
 
-            database.updateState(alarm,locked)
+            databaseSQLite.updateState(alarm,locked)
             Log("Alarm deactivated by SMS command.")
         elif(data[0].startswith("toggle PC")):
             Log("Toggle PC button by SMS command.")
@@ -298,7 +305,7 @@ def IncomingData(data):
         Log("Live event!")
     else:
         if(len(data)>=2):
-            Log("Incoming event!")
+            Log("Incoming event! "+str(data[0])+","+str(data[1]))
             comm.SendACK(data,IP_KEYBOARD)
             databaseInfluxDB.insertEvent(getEventString1(data[0]),getEventString2(data[1]))
             IncomingEvent(data)
@@ -369,6 +376,7 @@ def Log(s):
         file.write(dateStr+" >> "+str(s)+"\n")
 
 if __name__ == "__main__":
+        
     if(len(sys.argv)>1):
         if('delayStart' in sys.argv[1]):
             Log("Delayed start...")

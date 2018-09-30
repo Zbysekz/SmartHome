@@ -10,14 +10,13 @@ printDebugInfo = False
 
 def Init():
     import socket
-    import serialData
 
     global conn,s
     
     TCP_IP = '192.168.0.3'
     TCP_PORT = 23
 
-    print ('Start')
+    Log ('tcp server init')
     #socket.setdefaulttimeout(5)
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setblocking(0)
@@ -39,20 +38,21 @@ def Handle():
     try:
         s.settimeout(4.0)
         conn, addr = s.accept()
-        print ('Connection address:', addr)
+        if printDebugInfo:
+            Log ('Connection address:', addr)
         conn.settimeout(4.0)
-        #tady mu pošlu něco pokud mám
+        #if you have something to send, send it
         for tx in sendQueue:
-            if(tx[1]==addr[0]):#jen pokud mám co říct adrese co se připojila
+            if(tx[1]==addr[0]):#only if we have something to send to the address that has connected
 #                print("Sending:")
 #                for a in tx[0]:
 #                    print(">>"+str(a))
                 conn.send(tx[0])
                 sendQueue.remove(tx)
             else:
-                print("want to send but not the one")
-                print(addr[0])
-                print(tx[1])
+                Log("Want to send but not to this one")
+                Log("Connected:"+str(addr[0]))
+                Log("Queue:"+str(tx[1]))
 
         #příjem dat
         import select
@@ -94,7 +94,7 @@ def Send(data,destination):#zařadí do fronty pro poslání
     if getSendQueueCount()<TXQUEUELIMIT:
         sendQueue.append((serialData.CreatePacket(data),destination))
     else:
-        print("MAXIMUM TX QUEUE LIMIT REACHED")
+        Log("MAXIMUM TX QUEUE LIMIT REACHED")
 def SendACK(data,destination):
     #poslem CRC techto dat na danou destinaci
     global sendQueue,TXQUEUELIMIT
@@ -103,9 +103,9 @@ def SendACK(data,destination):
     
     if getSendQueueCount()<TXQUEUELIMIT:
         sendQueue.append((serialData.CreatePacket(bytes([99,int(CRC)%256,int(CRC/256)])),destination))
-        print("sending BACK"+str(CRC)+" to destination:"+destination)
+        Log("sending BACK"+str(CRC)+" to destination:"+destination)
     else:
-        print("MAXIMUM TX QUEUE LIMIT REACHED")
+        Log("MAXIMUM TX QUEUE LIMIT REACHED")
     
 def getSendQueueCount():
     global sendQueue
@@ -115,6 +115,12 @@ def DataReceived():
     import serialData
     
     return serialData.getRcvdData()
+
+def Ping(host):
+    import subprocess
+    ping_response = subprocess.Popen(["/bin/ping", "-c1", "-w100", host], stdout=subprocess.PIPE).stdout.read()
+
+    return True if "1 received" in ping_response.decode("utf-8") else False
 
 def Log(str):
     print("LOGGED:"+str)
