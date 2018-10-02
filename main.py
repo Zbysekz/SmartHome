@@ -5,8 +5,8 @@ import os#we must add path to comm folder because inner scripts can now import o
 os.sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/comm')
 
 #for calculation of AVGs - the routines are located in web folder
-import importlib.machinery
-avgModule = importlib.machinery.SourceFileLoader('getMeas',os.path.abspath("/var/www/SmartHomeWeb/getMeas.py")).load_module()
+#import importlib.machinery
+#avgModule = importlib.machinery.SourceFileLoader('getMeas',os.path.abspath("/var/www/SmartHomeWeb/getMeas.py")).load_module()
 
 import comm
 import databaseInfluxDB
@@ -21,7 +21,7 @@ import sys
 
 
 #-------------DEFINITIONS-----------------------
-RESTART_ON_EXCEPTION = True
+RESTART_ON_EXCEPTION = False
 PIN_BTN_PC = 26
 
 MY_NUMBER1 = "420602187490"
@@ -43,8 +43,6 @@ keyboardRefreshCnt=0
 usingPhonePort=False#flag for reserving serial port to be used only by one thread at a time
 wifiCheckCnt=0
 
-avgCalcDone=False
-avgCalcDone2=False
 #-----------------------------------------------
 
 
@@ -126,6 +124,18 @@ def timerGeneral():#it is calling itself periodically
     else:
         wifiCheckCnt = wifiCheckCnt + 1
     
+    #check if there are data in sqlite3 that we want to send
+    data = databaseSQLite.getTXbuffer()
+    if(len(data)):
+        try:
+            for packet in data:
+                byteArray = bytes([int(x) for x in packet[0].split(',')])
+                print("Sending data from SQLITE database:")
+                print(byteArray)
+                print(packet[1])
+                comm.Send(byteArray,packet[1])
+        except ValueError:
+            Log("SQLite - getTXbufder - Value Error:"+str(packet[0]))
     if alarmCounting:#user must make unlock until counter expires
         Log("Alarm check")
         alarmCnt+=1
@@ -146,8 +156,6 @@ def timerGeneral():#it is calling itself periodically
             
             databaseSQLite.updateState(alarm,locked)
             KeyboardRefresh()
-    
-    HandleAvgCalculation()
          
     if watchDogAlarmThread > 4:
         
@@ -161,57 +169,6 @@ def timerGeneral():#it is calling itself periodically
         watchDogAlarmThread+=1
 
 ####################################################################################################################
-def HandleAvgCalculation():
-    global avgCalcDone,avgCalcDone2
-    
-    #eevry zero hour calculate current day average
-    if datetime.now().hour == 0:
-        if not avgCalcDone:
-            Log("Calculating AVGs...")
-            timeTo = datetime.now()
-            diff = timedelta(days = -1)
-            timeFrom = timeTo + diff
-            
-            avgModule.AvgCalc_day_ext("m_key_t",timeFrom,timeTo,False)
-            avgModule.AvgCalc_day_ext("m_key_rh",timeFrom,timeTo,False)
-            
-            avgModule.AvgCalc_day_ext("m_met_t",timeFrom,timeTo,False)
-            avgModule.AvgCalc_day_ext("m_met_p",timeFrom,timeTo,False)
-            avgModule.AvgCalc_day_ext("m_met_u",timeFrom,timeTo,False)
-            
-            Log("Calculating AVGs done")
-            avgCalcDone = True
-    else:
-        avgCalcDone=False
-        
-    #every zero minute calculate current hour avarages
-    if datetime.now().minute == 0:
-        if not avgCalcDone2:
-            
-            Log("Calculating AVGs...")
-            
-            timeTo = datetime.now()
-            diff = timedelta(hours = -1)
-            timeFrom = timeTo + diff
-            
-            try:
-                avgModule.AvgCalc_hour_ext("m_key_t",timeFrom,timeTo,False)
-                avgModule.AvgCalc_hour_ext("m_key_rh",timeFrom,timeTo,False)
-                
-                avgModule.AvgCalc_hour_ext("m_met_t",timeFrom,timeTo,False)
-                avgModule.AvgCalc_hour_ext("m_met_p",timeFrom,timeTo,False)
-                avgModule.AvgCalc_hour_ext("m_met_u",timeFrom,timeTo,False)
-            except Exception as inst:
-                Log(type(inst))    # the exception instance
-                Log(inst.args)     # arguments stored in .args
-                Log(inst)
-                
-            Log("Calculating AVGs done")
-            
-            avgCalcDone2 = True
-    else:
-        avgCalcDone2=False
-        
 
 def timerPhone():
     global usingPhonePort
@@ -262,7 +219,7 @@ def IncomingSMS(data):
         elif(data[0].startswith("deactivate alarm")):
             alarm = False
 
-            databaseSQLite.updateState(alarm,locked)
+            database.updateState(alarm,locked)
             Log("Alarm deactivated by SMS command.")
         elif(data[0].startswith("toggle PC")):
             Log("Toggle PC button by SMS command.")
@@ -305,7 +262,7 @@ def IncomingData(data):
         Log("Live event!")
     else:
         if(len(data)>=2):
-            Log("Incoming event! "+str(data[0])+","+str(data[1]))
+            Log("Incoming event!")
             comm.SendACK(data,IP_KEYBOARD)
             databaseInfluxDB.insertEvent(getEventString1(data[0]),getEventString2(data[1]))
             IncomingEvent(data)

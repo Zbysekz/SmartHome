@@ -8,9 +8,10 @@ sendQueue = []
 TXQUEUELIMIT=30
 printDebugInfo = False
 
+import socket
+import serialData
+    
 def Init():
-    import socket
-
     global conn,s
     
     TCP_IP = '192.168.0.3'
@@ -28,10 +29,7 @@ def Init():
     #conn.close()
     #print ('end')
 
-def Handle():
-    import serialData
-    import socket
-    
+def Handle():    
     global conn,BUFFER_SIZE,s,sendQueue
     global printDebugInfo
 
@@ -53,7 +51,7 @@ def Handle():
                 Log("Want to send but not to this one")
                 Log("Connected:"+str(addr[0]))
                 Log("Queue:"+str(tx[1]))
-
+        
         #příjem dat
         import select
         r, _, _ = select.select([conn], [], [],4)
