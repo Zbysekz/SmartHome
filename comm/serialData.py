@@ -83,7 +83,7 @@ def CreatePacket(d):
         
     data.append(int(crc/256))
     data.append(crc%256)
-    data.append(222)#end byt
+    data.append(222)#end byte
     
     return data
 

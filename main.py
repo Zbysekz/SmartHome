@@ -5,19 +5,23 @@ import os#we must add path to comm folder because inner scripts can now import o
 os.sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/comm')
 
 #for calculation of AVGs - the routines are located in web folder
-import importlib.machinery
-avgModule = importlib.machinery.SourceFileLoader('getMeas',os.path.abspath("/var/www/html/getMeas.py")).load_module()
+#import importlib.machinery
+#avgModule = importlib.machinery.SourceFileLoader('getMeas',os.path.abspath("/var/www/SmartHomeWeb/getMeas.py")).load_module()
 
 import comm
+import databaseInfluxDB
+import databaseSQLite
 import time,threading
 import phone
 from datetime import datetime
 from datetime import timedelta
 import RPi.GPIO as GPIO
+from time import sleep
+import sys
 
 
 #-------------DEFINITIONS-----------------------
-RESTART_ON_EXCEPTION = True
+RESTART_ON_EXCEPTION = False
 PIN_BTN_PC = 26
 
 MY_NUMBER1 = "420602187490"
@@ -37,15 +41,14 @@ watchDogAlarmThread=0
 alarmCnt=0
 keyboardRefreshCnt=0
 usingPhonePort=False#flag for reserving serial port to be used only by one thread at a time
+wifiCheckCnt=0
 
-avgCalcDone=False
-avgCalcDone2=False
 #-----------------------------------------------
 
 
 ###############################################################################################################
 def main():
-    global watchDogAlarmThread
+    global watchDogAlarmThread,alarm,locked
     Log("Entry point main.py")
     try:
         Log("Initializing TCP port...")
@@ -55,12 +58,12 @@ def main():
             try:
                 comm.Init()
                 initTCP=False #succeeded
-            except OSError():
+            except OSError as e:
                 nOfTries+=1
-                if(nOfTries>50):
+                if(nOfTries>30):
                     raise Exception('Too much tries to create TCP port', ' ')
-                print("Trying to create it again..")
-                time.sleep(5)
+                print("Trying to create TCP port again..")
+                time.sleep(10)
                 
         Log("Ok")
         
@@ -79,10 +82,7 @@ def main():
         GPIO.setwarnings(False)
         Log("Ok")
         
-        global locked,alarm
-        import database
-        
-        database.updateState(alarm,locked)
+        databaseSQLite.updateState(alarm,locked)
     except Exception as inst:
         Log(type(inst))    # the exception instance
         Log(inst.args)     # arguments stored in .args
@@ -109,7 +109,7 @@ def main():
 ######################## General timer thread ##########################################################################
      
 def timerGeneral():#it is calling itself periodically
-    global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,usingPhonePort
+    global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,usingPhonePort,wifiCheckCnt
     
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt=0
@@ -117,7 +117,25 @@ def timerGeneral():#it is calling itself periodically
     else:
         keyboardRefreshCnt+=1
 
+    if wifiCheckCnt >= 30:
+        wifiCheckCnt = 0
+        if not comm.Ping("192.168.0.1"):
+           Log("UNABLE TO REACH ROUTER!")
+    else:
+        wifiCheckCnt = wifiCheckCnt + 1
     
+    #check if there are data in sqlite3 that we want to send
+    data = databaseSQLite.getTXbuffer()
+    if(len(data)):
+        try:
+            for packet in data:
+                byteArray = bytes([int(x) for x in packet[0].split(',')])
+                print("Sending data from SQLITE database:")
+                print(byteArray)
+                print(packet[1])
+                comm.Send(byteArray,packet[1])
+        except ValueError:
+            Log("SQLite - getTXbufder - Value Error:"+str(packet[0]))
     if alarmCounting:#user must make unlock until counter expires
         Log("Alarm check")
         alarmCnt+=1
@@ -136,73 +154,21 @@ def timerGeneral():#it is calling itself periodically
             usingPhonePort=False
             
             
-            import database
-            database.updateState(alarm,locked)
+            databaseSQLite.updateState(alarm,locked)
             KeyboardRefresh()
-    
-    HandleAvgCalculation()
          
     if watchDogAlarmThread > 4:
+        
         Log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
-        import os
-        os.system("shutdown -r 1")#reboot after one minute
+        if RESTART_ON_EXCEPTION:
+            import os
+            os.system("shutdown -r 1")#reboot after one minute
     
     else:
         threading.Timer(8,timerGeneral).start()
         watchDogAlarmThread+=1
 
 ####################################################################################################################
-def HandleAvgCalculation():
-    global avgCalcDone,avgCalcDone2
-    
-    #eevry zero hour calculate current day average
-    if datetime.now().hour == 0:
-        if not avgCalcDone:
-            Log("Calculating AVGs...")
-            timeTo = datetime.now()
-            diff = timedelta(days = -1)
-            timeFrom = timeTo + diff
-            
-            avgModule.AvgCalc_day_ext("m_key_t",timeFrom,timeTo,False)
-            avgModule.AvgCalc_day_ext("m_key_rh",timeFrom,timeTo,False)
-            
-            avgModule.AvgCalc_day_ext("m_met_t",timeFrom,timeTo,False)
-            avgModule.AvgCalc_day_ext("m_met_p",timeFrom,timeTo,False)
-            avgModule.AvgCalc_day_ext("m_met_u",timeFrom,timeTo,False)
-            
-            Log("Calculating AVGs done")
-            avgCalcDone = True
-    else:
-        avgCalcDone=False
-        
-    #every zero minute calculate current hour avarages
-    if datetime.now().minute == 0:
-        if not avgCalcDone2:
-            
-            Log("Calculating AVGs...")
-            
-            timeTo = datetime.now()
-            diff = timedelta(hours = -1)
-            timeFrom = timeTo + diff
-            
-            try:
-                avgModule.AvgCalc_hour_ext("m_key_t",timeFrom,timeTo,False)
-                avgModule.AvgCalc_hour_ext("m_key_rh",timeFrom,timeTo,False)
-                
-                avgModule.AvgCalc_hour_ext("m_met_t",timeFrom,timeTo,False)
-                avgModule.AvgCalc_hour_ext("m_met_p",timeFrom,timeTo,False)
-                avgModule.AvgCalc_hour_ext("m_met_u",timeFrom,timeTo,False)
-            except Exception as inst:
-                Log(type(inst))    # the exception instance
-                Log(inst.args)     # arguments stored in .args
-                Log(inst)
-                
-            Log("Calculating AVGs done")
-            
-            avgCalcDone2 = True
-    else:
-        avgCalcDone2=False
-        
 
 def timerPhone():
     global usingPhonePort
@@ -242,17 +208,17 @@ def IncomingSMS(data):
             Log("Get status by SMS command.")
         elif(data[0].startswith("lock")):
             locked = True
-            import database
-            database.updateState(alarm,locked)
+
+            databaseSQLite.updateState(alarm,locked)
             Log("Locked by SMS command.")
         elif(data[0].startswith("unlock")):
             locked = False
-            import database
-            database.updateState(alarm,locked)
+
+            databaseSQLite.updateState(alarm,locked)
             Log("Unlocked by SMS command.")
         elif(data[0].startswith("deactivate alarm")):
             alarm = False
-            import database
+
             database.updateState(alarm,locked)
             Log("Alarm deactivated by SMS command.")
         elif(data[0].startswith("toggle PC")):
@@ -266,7 +232,7 @@ def TogglePCbutton():
     GPIO.output(PIN_BTN_PC,False)
     
 def IncomingData(data):
-    import database
+
     #print ("DATA INCOME!!:"+str(data))
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
@@ -277,11 +243,11 @@ def IncomingData(data):
         temp = (data[4]*256+data[5])/10 + 0.5
         RH = (data[6]*256+data[7])/10
         
-        database.insertValue('m_key_d',doorSW)
-        database.insertValue('m_key_ga',gasAlarm)
-        database.insertValue('m_key_g',gas)
-        database.insertValue('m_key_t',temp)
-        database.insertValue('m_key_rh',RH)
+        databaseInfluxDB.insertValue('bools','door switch 1',doorSW)
+        databaseInfluxDB.insertValue('bools','gas alarm',gasAlarm)
+        databaseInfluxDB.insertValue('gas','keyboard',gas)
+        databaseInfluxDB.insertValue('temperature','keyboard',temp)
+        databaseInfluxDB.insertValue('humidity','keyboard',RH)
         
         global alarmCounting,locked
      
@@ -289,20 +255,35 @@ def IncomingData(data):
             alarmCounting=True
             Log("LOCKED and DOORS opened")
     elif data[0]==101:#data z meteostanic
-        database.insertValue('m_met_t',(data[1]*256+data[2])/100)
-        database.insertValue('m_met_p',(data[3]*65536+data[4]*256+data[5])/100)
-        database.insertValue('m_met_u',(data[6]*256+data[7])/1000)
+        databaseInfluxDB.insertValue('temperature','meteostation 1',(data[1]*256+data[2])/100)
+        databaseInfluxDB.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100)
+        databaseInfluxDB.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000)
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!")
     else:
         if(len(data)>=2):
             Log("Incoming event!")
             comm.SendACK(data,IP_KEYBOARD)
-            database.insertEvent(data[0],data[1])
+            databaseInfluxDB.insertEvent(getEventString1(data[0]),getEventString2(data[1]))
             IncomingEvent(data)
         else:
             Log("ERROR receving event!")
-        
+            
+def getEventString1(id):#get text by event id
+    textList = ["First event",
+                "Second event"]
+    if(id>=len(textList) or id <0):
+        return "id."+str(id)
+    return textList[id]
+    
+
+def getEventString2(id):#get text by event sub id
+    textList = ["First subevent",
+                "Second subevent"]
+    if(id>=len(textList) or id <0):
+        return "id."+str(id)
+    return textList[id]
+    
 def IncomingEvent(data):
     global locked,alarm,alarmCounting,alarmCnt
     
@@ -331,8 +312,8 @@ def IncomingEvent(data):
     
     if(lockLast!=locked or alarmLast != alarm):
         KeyboardRefresh()
-        import database
-        database.updateState(alarm,locked)
+
+        databaseSQLite.updateState(alarm,locked)
         
 
 def getState():
@@ -352,5 +333,10 @@ def Log(s):
         file.write(dateStr+" >> "+str(s)+"\n")
 
 if __name__ == "__main__":
+        
+    if(len(sys.argv)>1):
+        if('delayStart' in sys.argv[1]):
+            Log("Delayed start...")
+            sleep(20)
     # execute only if run as a script
     main()

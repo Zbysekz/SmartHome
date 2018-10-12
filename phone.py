@@ -8,6 +8,7 @@ from datetime import datetime
 smsc = "420602909909";#vodafone 420608005681
 
 
+commCheck = 0
 sendingSMS = 0
 receivingSMS = 0
 serPort = 0
@@ -22,6 +23,7 @@ lastReceiver = ""
 lastText = ""
 incomeSMSList=[]
 idOfStoredSMS=0
+clearBufferWhenPhoneOffline=0
 
 def Connect():
     global serPort
@@ -55,7 +57,9 @@ def CheckSMSsent():#kontrola jestli se sms skutecne poslala, kdyz ne, zkousi zno
         numberOfTries = MAX_TRIES
 
 def CheckUnreadSMS():
-    global unreadSMSTimer,UNREAD_SMS_TIME
+    global unreadSMSTimer,UNREAD_SMS_TIME,commCheck,serPort
+    
+    commCheck+=1#to detect that phone is not responding
     
     if unreadSMSTimer == 0:
         unreadSMSTimer = UNREAD_SMS_TIME
@@ -73,7 +77,7 @@ def CheckUnreadSMS():
 
 def ReceiveCmds():
     global sendingSMS,receivingSMS,MAX_TRIES,numberOfTries,incomeSMSList,idOfStoredSMS
-    global serPort
+    global serPort,commCheck
     
     rcvLines = ReceiveLinesFromSerial()
     #rcvLine = serPort.readline() #nejde pouzit, protoze kdyz je mobil vyplej tak se zasekne - asi nefunguje timout v knihovne?
@@ -112,6 +116,7 @@ def ReceiveCmds():
                 
             elif (b"OK\r" in rcvLine):
                 Log("OK received!")
+                commCheck=0#to detect that phone is not responding
                 if(sendingSMS==2):
                     Log("CMGW OK received!")
                     sendingSMS=3
@@ -131,13 +136,22 @@ def ReceiveCmds():
                     
 
 def ReceiveLinesFromSerial():
-    global serPort
+    global serPort,clearBufferWhenPhoneOffline
 
     maxChars = 200#maximalne tolik znaku lze precist
     rcvLine = bytes()
     rcvLines = []
     ptr=0
     ch = serPort.read(maxChars)
+    
+    if len(ch)==maxChars:#if we have received maximum characters, increase var and then reset input buffer - when phone is offline, input buffer is full of zeroes
+        clearBufferWhenPhoneOffline += 1
+    
+    if (clearBufferWhenPhoneOffline>3):
+        Log("Serial input buffer reset!")
+        clearBufferWhenPhoneOffline=0
+        serPort.reset_input_buffer()
+        return []
     
     while(ptr<len(ch)):
     
@@ -451,6 +465,9 @@ def MaskUpper(value,count):#zamaskuje horní bity  pro count=3 : 110xxxxx vrát�
         value &= 0x01
         
     return value
+
+def getCommState():
+    return True if commCheck>5 else False
 
 def Log(s):
     print("LOGGED:"+str(s))
