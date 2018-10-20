@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from influxdb import InfluxDBClient
-import sqlite3
 from datetime import datetime
 
 
@@ -32,7 +31,7 @@ def test():
         result = True
         
     if(not result):
-        Log("Error while writing to database for measurement:"+name)
+        Log("Error while writing to database for measurement")
          
 
 
@@ -140,7 +139,7 @@ def insertHardwareMonitoringValue(CPUtemp,CPUusage,memoryUsage,memoryRelUsage,di
         result = True
         
     if(not result):
-        Log2("Error while writing to database for measurement:"+name)
+        Log2("Error while writing to database for measurement")
           
 
 def Log(strr):

@@ -14,7 +14,6 @@ import databaseSQLite
 import time,threading
 import phone
 from datetime import datetime
-from datetime import timedelta
 import RPi.GPIO as GPIO
 from time import sleep
 import sys
@@ -58,7 +57,7 @@ def main():
             try:
                 comm.Init()
                 initTCP=False #succeeded
-            except OSError as e:
+            except OSError:
                 nOfTries+=1
                 if(nOfTries>30):
                     raise Exception('Too much tries to create TCP port', ' ')
@@ -219,7 +218,7 @@ def IncomingSMS(data):
         elif(data[0].startswith("deactivate alarm")):
             alarm = False
 
-            database.updateState(alarm,locked)
+            databaseSQLite.updateState(alarm,locked)
             Log("Alarm deactivated by SMS command.")
         elif(data[0].startswith("toggle PC")):
             Log("Toggle PC button by SMS command.")
@@ -249,6 +248,9 @@ def IncomingData(data):
         databaseInfluxDB.insertValue('temperature','keyboard',temp)
         databaseInfluxDB.insertValue('humidity','keyboard',RH)
         
+        databaseSQLite.updateValue('temp1',temp);
+        databaseSQLite.updateValue('humidity',RH);
+        
         global alarmCounting,locked
      
         if(doorSW and locked and not alarm and not alarmCounting):
@@ -258,16 +260,23 @@ def IncomingData(data):
         databaseInfluxDB.insertValue('temperature','meteostation 1',(data[1]*256+data[2])/100)
         databaseInfluxDB.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100)
         databaseInfluxDB.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000)
+        
+        databaseSQLite.updateValue('temp2',(data[1]*256+data[2])/100);
+        databaseSQLite.updateValue('pressure',(data[3]*65536+data[4]*256+data[5])/100);
+        databaseSQLite.updateValue('voltageMet',(data[6]*256+data[7])/1000);
+    elif data[0]>50 and data[0]<80:
+        databaseInfluxDB.insertValue('voltage','BMS '+str(data[1]),(data[2]*256+data[3])/100);
+        databaseInfluxDB.insertValue('temperature','BMS '+str(data[1]),(data[4]*256+data[5])/100);
+        
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!")
-    else:
-        if(len(data)>=2):
+    elif(data[0]<10 and len(data)>=2):#other events, reserved for keyboard
             Log("Incoming event!")
             comm.SendACK(data,IP_KEYBOARD)
             databaseInfluxDB.insertEvent(getEventString1(data[0]),getEventString2(data[1]))
             IncomingEvent(data)
-        else:
-            Log("ERROR receving event!")
+    else:
+        Log("Unknown event, data:"+data);
             
 def getEventString1(id):#get text by event id
     textList = ["First event",
