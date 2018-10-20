@@ -31,7 +31,7 @@ IP_KEYBOARD = '192.168.0.11'
 
 #-------------STATE VARIABLES-------------------
 alarm=False
-locked=True #locked after startup
+locked=False #locked after startup
 #-----------------------------------------------
 
 #------------AUXILIARY VARIABLES----------------
@@ -177,9 +177,9 @@ def timerPhone():
     
     usingPhonePort=True
     
-    phone.ReceiveCmds()
-    phone.CheckUnreadSMS()
-    phone.CheckSMSsent()
+    #phone.ReceiveCmds()
+    #phone.CheckUnreadSMS()
+    #phone.CheckSMSsent()
 
     usingPhonePort=False
     
@@ -265,7 +265,7 @@ def IncomingData(data):
         databaseSQLite.updateValue('pressure',(data[3]*65536+data[4]*256+data[5])/100);
         databaseSQLite.updateValue('voltageMet',(data[6]*256+data[7])/1000);
     elif data[0]>50 and data[0]<80:
-        databaseInfluxDB.insertValue('voltage','BMS '+str(data[1]),(data[2]*256+data[3])/100);
+        databaseInfluxDB.insertValue('voltage','BMS '+str(data[1]),(data[2]*256+data[3])/1000);
         databaseInfluxDB.insertValue('temperature','BMS '+str(data[1]),(data[4]*256+data[5])/100);
         
     elif data[0]==0 and data[1]==1:#live event
