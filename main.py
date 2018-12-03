@@ -17,10 +17,11 @@ from datetime import datetime
 import RPi.GPIO as GPIO
 from time import sleep
 import sys
+import struct
 
 
 #-------------DEFINITIONS-----------------------
-RESTART_ON_EXCEPTION = False
+RESTART_ON_EXCEPTION = True
 PIN_BTN_PC = 26
 
 MY_NUMBER1 = "420602187490"
@@ -118,7 +119,7 @@ def timerGeneral():#it is calling itself periodically
 
     if wifiCheckCnt >= 30:
         wifiCheckCnt = 0
-        if not comm.Ping("192.168.0.1"):
+        if not comm.Ping("192.168.0.4"):
            Log("UNABLE TO REACH ROUTER!")
     else:
         wifiCheckCnt = wifiCheckCnt + 1
@@ -264,9 +265,15 @@ def IncomingData(data):
         databaseSQLite.updateValue('temp2',(data[1]*256+data[2])/100);
         databaseSQLite.updateValue('pressure',(data[3]*65536+data[4]*256+data[5])/100);
         databaseSQLite.updateValue('voltageMet',(data[6]*256+data[7])/1000);
-    elif data[0]>50 and data[0]<80:
+    elif data[0]>10 and data[0]<=40:
         databaseInfluxDB.insertValue('voltage','BMS '+str(data[1]),(data[2]*256+data[3])/1000);
         databaseInfluxDB.insertValue('temperature','BMS '+str(data[1]),(data[4]*256+data[5])/100);
+    elif data[0]>40 and data[0]<70:
+        volCal = struct.unpack('f',bytes([data[2],data[3],data[4],data[5]]))[0]
+        tempCal = struct.unpack('f',bytes([data[6],data[7],data[8],data[9]]))[0]
+        
+        databaseInfluxDB.insertValue('BMS calibration','BMS '+str(data[1])+' volt',volCal,one_day_RP=True);
+        databaseInfluxDB.insertValue('BMS calibration','BMS '+str(data[1])+' temp',tempCal,one_day_RP=True);
         
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!")
