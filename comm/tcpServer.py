@@ -37,7 +37,7 @@ def Handle():
         s.settimeout(4.0)
         conn, addr = s.accept()
         if printDebugInfo:
-            Log ('Connection address:', addr)
+            Log ('Connection address:'+str(addr[0]))
         conn.settimeout(4.0)
         #if you have something to send, send it
         for tx in sendQueue:
