@@ -35,7 +35,7 @@ def test():
          
 
 
-def insertValue(name,sensorName,value):
+def insertValue(name,sensorName,value,one_day_RP=False):
     
     result = False
     try:
@@ -58,7 +58,10 @@ def insertValue(name,sensorName,value):
         }
         ]
         
-        result = client.write_points(data)
+        if one_day_RP:
+            result = client.write_points(data,retention_policy="one_day")
+        else:
+            result = client.write_points(data)
     except Exception as e:
         Log("Error while writing to database for measurement:"+name+" exception:")
         Log(type(e))    # the exception instance

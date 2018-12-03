@@ -43,6 +43,7 @@ def updateValue(name, value):
             Log("For query: UPDATE value, name:"+str(name)+", value:"+str(value))
             
 def getTXbuffer():
+    data = []
     conn=sqlite3.connect('/home/pi/main.db')
 
     curs=conn.cursor()
