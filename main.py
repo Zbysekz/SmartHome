@@ -24,7 +24,7 @@ import struct
 RESTART_ON_EXCEPTION = True
 PIN_BTN_PC = 26
 
-MY_NUMBER1 = "420602187490"
+MY_NUMBER1 = "+420602187490"
 
 IP_METEO = '192.168.0.10'
 IP_KEYBOARD = '192.168.0.11'
@@ -40,7 +40,6 @@ alarmCounting=False#when door was opened and system locked
 watchDogAlarmThread=0
 alarmCnt=0
 keyboardRefreshCnt=0
-usingPhonePort=False#flag for reserving serial port to be used only by one thread at a time
 wifiCheckCnt=0
 
 #-----------------------------------------------
@@ -98,7 +97,9 @@ def main():
 
         #TCP server communication - remote devices--------
         comm.Handle()
-
+    
+        phone.Process()
+        
         data = comm.DataReceived()
         if(data!=[]):
             IncomingData(data)
@@ -109,7 +110,7 @@ def main():
 ######################## General timer thread ##########################################################################
      
 def timerGeneral():#it is calling itself periodically
-    global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,usingPhonePort,wifiCheckCnt
+    global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,wifiCheckCnt
     
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt=0
@@ -146,13 +147,7 @@ def timerGeneral():#it is calling itself periodically
             alarm=True
             alarmCounting=False
 
-            while(usingPhonePort):#wait until phone port is free
-                pass
-            
-            usingPhonePort=True
             phone.SendSMS(MY_NUMBER1,"Home system: door alarm !!")
-            usingPhonePort=False
-            
             
             databaseSQLite.updateState(alarm,locked)
             KeyboardRefresh()
@@ -171,18 +166,8 @@ def timerGeneral():#it is calling itself periodically
 ####################################################################################################################
 
 def timerPhone():
-    global usingPhonePort
-    
-    while(usingPhonePort):#wait until phone port is free
-        pass
-    
-    usingPhonePort=True
-    
-    #phone.ReceiveCmds()
-    #phone.CheckUnreadSMS()
-    #phone.CheckSMSsent()
-
-    usingPhonePort=False
+        
+    phone.ReadSMS()
     
     #process incoming SMS
     for sms in phone.getIncomeSMSList():
@@ -202,7 +187,7 @@ def KeyboardRefresh():
 
 def IncomingSMS(data):
     global alarm,locked
-    if data[1] == '420602187490':
+    if data[1] == MY_NUMBER1:
         if(data[0].startswith("get status")):
             phone.SendSMS(data[1],"Alarm" if alarm else ("Locked" if locked else "Stand-by"))
             Log("Get status by SMS command.")
@@ -224,6 +209,13 @@ def IncomingSMS(data):
         elif(data[0].startswith("toggle PC")):
             Log("Toggle PC button by SMS command.")
             TogglePCbutton()
+        else:
+            Log("Not recognized command, text:")
+            Log(data)
+    else:
+        Log("Received SMS from not authorized phone number!")
+        Log("Text:")
+        Log(data)
     
 def TogglePCbutton():
     global PIN_BTN_PC
