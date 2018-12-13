@@ -5,6 +5,7 @@ import serial
 import time
 from datetime import datetime
 from enum import Enum
+import time
 
 DEBUG = False
 
@@ -24,7 +25,7 @@ sendSMSreceiver = ""
 readSMStext = ""
 readSMSsender = ""
 nOfReceivedSMS = 0
-timeout = 0
+tmrTimeout = 0
 clearBufferWhenPhoneOffline=0
 
 #stats
@@ -51,8 +52,12 @@ def STATE_idle():
     for rcvLine in rcvLines:#receiving of one way asynchronnous commands
         if(b"RING" in rcvLine):
             Log("Phone is ringing!!!")
-    
- 
+
+def STATE_SMS_sendFail():#if sendinf SMS fail, wait for some time and try it again
+    if CheckTimeout(60):
+        reqSendSMS=True
+        NextState(STATE_idle)
+         
 def STATE_SMS_send():
     global serPort
     
@@ -61,7 +66,7 @@ def STATE_SMS_send():
     NextState();
  
 def STATE_SMS_send2():
-    global serPort
+    global serPort,commState
     
     
     rcvLines = ReceiveLinesFromSerial()
@@ -72,8 +77,13 @@ def STATE_SMS_send2():
             NextState();
             break
 
+    if CheckTimeout(5):
+        Log("Timeout in state:"+str(currState))
+        NextState(STATE_SMS_sendFail)
+        commState=False
+
 def STATE_SMS_send3():
-    global serPort
+    global serPort,commState
     
     rcvLines = ReceiveLinesFromSerial()
     
@@ -82,9 +92,14 @@ def STATE_SMS_send3():
             serPort.write(bytes(sendSMStext+"\x1A",'UTF-8'));
             NextState();
             break
+        
+    if CheckTimeout(5):
+        Log("Timeout in state:"+str(currState))
+        NextState(STATE_SMS_sendFail)
+        commState=False
 
-def STATE_SMS_verify():
-    global serPort
+def STATE_SMS_sendVerify():
+    global serPort,commState
     
     rcvLines = ReceiveLinesFromSerial()
     
@@ -92,7 +107,13 @@ def STATE_SMS_verify():
         if(b"OK" in rcvLine):
             Log("SMS succesfully sent!")
             NextState(STATE_idle);
+            commState=True
             break
+        
+    if CheckTimeout(5):
+        Log("Timeout in state:"+str(currState))
+        NextState(STATE_SMS_sendFail)
+        commState=False
 
 def STATE_SMS_read():
     global serPort
@@ -102,7 +123,7 @@ def STATE_SMS_read():
     NextState();
     
 def STATE_SMS_read2():
-    global serPort,readSMSsender, nOfReceivedSMS
+    global serPort,readSMSsender, nOfReceivedSMS,commState
     
     rcvLines = ReceiveLinesFromSerial()
     
@@ -114,13 +135,16 @@ def STATE_SMS_read2():
             nOfReceivedSMS = 0
     
             NextState();
-    
             break
-        
+
+    if CheckTimeout(5):
+        Log("Timeout in state:"+str(currState))
+        NextState(STATE_idle)
+        commState=False
     
     
 def STATE_SMS_read3():
-    global readSMSsender, readSMStext, incomeSMSList, nOfReceivedSMS
+    global readSMSsender, readSMStext, incomeSMSList, nOfReceivedSMS, commState
 
     rcvLines = ReceiveLinesFromSerial()
     
@@ -146,9 +170,16 @@ def STATE_SMS_read3():
                 if DEBUG:
                     Log("Check completed, received "+str(nOfReceivedSMS) + " SMS")
                     Log(incomeSMSList)
+
+                commState=True
                 break
         except:
             continue
+
+    if CheckTimeout(10):
+        Log("Timeout in state:"+str(currState))
+        NextState(STATE_idle)
+        commState=False
         
 def STATE_SMS_delete():
     global serPort
@@ -158,6 +189,7 @@ def STATE_SMS_delete():
     NextState();
     
 def STATE_SMS_delete2():
+    global commState
     
     rcvLines = ReceiveLinesFromSerial()
     
@@ -168,6 +200,10 @@ def STATE_SMS_delete2():
         except:
             continue
 
+    if CheckTimeout(5):
+        Log("Timeout in state:"+str(currState))
+        NextState(STATE_idle)
+        commState=False
 
 def STATE_SIGNAL_req():
     global serPort
@@ -177,7 +213,7 @@ def STATE_SIGNAL_req():
     NextState();
     
 def STATE_SIGNAL_req2():
-    global serPort
+    global serPort,commState
     
     rcvLines = ReceiveLinesFromSerial()
     
@@ -186,10 +222,15 @@ def STATE_SIGNAL_req2():
              serPort.write(bytes("AT+CSQ\x0D",'UTF-8'));
              NextState(STATE_SIGNAL_response);
              break
+
+    if CheckTimeout(5):
+        Log("Timeout in state:"+str(currState))
+        NextState(STATE_idle)
+        commState=False
     
     
 def STATE_SIGNAL_response():
-    global signalStrength, qualityIndicator
+    global signalStrength, qualityIndicator, commState
 
     rcvLines = ReceiveLinesFromSerial()
     
@@ -203,16 +244,24 @@ def STATE_SIGNAL_response():
                     Log("Quality "+qualityIndicator+" -> "+str(signalStrength))
             
                 NextState(STATE_idle);
+                commState=True
                 break;
         except:
             continue
+
+    if CheckTimeout(5):
+        Log("Timeout in state:"+str(currState))
+        NextState(STATE_idle)
+        commState=False
+
 #---------------------------------------------------------------------------------------
 stateList = [
     STATE_idle,
+    STATE_SMS_sendFail,
     STATE_SMS_send,
     STATE_SMS_send2,
     STATE_SMS_send3,
-    STATE_SMS_verify,
+    STATE_SMS_sendVerify,
     STATE_SMS_read,
     STATE_SMS_read2,
     STATE_SMS_read3,
@@ -238,16 +287,25 @@ def NextState(name = ""):
     
 
 def Process():
-    global currState,nextState
+    global currState,nextState,tmrTimeout
 
     if currState != "" and nextState != "" and currState != nextState:
         if DEBUG:
             Log("Phone - transition to:"+nextState.__name__)
         currState = nextState
+        tmrTimeout = time.time()
     
     # Execute the function
     currState()
 
+def CheckTimeout(timeout):#in seconds
+    global tmrTimeout
+
+    if time.time() - tmrTimeout > timeout:
+        return True
+    else:
+        return False
+    
 
 def Connect():
     global serPort
@@ -291,6 +349,8 @@ def SendSMS(receiver,text):
 def getCommState():#status of communication with SIM800L module
     return commState
 
+def getSignalInfo():
+    return qualityIndicator
 
 def ReceiveLinesFromSerial():
     global serPort,clearBufferWhenPhoneOffline

@@ -137,6 +137,7 @@ def timerGeneral():#it is calling itself periodically
                 comm.Send(byteArray,packet[1])
         except ValueError:
             Log("SQLite - getTXbufder - Value Error:"+str(packet[0]))
+            
     if alarmCounting:#user must make unlock until counter expires
         Log("Alarm check")
         alarmCnt+=1
@@ -168,13 +169,18 @@ def timerGeneral():#it is calling itself periodically
 def timerPhone():
         
     phone.ReadSMS()
+    phone.CheckSignalInfo()
     
     #process incoming SMS
     for sms in phone.getIncomeSMSList():
         IncomingSMS(sms)
     phone.clearIncomeSMSList()
+
     
-    threading.Timer(5,timerPhone).start()
+    databaseSQLite.updateValue('phoneSignalInfo',str(phone.getSignalInfo()));
+    databaseSQLite.updateValue('phoneCommState',int(phone.getCommState()));
+    
+    threading.Timer(10,timerPhone).start()
     
 def KeyboardRefresh():
     global alarm,locked

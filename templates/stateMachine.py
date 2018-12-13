@@ -1,15 +1,20 @@
+import time
+tmrTimeout = 0
 
 def STATE_idle():
     NextState();
-    return "1"
  
 def STATE_SMS_send():
     NextState();
-    return "2"
  
 def STATE_SMS_wait():
-    NextState(STATE_idle);
-    return "3"
+
+    if False:
+        NextState(STATE_idle);
+
+    if CheckTimeout(5):
+        Log("Timeout in state:"+str(currState))
+        NextState(STATE_idle)
 
 stateList = [
     STATE_idle,
@@ -32,13 +37,21 @@ def NextState(name = ""):
     
  
 def Process():
-    global currState,nextState
+    global currState,nextState,tmrTimeout
 
     if currState != "" and nextState != "" and currState != nextState:
         print("Transition to:"+nextState.__name__)
         currState = nextState
+        tmrTimeout = time.time()
     
     # Execute the function
-    print(currState())
+    currState()
 
-    
+
+def CheckTimeout(timeout):#in seconds
+    global tmrTimeout
+
+    if time.time() - tmrTimeout > timeout:
+        return True
+    else:
+        return False
