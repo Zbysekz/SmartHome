@@ -254,8 +254,13 @@ def IncomingData(data):
         if(doorSW and locked and not alarm and not alarmCounting):
             alarmCounting=True
             Log("LOCKED and DOORS opened")
-    elif data[0]==101:#data z meteostanic
-        databaseInfluxDB.insertValue('temperature','meteostation 1',(data[1]*256+data[2])/100)
+    elif data[0]==101:#data from meteostations
+        
+        meteoTemp = (data[1]*256+data[2])
+        if meteoTemp>32767:
+            meteoTemp=meteoTemp-65536 #negative values are inverted like this
+        
+        databaseInfluxDB.insertValue('temperature','meteostation 1',meteoTemp/100)
         databaseInfluxDB.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100)
         databaseInfluxDB.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000)
         
