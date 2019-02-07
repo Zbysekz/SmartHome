@@ -167,7 +167,6 @@ def timerGeneral():#it is calling itself periodically
 ####################################################################################################################
 
 def timerPhone():
-        
     phone.ReadSMS()
     phone.CheckSignalInfo()
     
@@ -180,12 +179,12 @@ def timerPhone():
     databaseSQLite.updateValue('phoneSignalInfo',str(phone.getSignalInfo()));
     databaseSQLite.updateValue('phoneCommState',int(phone.getCommState()));
     
-    threading.Timer(10,timerPhone).start()
+    threading.Timer(20,timerPhone).start()
     
 def KeyboardRefresh():
     global alarm,locked
     
-    Log("Keyboard refresh!")
+    #Log("Keyboard refresh!")
     val = (1 if alarm else 0) + (2 if locked else 0)
     
     comm.Send(bytes([10,val]),IP_KEYBOARD)  #id, alarm(0/1),locked(0/1)

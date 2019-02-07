@@ -237,8 +237,7 @@ def STATE_SIGNAL_response():
     for rcvLine in rcvLines:#receiving of one way asynchronnous commands
         try:
             if(b"+CSQ:" in rcvLine):
-                #ss = rcvLine.decode("utf-8")
-                signalStrength = int(ss[ss.find(b"+CSQ:")+5:].split(b',')[0])
+                signalStrength = int(rcvLine[rcvLine.find(b"+CSQ:")+5:].split(b',')[0])
                 qualityIndicator = "Excellent" if signalStrength>19 else "Good" if signalStrength>14 else "Average" if signalStrength>9 else "Poor"
                 if DEBUG:
                     Log("Quality "+qualityIndicator+" -> "+str(signalStrength))
@@ -247,7 +246,7 @@ def STATE_SIGNAL_response():
                 commState=True
                 break;
         except:
-            continue
+            continue;
 
     if CheckTimeout(5):
         Log("Timeout in state:"+str(currState))
