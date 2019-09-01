@@ -97,7 +97,7 @@ def insertEvent(desc1,desc2):
         }
         ]
 
-        result = client.write_points(data)
+        result = client.write_points(data,retention_policy="autogen")#infinite duration for events
     except Exception as e:
         Log("Error while writing to database for events, exception:")
         Log(type(e))    # the exception instance

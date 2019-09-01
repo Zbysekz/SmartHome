@@ -8,6 +8,12 @@ sendQueue = []
 TXQUEUELIMIT=30
 printDebugInfo = False
 
+
+NORMAL = 0
+RICH = 1
+FULL = 2
+verbosity = NORMAL
+
 import socket
 import serialData
     
@@ -120,9 +126,12 @@ def Ping(host):
 
     return True if "1 received" in ping_response.decode("utf-8") else False
 
-def Log(str):
-    print("LOGGED:"+str)
+def Log(s,_verbosity=NORMAL):
+    if _verbosity > verbosity:
+        return
+    print(str(s))
     from datetime import datetime
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with open("logs/tcpServer.log","a") as file:
-        file.write(dateStr+" >> "+str+"\n")
+        file.write(dateStr+" >> "+str(s)+"\n")
+    

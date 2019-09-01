@@ -7,7 +7,10 @@ from datetime import datetime
 from enum import Enum
 import time
 
-DEBUG = False
+NORMAL = 0
+RICH = 1
+FULL = 2
+verbosity = NORMAL
 
 serPort = 0
 incomeSMSList=[]
@@ -167,9 +170,9 @@ def STATE_SMS_read3():
                     NextState(STATE_SMS_delete);
                 else:
                     NextState(STATE_idle);
-                if DEBUG:
-                    Log("Check completed, received "+str(nOfReceivedSMS) + " SMS")
-                    Log(incomeSMSList)
+                
+                Log("Check completed, received "+str(nOfReceivedSMS) + " SMS",FULL)
+                Log(incomeSMSList,FULL)
 
                 commState=True
                 break
@@ -239,8 +242,8 @@ def STATE_SIGNAL_response():
             if(b"+CSQ:" in rcvLine):
                 signalStrength = int(rcvLine[rcvLine.find(b"+CSQ:")+5:].split(b',')[0])
                 qualityIndicator = "Excellent" if signalStrength>19 else "Good" if signalStrength>14 else "Average" if signalStrength>9 else "Poor"
-                if DEBUG:
-                    Log("Quality "+qualityIndicator+" -> "+str(signalStrength))
+            
+                Log("Quality "+qualityIndicator+" -> "+str(signalStrength),FULL)
             
                 NextState(STATE_idle);
                 commState=True
@@ -289,8 +292,7 @@ def Process():
     global currState,nextState,tmrTimeout
 
     if currState != "" and nextState != "" and currState != nextState:
-        if DEBUG:
-            Log("Phone - transition to:"+nextState.__name__)
+        Log("Phone - transition to:"+nextState.__name__,FULL)
         currState = nextState
         tmrTimeout = time.time()
     
@@ -394,8 +396,10 @@ def ReceiveLinesFromSerial():
         rcvLines.append(rcvLine)
     return rcvLines
 
-def Log(s):
-    print("LOGGED:"+str(s))
+def Log(s,_verbosity=NORMAL):
+    if _verbosity > verbosity:
+        return
+    print(str(s))
 
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with open("logs/phone.log","a") as file:

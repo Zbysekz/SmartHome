@@ -21,13 +21,19 @@ import struct
 
 
 #-------------DEFINITIONS-----------------------
-RESTART_ON_EXCEPTION = True
+RESTART_ON_EXCEPTION = False
 PIN_BTN_PC = 26
 
 MY_NUMBER1 = "+420602187490"
 
 IP_METEO = '192.168.0.10'
 IP_KEYBOARD = '192.168.0.11'
+IP_ROOMBA = '192.168.0.13'
+
+NORMAL = 0
+RICH = 1
+FULL = 2
+verbosity = NORMAL
 #-----------------------------------------------
 
 #-------------STATE VARIABLES-------------------
@@ -139,7 +145,7 @@ def timerGeneral():#it is calling itself periodically
             Log("SQLite - getTXbufder - Value Error:"+str(packet[0]))
             
     if alarmCounting:#user must make unlock until counter expires
-        Log("Alarm check")
+        Log("Alarm check",FULL)
         alarmCnt+=1
         if alarmCnt>=10:
             alarmCnt=0
@@ -184,7 +190,7 @@ def timerPhone():
 def KeyboardRefresh():
     global alarm,locked
     
-    #Log("Keyboard refresh!")
+    Log("Keyboard refresh!",FULL)
     val = (1 if alarm else 0) + (2 if locked else 0)
     
     comm.Send(bytes([10,val]),IP_KEYBOARD)  #id, alarm(0/1),locked(0/1)
@@ -208,6 +214,7 @@ def IncomingSMS(data):
             Log("Unlocked by SMS command.")
         elif(data[0].startswith("deactivate alarm")):
             alarm = False
+            locked = False
 
             databaseSQLite.updateState(alarm,locked)
             Log("Alarm deactivated by SMS command.")
@@ -253,7 +260,7 @@ def IncomingData(data):
      
         if(doorSW and locked and not alarm and not alarmCounting):
             alarmCounting=True
-            Log("LOCKED and DOORS opened")
+            Log("LOCKED and DOORS opened",RICH)
     elif data[0]==101:#data from meteostations
         
         meteoTemp = (data[1]*256+data[2])
@@ -276,16 +283,25 @@ def IncomingData(data):
         
         databaseInfluxDB.insertValue('BMS calibration','BMS '+str(data[1])+' volt',volCal,one_day_RP=True);
         databaseInfluxDB.insertValue('BMS calibration','BMS '+str(data[1])+' temp',tempCal,one_day_RP=True);
+    
+    elif data[0]==102:# data from Roomba
+        print(data)
+        databaseInfluxDB.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000)
+        databaseInfluxDB.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000)
+        databaseInfluxDB.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000)
+    elif data[0]==103:# data from rackUno
+        print(data)
+        databaseInfluxDB.insertValue('power','grid',(data[1]*256+data[2]))
         
     elif data[0]==0 and data[1]==1:#live event
-        Log("Live event!")
+        Log("Live event!",FULL)
     elif(data[0]<10 and len(data)>=2):#other events, reserved for keyboard
-            Log("Incoming event!")
+            Log("Incoming event!",FULL)
             comm.SendACK(data,IP_KEYBOARD)
             databaseInfluxDB.insertEvent(getEventString1(data[0]),getEventString2(data[1]))
             IncomingEvent(data)
     else:
-        Log("Unknown event, data:"+data);
+        Log("Unknown event, data:"+str(data));
             
 def getEventString1(id):#get text by event id
     textList = ["First event",
@@ -343,8 +359,11 @@ def getState():
         return 2
     return 0
 
-def Log(s):
-    print("LOGGED:"+str(s))
+def Log(s,_verbosity=NORMAL):
+    
+    if _verbosity > verbosity:
+        return
+    print(str(s))
 
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with open("logs/main.log","a") as file:
