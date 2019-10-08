@@ -19,7 +19,6 @@ from time import sleep
 import sys
 import struct
 
-
 #-------------DEFINITIONS-----------------------
 RESTART_ON_EXCEPTION = False
 PIN_BTN_PC = 26
@@ -56,6 +55,7 @@ def main():
     global watchDogAlarmThread,alarm,locked
     Log("Entry point main.py")
     try:
+        os.system("sudo service motion stop")
         Log("Initializing TCP port...")
         initTCP=True
         nOfTries=0
@@ -94,7 +94,7 @@ def main():
         Log(inst)
         if RESTART_ON_EXCEPTION:
             Log("Rebooting Raspberry PI in one minute")
-            import os
+            
             os.system("shutdown -r 1")#reboot after one minute
             input("Reboot in one minute. Press Enter to continue...")
         return
@@ -163,7 +163,6 @@ def timerGeneral():#it is calling itself periodically
         
         Log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
         if RESTART_ON_EXCEPTION:
-            import os
             os.system("shutdown -r 1")#reboot after one minute
     
     else:
@@ -349,6 +348,10 @@ def IncomingEvent(data):
 
         databaseSQLite.updateState(alarm,locked)
         
+        if locked:
+            os.system("sudo service motion start")
+        else:
+            os.system("sudo service motion stop")
 
 def getState():
     global alarm,locked
