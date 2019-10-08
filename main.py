@@ -289,9 +289,15 @@ def IncomingData(data):
         databaseInfluxDB.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000)
         databaseInfluxDB.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000)
     elif data[0]==103:# data from rackUno
-        print(data)
+        #store power
         databaseInfluxDB.insertValue('power','grid',(data[1]*256+data[2]))
         
+        #now store consumption according to tariff
+        if data[3]==0: # T1
+            databaseInfluxDB.insertValue('consumption','stdTariff',(data[1]*256+data[2])/60) # from power to consumption - 1puls=1Wh
+        else:
+            databaseInfluxDB.insertValue('consumption','lowTariff',(data[1]*256+data[2])/60)# from power to consumption - 1puls=1Wh
+            
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
     elif(data[0]<10 and len(data)>=2):#other events, reserved for keyboard
