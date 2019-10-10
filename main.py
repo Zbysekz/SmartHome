@@ -220,6 +220,9 @@ def IncomingSMS(data):
         elif(data[0].startswith("toggle PC")):
             Log("Toggle PC button by SMS command.")
             TogglePCbutton()
+        elif(data[0].startswith("help")):
+            Log("Sending help hints back")
+            phone.SendSMS(data[1],"get status;lock;unlock;deactivate alarm;toggle PC;")
         else:
             Log("Not recognized command, text:")
             Log(data)
