@@ -48,9 +48,9 @@ def Handle():
         #if you have something to send, send it
         for tx in sendQueue:
             if(tx[1]==addr[0]):#only if we have something to send to the address that has connected
-#                print("Sending:")
-#                for a in tx[0]:
-#                    print(">>"+str(a))
+                #print("Sending:")
+                #for a in tx[0]:
+                #    print(">>"+str(a))
                 conn.send(tx[0])
                 sendQueue.remove(tx)
             else:

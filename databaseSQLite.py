@@ -64,9 +64,37 @@ def getTXbuffer():
         
     except sqlite3.OperationalError:
         Log("Cannot delete from table TXbuffer!")
-        
-        
+
     return data
+
+
+def getCmds():
+    data = []
+    conn = sqlite3.connect('/home/pi/main.db')
+
+    curs = conn.cursor()
+
+    try:
+        curs.execute("SELECT updated,ventilationCmd,heatingInhibit FROM cmd;")
+        conn.commit()
+
+        data = curs.fetchall()
+    except sqlite3.OperationalError:
+        Log("Cannot read from database!")
+        Log("SELECT data,destination FROM cmd;")
+
+    # now reset update flag from database
+    try:
+        curs.execute("UPDATE cmd SET updated=0")
+        conn.commit()
+
+    except sqlite3.OperationalError:
+        Log("Cannot reset update flag from table cmd!")
+
+    if len(data) > 0 and len(data[0]) > 0 and data[0][0] != 0:  # update flag is true
+        return data[0][1:]
+    else:
+        return None
 
 def Log(str):
     print("LOGGED:"+str)

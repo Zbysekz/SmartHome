@@ -28,6 +28,7 @@ MY_NUMBER1 = "+420602187490"
 IP_METEO = '192.168.0.10'
 IP_KEYBOARD = '192.168.0.11'
 IP_ROOMBA = '192.168.0.13'
+IP_RACKUNO = '192.168.0.5'
 
 NORMAL = 0
 RICH = 1
@@ -143,6 +144,10 @@ def timerGeneral():#it is calling itself periodically
                 comm.Send(byteArray,packet[1])
         except ValueError:
             Log("SQLite - getTXbufder - Value Error:"+str(packet[0]))
+
+    data = databaseSQLite.getCmds()
+    if data is not None:
+        comm.Send(bytes([1, data[0], data[1]]), IP_RACKUNO)
             
     if alarmCounting:#user must make unlock until counter expires
         Log("Alarm check",FULL)
@@ -293,10 +298,10 @@ def IncomingData(data):
         databaseInfluxDB.insertValue('power','grid',(data[1]*256+data[2]))
         
         #now store consumption according to tariff
-        if data[3]==0: # T1
-            databaseInfluxDB.insertValue('consumption','stdTariff',(data[1]*256+data[2])/60) # from power to consumption - 1puls=1Wh
+        if data[3]!=0: # T1
+            databaseInfluxDB.insertValue('consumption','lowTariff',(data[1]*256+data[2])/60) # from power to consumption - 1puls=1Wh
         else:
-            databaseInfluxDB.insertValue('consumption','lowTariff',(data[1]*256+data[2])/60)# from power to consumption - 1puls=1Wh
+            databaseInfluxDB.insertValue('consumption','stdTariff',(data[1]*256+data[2])/60)# from power to consumption - 1puls=1Wh
             
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
