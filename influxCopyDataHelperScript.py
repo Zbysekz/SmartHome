@@ -51,19 +51,19 @@ def insertValue(name, sensorName, value, time = datetime.utcnow().isoformat("T")
 
 
 
+def run():
+    points = getValues("consumption","stdTariff",datetime(2019,12,8,19,30),datetime(2019,12,19,18,30))
 
-points = getValues("consumption","stdTariff",datetime(2019,12,8,19,30),datetime(2019,12,19,18,30))
+    it = 0
 
-it = 0
+    #insertValue("consumption","lowTariff",1.0,"2019-12-19T14:00:54.453089024Z")
 
-#insertValue("consumption","lowTariff",1.0,"2019-12-19T14:00:54.453089024Z")
-
-print("adds")
-for p in points:
-     print(it)
-     it+=1
-     print(insertValue("consumption","lowTariff",float(p["value"]),p["time"]))
+    print("adds")
+    for p in points:
+         print(it)
+         it+=1
+         print(insertValue("consumption","lowTariff",float(p["value"]),p["time"]))
 
 
-print("AA")
+    print("AA")
 

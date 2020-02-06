@@ -34,6 +34,27 @@ def test():
         Log("Error while writing to database for measurement")
          
 
+def getValues(retentionPolicy, table, sensorName, timeFrom, timeTo):
+    result = False
+
+    client = InfluxDBClient(host='192.168.0.3', port=8086, username='inserter', password='inserter')
+
+    client.switch_database('db1')
+
+    _timeFrom = timeFrom.isoformat("T") + "Z"
+    _timeTo = timeTo.isoformat("T") + "Z"
+
+    queryString = 'SELECT "value" FROM "'+retentionPolicy+'"."'+table+'"'+" WHERE sensorName='"+ sensorName +"' and time >" + "'" +_timeFrom + "' and time < '"+_timeTo +"'"
+    print(queryString)
+    result = client.query(queryString)
+
+    points = result.get_points()
+
+    # for p in points:
+    #     print(p)
+    #     print(str(p['time']) + " -- " + str(p["value"]))
+
+    return points
 
 def insertValue(name,sensorName,value,one_day_RP=False):
     
@@ -162,4 +183,4 @@ def Log2(strr):#special Log function for hardware monitoring (separate thread)
                 
 if __name__=="__main__":
     print("run")
-    insertValue("temperature","keyboard",24.0)
+    
