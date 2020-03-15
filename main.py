@@ -18,6 +18,8 @@ import RPi.GPIO as GPIO
 from time import sleep
 import sys
 import struct
+import electricityPrice
+import time
 
 #-------------DEFINITIONS-----------------------
 RESTART_ON_EXCEPTION = False
@@ -47,6 +49,7 @@ watchDogAlarmThread=0
 alarmCnt=0
 keyboardRefreshCnt=0
 wifiCheckCnt=0
+tmrPriceCalc = 0
 
 #-----------------------------------------------
 
@@ -117,7 +120,7 @@ def main():
 ######################## General timer thread ##########################################################################
      
 def timerGeneral():#it is calling itself periodically
-    global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,wifiCheckCnt
+    global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,wifiCheckCnt,tmrPriceCalc
     
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt=0
@@ -164,6 +167,12 @@ def timerGeneral():#it is calling itself periodically
             databaseSQLite.updateState(alarm,locked)
             KeyboardRefresh()
          
+    
+    
+    if time.time() - tmrPriceCalc > 60 * 3600:#each 1 hour
+        tmrPriceCalc = time.time()
+        electricityPrice.run()
+    
     if watchDogAlarmThread > 4:
         
         Log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")

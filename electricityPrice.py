@@ -1,8 +1,10 @@
+#!usr/bin/python3
+
 # ceník ČEZ tarif D57d
 # https://www.cez.cz/edee/content/file/produkty-a-sluzby/obcane-a-domacnosti/elektrina-2019/moo/web_cenik_elektrina_dobu_neurcitou_moo_20199_cezdi.pdf
-
+import json
 import databaseInfluxDB
-from datetime import datetime, timedelta
+from datetime import datetime,timedelta
 
 def yearPrice(consHighTariff_wh = 0,consLowTariff_wh = 0, numPhases = 3, amperage = 25):
 
@@ -36,12 +38,12 @@ def yearPrice(consHighTariff_wh = 0,consLowTariff_wh = 0, numPhases = 3, amperag
     return year_sum
 
 
-#current percentage of month conumption to monthly cash advance (100% means match, 50% means sparing,using only half)
-def monthPercent(consHighTariff_wh = 0, consLowTariff_wh = 0, monthlyCashAdvance=0):
+#current percentage to monthly cash advance (100% means match, 50% means sparing,using only half)
+def percent(consHighTariff_wh = 0, consLowTariff_wh = 0, monthlyCashAdvance=0):
 
-    yPrice = yearPrice(consHighTariff_wh*12, consLowTariff_wh*12)
+    yPrice = yearPrice(consHighTariff_wh, consLowTariff_wh)
     diff = ((yPrice/12) / monthlyCashAdvance)*100
-    return diff
+    return round(diff,1)
 
 def findYearConsForCashAdvance(monthlyCashAdvance):
 
@@ -74,75 +76,55 @@ def findYearConsForCashAdvance(monthlyCashAdvance):
     return powerHighTariff_wh, powerLowTariff_wh
     
 
-def test():
+def getConsSumLastDay():
+    data_low = databaseInfluxDB.getValues('two_months','consumption','lowTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),sum=True)
+    data_std = databaseInfluxDB.getValues('two_months','consumption','stdTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),sum=True)
+    
+    return [next(data_low)['sum'],next(data_std)['sum']]
+    
+
+# cena za minulý den
+# cena za poslední měsíc
+# plnění od posledního vyúčtování (procenta, Wh na oba tarify)
+# možnost vynulovat tlačítkem vyúčtováním
+
+def run():
     powerHighTariff_wh = 0
-    powerLowTariff_wh = 1 #572kWh/m
-    cashAdvance = 2200
-
-
-
-    yearCons = findYearConsForCashAdvance(cashAdvance)[1]
-
-    print("Roční spotřeba pro zálohu "+str(cashAdvance)+"Kč je {:d}".format(int(yearCons/1000))+" kWh")
-
-
-    percMonth = monthPercent(powerHighTariff_wh, powerLowTariff_wh, cashAdvance)
-
-    print("Měsíční náklady: "+str(int(percMonth))+" %")
-    print("Úspora:"+str(int((1-percMonth*0.01)*cashAdvance))+"Kč")
-
-def getSum(points):
-    sum = 0
-    for p in points:
-        sum += int(p["value"])
-    return sum
-        
-def CalculateConsPrices():
+    powerLowTariff_wh = 1000
     
-    cashAdvance = 2200
+    monthlyCashAdvance = 2200
     
-    stdPoints = databaseInfluxDB.getValues("two_months","consumption","stdTariff",datetime.now() - timedelta(days=30),datetime.now())
-    stdSum_wh=getSum(stdPoints)
-        
-    print(stdSum_wh)
-    
-    lowPoints = databaseInfluxDB.getValues("two_months","consumption","lowTariff",datetime.now() - timedelta(days=30),datetime.now())
-    lowSum_wh=getSum(lowPoints)
-    
-    yearCons = findYearConsForCashAdvance(cashAdvance)[1]
-
-    print("Roční spotřeba pro zálohu "+str(cashAdvance)+"Kč je {:d}".format(int(yearCons/1000))+" kWh")
-
-    percMonth = monthPercent(stdSum_wh, lowSum_wh, cashAdvance)
-    print("Plnění za poslední měsíc:"+str(int(percMonth))+" %")
-
-
-    if datetime.now().month>5:
-        year = datetime.now().year
-    else:
-        year = datetime.now().year - 1
-        
-    stdPoints = databaseInfluxDB.getValues("autogen","hist_consumption","stdTariff",datetime(year,5,31,23,59), datetime.now())
-    stdSum_wh=getSum(stdPoints)
-        
-    print(stdSum_wh)
-    
-    lowPoints = databaseInfluxDB.getValues("autogen","hist_consumption","lowTariff",datetime(year,5,31,23,59),datetime.now())
-    lowSum_wh=getSum(lowPoints)
-    
-    print(lowSum_wh)
+    yearCons = findYearConsForCashAdvance(monthlyCashAdvance)
+    price_kWh = monthlyCashAdvance*12/(yearCons[1]/1000)
+    print("Cena kWh:"+str(price_kWh)+" Kč")
     
     
-    percHeatingSeason = (int)(((stdSum_wh + lowSum_wh) / yearCons)*100)
+    lastDay_low_Wh,lastDay_std_Wh = getConsSumLastDay();
     
-    print("Plnění topné sezóny:"+str(percHeatingSeason)+"%")
+    print("Spotřeba za včerejší den:"+str(lastDay_low_Wh)+" Wh "+str(lastDay_std_Wh)+" Wh")
 
-CalculateConsPrices()
-#print(int(yearPrice(powerHighTariff_wh, yearCons)/12))
+    totalSum_low,totalSum_std = databaseInfluxDB.getTotalSum()
+    
+    with open('consumptionData/totalSumBias.txt','r') as f:
+        txt = f.read().split(';');
 
-#import numpy as np
-#import matplotlib.pyplot as plt
+    totalSumBias_low = int(txt[0])
+    totalSumBias_std= int(txt[1])
+    
+    totalSum_low = totalSum_low - totalSumBias_low#abychom ziskali roční spotřebu - od posledního vyúčtování
+    totalSum_std = totalSum_std - totalSumBias_std
+    
+    print("Roční suma nízký tarif: "+str(totalSum_low)+" Wh ; Vysoký tarif:"+str(totalSum_std)+" Wh")
+    
+    js = {'priceLastDay': int(price_kWh*(lastDay_std_Wh+lastDay_low_Wh)/1000),
+          'yearPerc': percent(totalSum_std, totalSum_low, monthlyCashAdvance)
+          }
 
-#x = np.arange(0, 5, 0.1);
-#y = np.sin(x)
-#plt.plot(x, y)
+    with open("consumptionData/electricityPriceData.txt",'w') as f:
+        f.write(json.dumps(js))
+
+#yearPrice(powerHighTariff_wh, findYearConsForCashAdvance(2200)[1]) / 12
+if __name__ == "__main__":
+
+    run();
+    
