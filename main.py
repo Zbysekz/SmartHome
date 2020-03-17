@@ -18,10 +18,13 @@ import RPi.GPIO as GPIO
 from time import sleep
 import sys
 import struct
+import electricityPrice
+import time
 
 #-------------DEFINITIONS-----------------------
 RESTART_ON_EXCEPTION = False
 PIN_BTN_PC = 26
+PIN_GAS_ALARM = 23
 
 MY_NUMBER1 = "+420602187490"
 
@@ -39,6 +42,7 @@ verbosity = NORMAL
 #-------------STATE VARIABLES-------------------
 alarm=False
 locked=False #locked after startup
+gasAlarm=False
 #-----------------------------------------------
 
 #------------AUXILIARY VARIABLES----------------
@@ -47,13 +51,16 @@ watchDogAlarmThread=0
 alarmCnt=0
 keyboardRefreshCnt=0
 wifiCheckCnt=0
-
+tmrPriceCalc = 0
+gasSensorPrepared=False
+tmrPrepareGasSensor = time.time()
+gasAlarm_last = False
 #-----------------------------------------------
 
 
 ###############################################################################################################
 def main():
-    global watchDogAlarmThread,alarm,locked
+    global watchDogAlarmThread,alarm,gasAlarm,gasAlarm_last,locked,gasSensorPrepared,tmrPrepareGasSensor
     Log("Entry point main.py")
     try:
         os.system("sudo service motion stop")
@@ -85,10 +92,12 @@ def main():
         Log("Initializing pin for PC button...")
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(PIN_BTN_PC, GPIO.OUT)
+        GPIO.setup(PIN_GAS_ALARM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setwarnings(False)
         Log("Ok")
-        
-        databaseSQLite.updateState(alarm,locked)
+
+        databaseSQLite.updateValue("locked", int(locked))
+        databaseSQLite.updateValue("alarm", int(alarm))
     except Exception as inst:
         Log(type(inst))    # the exception instance
         Log(inst.args)     # arguments stored in .args
@@ -114,10 +123,28 @@ def main():
 
         watchDogAlarmThread=0; #to be able to detect lag in this loop
         
+        if gasSensorPrepared:
+            if(not GPIO.input(PIN_GAS_ALARM)):
+                Log("GAS ALARM!!");
+                gasAlarm=True
+                databaseSQLite.updateValue("gasAlarm", int(gasAlarm))
+                if(not gasAlarm_last and gasAlarm):
+                    phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM !!")
+            else:
+                gasAlarm=False
+            gasAlarm_last = gasAlarm
+
+        else:
+            if time.time() - tmrPrepareGasSensor > 120:#after 2 mins
+                gasSensorPrepared = True
+            
+        
+            
+        
 ######################## General timer thread ##########################################################################
      
 def timerGeneral():#it is calling itself periodically
-    global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,wifiCheckCnt
+    global alarmCounting,alarmCnt,alarm,gasAlarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,wifiCheckCnt,tmrPriceCalc
     
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt=0
@@ -159,11 +186,17 @@ def timerGeneral():#it is calling itself periodically
             alarm=True
             alarmCounting=False
 
-            phone.SendSMS(MY_NUMBER1,"Home system: door alarm !!")
-            
-            databaseSQLite.updateState(alarm,locked)
+            phone.SendSMS(MY_NUMBER1,"Home system: door ALARM !!")
+
+            databaseSQLite.updateValue("alarm", int(alarm))
             KeyboardRefresh()
          
+    
+    
+    if time.time() - tmrPriceCalc > 3600:#each 1 hour
+        tmrPriceCalc = time.time()
+        electricityPrice.run()
+    
     if watchDogAlarmThread > 4:
         
         Log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
@@ -209,18 +242,21 @@ def IncomingSMS(data):
         elif(data[0].startswith("lock")):
             locked = True
 
-            databaseSQLite.updateState(alarm,locked)
+            databaseSQLite.updateValue("locked",int(locked))
             Log("Locked by SMS command.")
         elif(data[0].startswith("unlock")):
             locked = False
 
-            databaseSQLite.updateState(alarm,locked)
+            databaseSQLite.updateValue("locked", int(locked))
             Log("Unlocked by SMS command.")
         elif(data[0].startswith("deactivate alarm")):
             alarm = False
             locked = False
+            gasAlarm = False
 
-            databaseSQLite.updateState(alarm,locked)
+            databaseSQLite.updateValue("alarm",int(alarm))
+            databaseSQLite.updateValue("locked",int(locked))
+            databaseSQLite.updateValue("gasAlarm", int(gasAlarm))
             Log("Alarm deactivated by SMS command.")
         elif(data[0].startswith("toggle PC")):
             Log("Toggle PC button by SMS command.")
@@ -360,7 +396,8 @@ def IncomingEvent(data):
     if(lockLast!=locked or alarmLast != alarm):
         KeyboardRefresh()
 
-        databaseSQLite.updateState(alarm,locked)
+        databaseSQLite.updateValue("locked", int(locked))
+        databaseSQLite.updateValue("alarm", int(alarm))
         
         if locked:
             os.system("sudo service motion start")

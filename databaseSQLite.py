@@ -2,29 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import sqlite3
-
-def updateState(alarm,locked):
-    conn=sqlite3.connect('/home/pi/main.db')
-
-    curs=conn.cursor()
-
-    if alarm:
-        alarm_=1
-    else:
-        alarm_=0
-    if locked:
-        locked_=1
-    else:
-        locked_=0
-        
-    done = False
-    while(not done):
-        try:
-            curs.execute("UPDATE state SET locked = (?), alarm = (?);",(locked_,alarm_))
-            conn.commit()
-            done=True
-        except sqlite3.OperationalError:
-            Log("For query: UPDATE state, locked:"+str(locked_)+", alarm:"+str(alarm_))
             
 def updateValue(name, value):
     conn=sqlite3.connect('/home/pi/main.db')

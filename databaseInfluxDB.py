@@ -34,7 +34,15 @@ def test():
         Log("Error while writing to database for measurement")
          
 
-def getValues(retentionPolicy, table, sensorName, timeFrom, timeTo):
+def getTotalSum():
+    
+    points_low=getValues("autogen","hist_consumption","lowTariff",datetime(2000,1,1,0,0),datetime.now(),True)
+    points_std=getValues("autogen","hist_consumption","stdTariff",datetime(2000,1,1,0,0),datetime.now(),True)
+
+    
+    return next(points_low)['sum'], next(points_std)['sum']
+
+def getValues(retentionPolicy, table, sensorName, timeFrom, timeTo, sum = False):
     result = False
 
     client = InfluxDBClient(host='192.168.0.3', port=8086, username='inserter', password='inserter')
@@ -44,8 +52,13 @@ def getValues(retentionPolicy, table, sensorName, timeFrom, timeTo):
     _timeFrom = timeFrom.isoformat("T") + "Z"
     _timeTo = timeTo.isoformat("T") + "Z"
 
-    queryString = 'SELECT "value" FROM "'+retentionPolicy+'"."'+table+'"'+" WHERE sensorName='"+ sensorName +"' and time >" + "'" +_timeFrom + "' and time < '"+_timeTo +"'"
-    print(queryString)
+    if not sum:
+        select = 'SELECT "value"'
+    else:
+        select = 'SELECT SUM("value")'
+        
+    queryString = select +' FROM "'+retentionPolicy+'"."'+table+'"'+" WHERE sensorName='"+ sensorName +"' and time >" + "'" +_timeFrom + "' and time < '"+_timeTo +"'"
+
     result = client.query(queryString)
 
     points = result.get_points()
