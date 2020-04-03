@@ -118,13 +118,39 @@ def run():
     totalSum_std = totalSum_std - totalSumBias_std
     
     Log("Roční suma nízký tarif: "+str(totalSum_low)+" Wh ; Vysoký tarif:"+str(totalSum_std)+" Wh")
-    
+
+    yearPerc = percent(totalSum_std, totalSum_low, monthlyCashAdvance)
+
+    # ------------ CALCULATE DAILY INCREASE
+    with open('consumptionData/dailyIncrease.txt', 'r') as f:
+        txt = f.read().split(';');
+
+    fileTime = datetime.strptime(txt[0], '%Y-%m-%d %H:%M:%S.%f')
+
+    dailyIncrease = 0.0
+    if (fileTime.day != datetime.now().day): # new day
+        prevPct = float(txt[1])
+        dailyIncrease = yearPerc - prevPct
+
+        with open("consumptionData/dailyIncrease.txt", 'w') as f:
+            f.write(str(datetime.now())+";"+str(yearPerc)+";"+str(dailyIncrease))
+
+    else:
+        dailyIncrease = float(txt[2])
+
+    #-----------------------
+
     js = {'priceLastDay': int(price_kWh*(lastDay_std_Wh+lastDay_low_Wh)/1000),
-          'yearPerc': percent(totalSum_std, totalSum_low, monthlyCashAdvance)
+          'yearPerc': yearPerc,
+          'dailyIncrease': dailyIncrease
           }
 
     with open("consumptionData/electricityPriceData.txt",'w') as f:
         f.write(json.dumps(js))
+
+
+
+
 
 def Log(msg):
     if printDebug:

@@ -174,8 +174,11 @@ def timerGeneral():#it is calling itself periodically
 
     data = databaseSQLite.getCmds()
     if data is not None:
-        comm.Send(bytes([1, data[0], data[1]]), IP_RACKUNO)
-            
+        if data[0] is not None:#heatingInihibt
+            comm.Send(bytes([1, data[0]]), IP_RACKUNO)
+        if data[1] is not None:#ventilationCmd
+            comm.Send(bytes([2, data[1]]), IP_RACKUNO)
+
     if alarmCounting:#user must make unlock until counter expires
         Log("Alarm check",FULL)
         alarmCnt+=1
@@ -258,12 +261,18 @@ def IncomingSMS(data):
             databaseSQLite.updateValue("locked",int(locked))
             databaseSQLite.updateValue("gasAlarm", int(gasAlarm))
             Log("Alarm deactivated by SMS command.")
-        elif(data[0].startswith("toggle PC")):
+        elif data[0].startswith("toggle PC"):
             Log("Toggle PC button by SMS command.")
             TogglePCbutton()
-        elif(data[0].startswith("help")):
+        elif data[0].startswith("heating on"):
+            Log("Heating on by SMS command.")
+            comm.Send(bytes([1, 0]), IP_RACKUNO)
+        elif data[0].startswith("heating off"):
+            Log("Heating off by SMS command.")
+            comm.Send(bytes([1, 1]), IP_RACKUNO)
+        elif data[0].startswith("help"):
             Log("Sending help hints back")
-            phone.SendSMS(data[1],"get status;lock;unlock;deactivate alarm;toggle PC;")
+            phone.SendSMS(data[1], "get status;lock;unlock;deactivate alarm;toggle PC;heating on; heating off;")
         else:
             Log("Not recognized command, text:")
             Log(data)

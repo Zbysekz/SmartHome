@@ -52,7 +52,7 @@ def getCmds():
     curs = conn.cursor()
 
     try:
-        curs.execute("SELECT updated,ventilationCmd,heatingInhibit FROM cmd;")
+        curs.execute("SELECT updated,heatingInhibit,ventilationCmd FROM cmd;")
         conn.commit()
 
         data = curs.fetchall()
@@ -62,7 +62,7 @@ def getCmds():
 
     # now reset update flag from database
     try:
-        curs.execute("UPDATE cmd SET updated=0")
+        curs.execute("UPDATE cmd SET updated=0, ventilationCmd=NULL, heatingInhibit=NULL")
         conn.commit()
 
     except sqlite3.OperationalError:
