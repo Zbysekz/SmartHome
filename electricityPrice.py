@@ -82,7 +82,14 @@ def getConsSumLastDay():
     data_low = databaseInfluxDB.getValues('two_months','consumption','lowTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),sum=True)
     data_std = databaseInfluxDB.getValues('two_months','consumption','stdTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),sum=True)
     
-    return [next(data_low)['sum'],next(data_std)['sum']]
+    consLow = next(data_low,None)
+    consStd = next(data_std,None)
+    
+    consLow = 0 if consLow is None else consLow['sum']
+    consStd = 0 if consStd is None else consStd['sum']
+    
+    
+    return [consLow,consStd]
     
 
 # cena za minulý den
