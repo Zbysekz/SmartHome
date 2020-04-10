@@ -32,6 +32,7 @@ IP_METEO = '192.168.0.10'
 IP_KEYBOARD = '192.168.0.11'
 IP_ROOMBA = '192.168.0.13'
 IP_RACKUNO = '192.168.0.5'
+IP_PIR_SENSOR = '192.168.0.14'
 
 NORMAL = 0
 RICH = 1
@@ -42,7 +43,8 @@ verbosity = NORMAL
 #-------------STATE VARIABLES-------------------
 alarm=False
 locked=False #locked after startup
-gasAlarm=False
+gasAlarm1=False
+gasAlarm2=False
 #-----------------------------------------------
 
 #------------AUXILIARY VARIABLES----------------
@@ -54,13 +56,14 @@ wifiCheckCnt=0
 tmrPriceCalc = 0
 gasSensorPrepared=False
 tmrPrepareGasSensor = time.time()
-gasAlarm_last = False
+gasAlarm1_last = False
+gasAlarm2_last = False
 #-----------------------------------------------
 
 
 ###############################################################################################################
 def main():
-    global watchDogAlarmThread,alarm,gasAlarm,gasAlarm_last,locked,gasSensorPrepared,tmrPrepareGasSensor
+    global watchDogAlarmThread,alarm,gasAlarm1,gasAlarm1_last,gasAlarm2,gasAlarm2_last,locked,gasSensorPrepared,tmrPrepareGasSensor
     Log("Entry point main.py")
     try:
         os.system("sudo service motion stop")
@@ -125,14 +128,17 @@ def main():
         
         if gasSensorPrepared:
             if(not GPIO.input(PIN_GAS_ALARM)):
-                Log("GAS ALARM!!");
-                gasAlarm=True
-                databaseSQLite.updateValue("gasAlarm", int(gasAlarm))
-                if(not gasAlarm_last and gasAlarm):
-                    phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM !!")
+                Log("RPI GAS ALARM!!");
+                gasAlarm1=True
+                databaseSQLite.updateValue("gasAlarm1", int(gasAlarm1))
+                if(not gasAlarm1_last and gasAlarm1):
+                    phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
+                KeyboardRefresh()
+                PIRSensorRefresh()
+                
             else:
-                gasAlarm=False
-            gasAlarm_last = gasAlarm
+                gasAlarm1=False
+            gasAlarm1_last = gasAlarm1
 
         else:
             if time.time() - tmrPrepareGasSensor > 120:#after 2 mins
@@ -144,11 +150,12 @@ def main():
 ######################## General timer thread ##########################################################################
      
 def timerGeneral():#it is calling itself periodically
-    global alarmCounting,alarmCnt,alarm,gasAlarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,wifiCheckCnt,tmrPriceCalc
+    global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,wifiCheckCnt,tmrPriceCalc
     
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt=0
         KeyboardRefresh()
+        PIRSensorRefresh()
     else:
         keyboardRefreshCnt+=1
 
@@ -193,6 +200,7 @@ def timerGeneral():#it is calling itself periodically
 
             databaseSQLite.updateValue("alarm", int(alarm))
             KeyboardRefresh()
+            PIRSensorRefresh()
          
     
     
@@ -226,12 +234,17 @@ def timerPhone():
     databaseSQLite.updateValue('phoneCommState',int(phone.getCommState()));
     
     threading.Timer(20,timerPhone).start()
+  
+def PIRSensorRefresh():
     
+    Log("PIR sensor refresh!",FULL)
+    
+    comm.Send(bytes([0,int(alarm or gasAlarm1),int(locked)]),IP_PIR_SENSOR)  #id, alarm(0/1),locked(0/1)
+  
 def KeyboardRefresh():
-    global alarm,locked
     
     Log("Keyboard refresh!",FULL)
-    val = (1 if alarm else 0) + (2 if locked else 0)
+    val = (1 if (alarm or gasAlarm1 or gasAlarm2) else 0) + (2 if locked else 0)
     
     comm.Send(bytes([10,val]),IP_KEYBOARD)  #id, alarm(0/1),locked(0/1)
   
@@ -255,11 +268,13 @@ def IncomingSMS(data):
         elif(data[0].startswith("deactivate alarm")):
             alarm = False
             locked = False
-            gasAlarm = False
+            gasAlarm1 = False
+            gasAlarm2 = False
 
             databaseSQLite.updateValue("alarm",int(alarm))
             databaseSQLite.updateValue("locked",int(locked))
-            databaseSQLite.updateValue("gasAlarm", int(gasAlarm))
+            databaseSQLite.updateValue("gasAlarm1", int(gasAlarm1))
+            databaseSQLite.updateValue("gasAlarm2", int(gasAlarm2))
             Log("Alarm deactivated by SMS command.")
         elif data[0].startswith("toggle PC"):
             Log("Toggle PC button by SMS command.")
@@ -288,7 +303,7 @@ def TogglePCbutton():
     GPIO.output(PIN_BTN_PC,False)
     
 def IncomingData(data):
-
+    global gasAlarm2,gasAlarm2_last
     #print ("DATA INCOME!!:"+str(data))
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
@@ -300,8 +315,8 @@ def IncomingData(data):
         RH = (data[6]*256+data[7])/10
         
         databaseInfluxDB.insertValue('bools','door switch 1',doorSW)
-        databaseInfluxDB.insertValue('bools','gas alarm',gasAlarm)
-        databaseInfluxDB.insertValue('gas','keyboard',gas)
+        databaseInfluxDB.insertValue('bools','gas alarm 1',gasAlarm)
+        #databaseInfluxDB.insertValue('gas','keyboard',gas)
         databaseInfluxDB.insertValue('temperature','keyboard',temp)
         databaseInfluxDB.insertValue('humidity','keyboard',RH)
         
@@ -350,7 +365,27 @@ def IncomingData(data):
             databaseInfluxDB.insertValue('consumption','lowTariff',(data[1]*256+data[2])/60) # from power to consumption - 1puls=1Wh
         else:
             databaseInfluxDB.insertValue('consumption','stdTariff',(data[1]*256+data[2])/60)# from power to consumption - 1puls=1Wh
-            
+    
+    elif data[0]==104:# data from PIR sensor
+
+        databaseInfluxDB.insertValue('temperature','PIR sensor',(data[1]*256+data[2])/10.0)
+        databaseInfluxDB.insertValue('humidity','PIR sensor',(data[3]*256+data[4])/10.0)
+        databaseInfluxDB.insertValue('gas','PIR sensor',(data[5]*256+data[6]))
+    elif data[0]==105:# data from PIR sensor
+        gasAlarm2 = data[1]
+        PIRalarm = data[2]
+        
+        if(gasAlarm2):
+            Log("PIR GAS ALARM!!");
+            gasAlarm2=True
+            databaseSQLite.updateValue("gasAlarm2", int(gasAlarm2))
+            if(not gasAlarm2_last and gasAlarm2):
+                phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - PIR sensor!!")
+            KeyboardRefresh()
+            PIRSensorRefresh()
+        gasAlarm2_last = gasAlarm2
+    
+        
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
     elif(data[0]<10 and len(data)>=2):#other events, reserved for keyboard
@@ -404,7 +439,8 @@ def IncomingEvent(data):
     
     if(lockLast!=locked or alarmLast != alarm):
         KeyboardRefresh()
-
+        PIRSensorRefresh()
+        
         databaseSQLite.updateValue("locked", int(locked))
         databaseSQLite.updateValue("alarm", int(alarm))
         
