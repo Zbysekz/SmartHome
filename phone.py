@@ -7,6 +7,8 @@ from datetime import datetime
 from enum import Enum
 import time
 
+DISABLE_SMS = False
+
 NORMAL = 0
 RICH = 1
 FULL = 2
@@ -338,7 +340,11 @@ def CheckSignalInfo():
 
 def SendSMS(receiver,text):
     global receiverNumber,sendSMStext,reqSendSMS
-    
+
+    if DISABLE_SMS:
+        Log("SMS feature manually disabled !")
+        return
+
     if reqSendSMS:
         Log("Already sending SMS!")
         Log("Text:"+sendSMStext)

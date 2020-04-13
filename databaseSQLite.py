@@ -18,7 +18,18 @@ def updateValue(name, value):
             maxTries-=1
             Log("Exception:"+str(e))
             Log("For query: UPDATE value, name:"+str(name)+", value:"+str(value))
-            
+
+def InsertValue(tableName, values):
+    conn = sqlite3.connect('/home/pi/main.db')
+    curs = conn.cursor()
+
+    try:
+        curs.execute("INSERT INTO " + tableName + " VALUES (?);", (values,))
+        conn.commit()
+
+    except sqlite3.OperationalError:
+        Log("Cannot insert value into table " + tableName)
+
 def getTXbuffer():
     data = []
     conn=sqlite3.connect('/home/pi/main.db')
@@ -52,7 +63,7 @@ def getCmds():
     curs = conn.cursor()
 
     try:
-        curs.execute("SELECT updated,heatingInhibit,ventilationCmd FROM cmd;")
+        curs.execute("SELECT updated,heatingInhibit,ventilationCmd,resetAlarm FROM cmd;")
         conn.commit()
 
         data = curs.fetchall()
@@ -62,7 +73,7 @@ def getCmds():
 
     # now reset update flag from database
     try:
-        curs.execute("UPDATE cmd SET updated=0, ventilationCmd=NULL, heatingInhibit=NULL")
+        curs.execute("UPDATE cmd SET updated=0, ventilationCmd=NULL, heatingInhibit=NULL, resetAlarm=NULL")
         conn.commit()
 
     except sqlite3.OperationalError:
@@ -73,9 +84,37 @@ def getCmds():
     else:
         return None
 
-def Log(str):
-    print("LOGGED:"+str)
+def RemoveOnlineDevices():
+    conn = sqlite3.connect('/home/pi/main.db')
+    curs = conn.cursor()
+
+    try:
+        curs.execute("DELETE FROM onlineDevices;")
+        conn.commit()
+
+    except sqlite3.OperationalError:
+        Log("Cannot remove online devices!")
+
+
+def AddOnlineDevice(ipAddress):
+    InsertValue("OnlineDevices", ipAddress)
+
+def RemoveOnlineDevice(ipAddress):
+    conn = sqlite3.connect('/home/pi/main.db')
+    curs = conn.cursor()
+
+    try:
+        curs.execute("DELETE FROM onlineDevices WHERE ip = (?);", (ipAddress,))
+        conn.commit()
+
+    except sqlite3.OperationalError:
+        Log("Cannot remove online device from table onlineDevices, ip:" + ipAddress)
+
+
+def Log(s):
+    s = "SQLite:" + str(s)
+    print(str(s))
     from datetime import datetime
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with open("logs/database.log","a") as file:
-        file.write(dateStr+" >> "+str+"\n")
+        file.write(dateStr+" >> "+str(s)+"\n")

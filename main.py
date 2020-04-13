@@ -11,7 +11,7 @@ os.sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/comm')
 import comm
 import databaseInfluxDB
 import databaseSQLite
-import time,threading
+import time, threading
 import phone
 from datetime import datetime
 import RPi.GPIO as GPIO
@@ -41,14 +41,19 @@ verbosity = NORMAL
 #-----------------------------------------------
 
 #-------------STATE VARIABLES-------------------
-alarm=False
 locked=False #locked after startup
-gasAlarm1=False
-gasAlarm2=False
+
+NO_ALARM = 0x00
+DOOR_ALARM = 0x01      #DOOR ALARM when system was locked
+GAS_ALARM_RPI = 0x02   #GAS alarm of the RPI module
+GAS_ALARM_PIR = 0x04   #GAS alarm of the PIR sensor module
+PIR_ALARM = 0x08       #PIR sensor detected motion when system was locked
+alarm=0
+
 #-----------------------------------------------
 
 #------------AUXILIARY VARIABLES----------------
-alarmCounting=False#when door was opened and system locked
+alarmCounting=False  #when door was opened and system locked
 watchDogAlarmThread=0
 alarmCnt=0
 keyboardRefreshCnt=0
@@ -56,14 +61,14 @@ wifiCheckCnt=0
 tmrPriceCalc = 0
 gasSensorPrepared=False
 tmrPrepareGasSensor = time.time()
-gasAlarm1_last = False
-gasAlarm2_last = False
+alarm_last = 0
 #-----------------------------------------------
 
 
 ###############################################################################################################
 def main():
-    global watchDogAlarmThread,alarm,gasAlarm1,gasAlarm1_last,gasAlarm2,gasAlarm2_last,locked,gasSensorPrepared,tmrPrepareGasSensor
+    global watchDogAlarmThread, alarm, alarm_last, locked
+
     Log("Entry point main.py")
     try:
         os.system("sudo service motion stop")
@@ -86,6 +91,8 @@ def main():
         Log("Initializing serial port...")
         phone.Connect()
         Log("Ok")
+
+        databaseSQLite.RemoveOnlineDevices()
         
         timerGeneral()#it will call itself periodically - new thread
       
@@ -93,14 +100,15 @@ def main():
     
         
         Log("Initializing pin for PC button...")
+        GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(PIN_BTN_PC, GPIO.OUT)
         GPIO.setup(PIN_GAS_ALARM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setwarnings(False)
         Log("Ok")
 
         databaseSQLite.updateValue("locked", int(locked))
         databaseSQLite.updateValue("alarm", int(alarm))
+
     except Exception as inst:
         Log(type(inst))    # the exception instance
         Log(inst.args)     # arguments stored in .args
@@ -116,7 +124,10 @@ def main():
 
         #TCP server communication - remote devices--------
         comm.Handle()
-    
+
+        if comm.terminate:
+            return# keyboard termination
+
         phone.Process()
         
         data = comm.DataReceived()
@@ -125,27 +136,29 @@ def main():
         #-------------------------------------------------
 
         watchDogAlarmThread=0; #to be able to detect lag in this loop
-        
-        if gasSensorPrepared:
-            if(not GPIO.input(PIN_GAS_ALARM)):
-                Log("RPI GAS ALARM!!");
-                gasAlarm1=True
-                databaseSQLite.updateValue("gasAlarm1", int(gasAlarm1))
-                if(not gasAlarm1_last and gasAlarm1):
-                    phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
-                KeyboardRefresh()
-                PIRSensorRefresh()
-                
-            else:
-                gasAlarm1=False
-            gasAlarm1_last = gasAlarm1
 
-        else:
-            if time.time() - tmrPrepareGasSensor > 120:#after 2 mins
-                gasSensorPrepared = True
-            
-        
-            
+        CheckGasSensor();
+
+        alarm_last = alarm
+
+
+def CheckGasSensor():
+    global  alarm, gasSensorPrepared
+
+    if gasSensorPrepared:
+        if (not GPIO.input(PIN_GAS_ALARM)):
+            Log("RPI GAS ALARM!!");
+            alarm |= GAS_ALARM_RPI
+            databaseSQLite.updateValue("alarm", int(alarm))
+            if (alarm_last == 0):
+                phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
+            KeyboardRefresh()
+            PIRSensorRefresh()
+
+    else:
+        if time.time() - tmrPrepareGasSensor > 120:  # after 2 mins
+            gasSensorPrepared = True
+
         
 ######################## General timer thread ##########################################################################
      
@@ -185,6 +198,12 @@ def timerGeneral():#it is calling itself periodically
             comm.Send(bytes([1, data[0]]), IP_RACKUNO)
         if data[1] is not None:#ventilationCmd
             comm.Send(bytes([2, data[1]]), IP_RACKUNO)
+        if data[2] is not None:  # resetAlarm
+            Log("Alarm deactivated by web interface.")
+            alarm = 0
+            databaseSQLite.updateValue("alarm", int(alarm))
+            KeyboardRefresh()
+            PIRSensorRefresh()
 
     if alarmCounting:#user must make unlock until counter expires
         Log("Alarm check",FULL)
@@ -192,8 +211,8 @@ def timerGeneral():#it is calling itself periodically
         if alarmCnt>=10:
             alarmCnt=0
             
-            Log("ALARM!!!!")
-            alarm=True
+            Log("DOOR ALARM!!!!")
+            alarm|=DOOR_ALARM
             alarmCounting=False
 
             phone.SendSMS(MY_NUMBER1,"Home system: door ALARM !!")
@@ -206,7 +225,14 @@ def timerGeneral():#it is calling itself periodically
     
     if time.time() - tmrPriceCalc > 3600:#each 1 hour
         tmrPriceCalc = time.time()
-        electricityPrice.run()
+        try:
+            electricityPrice.run()
+        except Exception as inst:
+            Log("Exception for electricityPrice.run()")
+            Log(type(inst))  # the exception instance
+            Log(inst.args)  # arguments stored in .args
+            Log(inst)
+
     
     if watchDogAlarmThread > 4:
         
@@ -239,12 +265,12 @@ def PIRSensorRefresh():
     
     Log("PIR sensor refresh!",FULL)
     
-    comm.Send(bytes([0,int(alarm or gasAlarm1),int(locked)]),IP_PIR_SENSOR)  #id, alarm(0/1),locked(0/1)
+    comm.Send(bytes([0,int(alarm != 0),int(locked)]),IP_PIR_SENSOR)  #id, alarm(0/1),locked(0/1)
   
 def KeyboardRefresh():
     
     Log("Keyboard refresh!",FULL)
-    val = (1 if (alarm or gasAlarm1 or gasAlarm2) else 0) + (2 if locked else 0)
+    val = (int(alarm != 0)) + 2*(int(locked))
     
     comm.Send(bytes([10,val]),IP_KEYBOARD)  #id, alarm(0/1),locked(0/1)
   
@@ -253,7 +279,20 @@ def IncomingSMS(data):
     global alarm,locked
     if data[1] == MY_NUMBER1:
         if(data[0].startswith("get status")):
-            phone.SendSMS(data[1],"Alarm" if alarm else ("Locked" if locked else "Stand-by"))
+
+            txt = "Stand-by"
+            if alarm & DOOR_ALARM != 0:
+                txt = "Door alarm"
+            elif alarm & GAS_ALARM_RPI != 0:
+                txt = "Gas alarm RPI"
+            elif alarm & GAS_ALARM_PIR != 0:
+                txt = "Gas alarm PIR"
+            elif alarm & PIR_ALARM != 0:
+                txt = "PIR movement alarm"
+            elif locked:
+                txt = "Locked"
+
+            phone.SendSMS(data[1], txt)
             Log("Get status by SMS command.")
         elif(data[0].startswith("lock")):
             locked = True
@@ -266,15 +305,11 @@ def IncomingSMS(data):
             databaseSQLite.updateValue("locked", int(locked))
             Log("Unlocked by SMS command.")
         elif(data[0].startswith("deactivate alarm")):
-            alarm = False
+            alarm = 0
             locked = False
-            gasAlarm1 = False
-            gasAlarm2 = False
 
             databaseSQLite.updateValue("alarm",int(alarm))
             databaseSQLite.updateValue("locked",int(locked))
-            databaseSQLite.updateValue("gasAlarm1", int(gasAlarm1))
-            databaseSQLite.updateValue("gasAlarm2", int(gasAlarm2))
             Log("Alarm deactivated by SMS command.")
         elif data[0].startswith("toggle PC"):
             Log("Toggle PC button by SMS command.")
@@ -303,7 +338,7 @@ def TogglePCbutton():
     GPIO.output(PIN_BTN_PC,False)
     
 def IncomingData(data):
-    global gasAlarm2,gasAlarm2_last
+    global alarm
     #print ("DATA INCOME!!:"+str(data))
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
@@ -325,7 +360,7 @@ def IncomingData(data):
         
         global alarmCounting,locked
      
-        if(doorSW and locked and not alarm and not alarmCounting):
+        if(doorSW and locked and alarm&DOOR_ALARM == 0 and not alarmCounting):
             alarmCounting=True
             Log("LOCKED and DOORS opened",RICH)
     elif data[0]==101:#data from meteostations
@@ -376,14 +411,14 @@ def IncomingData(data):
         PIRalarm = data[2]
         
         if(gasAlarm2):
-            Log("PIR GAS ALARM!!");
-            gasAlarm2=True
-            databaseSQLite.updateValue("gasAlarm2", int(gasAlarm2))
-            if(not gasAlarm2_last and gasAlarm2):
+            Log("PIR GAS ALARM!!")
+            alarm |= GAS_ALARM_PIR
+            if (alarm_last & GAS_ALARM_PIR == 0):
+                databaseSQLite.updateValue("alarm", int(alarm))
+
                 phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - PIR sensor!!")
-            KeyboardRefresh()
-            PIRSensorRefresh()
-        gasAlarm2_last = gasAlarm2
+                KeyboardRefresh()
+                PIRSensorRefresh()
     
         
     elif data[0]==0 and data[1]==1:#live event
@@ -426,14 +461,14 @@ def IncomingEvent(data):
     if data[0]==1:
         if data[1]==1:#unlock PIN
             locked=False
-            alarm=False
+            alarm=0
             alarmCounting=False
             alarmCnt=0
     
     if data[0]==2:
         if data[1]==0:#unlock RFID
             locked=False
-            alarm=False
+            alarm=0
             alarmCounting=False
             alarmCnt=0
     
@@ -444,19 +479,11 @@ def IncomingEvent(data):
         databaseSQLite.updateValue("locked", int(locked))
         databaseSQLite.updateValue("alarm", int(alarm))
         
-        if locked:
-            os.system("sudo service motion start")
-        else:
-            os.system("sudo service motion stop")
+        #if locked:
+        #    os.system("sudo service motion start")
+        #else:
+        #    os.system("sudo service motion stop")
 
-def getState():
-    global alarm,locked
-    
-    if alarm:
-        return 1
-    if locked:
-        return 2
-    return 0
 
 def Log(s,_verbosity=NORMAL):
     
