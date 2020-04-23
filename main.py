@@ -402,8 +402,10 @@ def IncomingData(data):
             databaseInfluxDB.insertValue('consumption','stdTariff',(data[1]*256+data[2])/60)# from power to consumption - 1puls=1Wh
     
     elif data[0]==104:# data from PIR sensor
+        tempPIR = (data[1] * 256 + data[2])/10.0
+        tempPIR = tempPIR - 4.2  # calibration
 
-        databaseInfluxDB.insertValue('temperature','PIR sensor',(data[1]*256+data[2])/10.0)
+        databaseInfluxDB.insertValue('temperature','PIR sensor',tempPIR)
         databaseInfluxDB.insertValue('humidity','PIR sensor',(data[3]*256+data[4])/10.0)
         databaseInfluxDB.insertValue('gas','PIR sensor',(data[5]*256+data[6]))
     elif data[0]==105:# data from PIR sensor
