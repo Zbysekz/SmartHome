@@ -2,6 +2,30 @@
 
 # ceník ČEZ tarif D57d
 # https://www.cez.cz/edee/content/file/produkty-a-sluzby/obcane-a-domacnosti/elektrina-2019/moo/web_cenik_elektrina_dobu_neurcitou_moo_20199_cezdi.pdf
+
+# A = [0]*40
+#
+# A[1] = 2116.29
+# A[2] = 2116.29
+# A[3] = 95.59
+# A[4] = 228.19
+# A[5] = 204.99
+#
+# A[9] = 352.11 #3x25A
+#
+# A[21] = 34.24
+# A[22] = 92.19
+# A[23] = 8.39
+# A[24] = 16.41
+# A[25] = 598.95
+# A[26] = 2470.92
+# A[27] = 2447.71
+# A[28] = A[3] + A[9] + A[23]
+# A[29] = A[24]*numPhases*amperage
+# A[30] = 598.95
+#
+
+
 import json
 import databaseInfluxDB
 from datetime import datetime,timedelta
@@ -10,25 +34,28 @@ printDebug = False
 
 def yearPrice(consHighTariff_wh = 0,consLowTariff_wh = 0, numPhases = 3, amperage = 25):
 
-    A = [0]*40
 
-    A[1] = 2116.29
-    A[2] = 2116.29
+# zelený tarif D57d
+#https://www.cez.cz/edee/content/file/produkty-a-sluzby/obcane-a-domacnosti/elektrina-2020/moo/web-cenik_ele-zelena_elektrina_moo_202001_cezdi.pdf
+    A = [0] * 40
+
+    A[1] = 2152.59
+    A[2] = 2152.59
     A[3] = 95.59
-    A[4] = 228.19
-    A[5] = 204.99
+    A[4] = 265.66
+    A[5] = 227.33
 
-    A[9] = 352.11 #3x25A
+    A[9] = 356.95  # 3x25A
 
     A[21] = 34.24
-    A[22] = 92.19
-    A[23] = 8.39
-    A[24] = 16.41
+    A[22] = 93.32
+    A[23] = 6.15
+    A[24] = 16.06
     A[25] = 598.95
-    A[26] = 2470.92
-    A[27] = 2447.71
+    A[26] = 2545.80
+    A[27] = 2507.48
     A[28] = A[3] + A[9] + A[23]
-    A[29] = A[24]*numPhases*amperage
+    A[29] = A[24] * numPhases * amperage
     A[30] = 598.95
 
 
