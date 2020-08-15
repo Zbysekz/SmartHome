@@ -110,7 +110,7 @@ def Handle():
             Log("Exception:")
             Log(''.join('!! ' + line for line in lines))
 
-def Send(data,destination):#put in send queue
+def Send(data, destination, crc16=False):#put in send queue
     global sendQueue, onlineDevices
 
     if len(sendQueue) >= TXQUEUELIMIT_PER_DEVICE: # if buffer is at least that full
@@ -128,7 +128,7 @@ def Send(data,destination):#put in send queue
                 sendQueue.remove(oldMsgs[0])
 
     if len(sendQueue)<TXQUEUELIMIT:
-        sendQueue.append((serialData.CreatePacket(data),destination))
+        sendQueue.append((serialData.CreatePacket(data, crc16),destination))
     else:
         Log("MAXIMUM TX QUEUE LIMIT REACHED!!")
 

@@ -69,7 +69,7 @@ def getCmds():
         data = curs.fetchall()
     except sqlite3.OperationalError:
         Log("Cannot read from database!")
-        Log("SELECT data,destination FROM cmd;")
+        Log("SELECT updated,heatingInhibit,ventilationCmd,resetAlarm FROM cmd;")
 
     # now reset update flag from database
     try:

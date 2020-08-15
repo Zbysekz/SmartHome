@@ -188,9 +188,9 @@ def timerGeneral():#it is calling itself periodically
                 print("Sending data from SQLITE database:")
                 print(byteArray)
                 print(packet[1])
-                comm.Send(byteArray,packet[1])
+                comm.Send(byteArray,packet[1],crc16=True)
         except ValueError:
-            Log("SQLite - getTXbufder - Value Error:"+str(packet[0]))
+            Log("SQLite - getTXbuffer - Value Error:"+str(packet[0]))
 
     data = databaseSQLite.getCmds()
     if data is not None:

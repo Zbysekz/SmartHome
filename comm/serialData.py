@@ -73,7 +73,7 @@ def Receive(rcv):
         else:
             readState=0
             Log("ERR4",RICH)
-def CreatePacket(d):
+def CreatePacket(d,crc16=False):
     data=bytearray(3)
     data[0]=111#start byte
     data[1]=222#start byte
@@ -83,8 +83,10 @@ def CreatePacket(d):
     
     data = data[:3]+d
     
-    
-    crc = calculateCRC(data[2:])
+    if crc16:
+        crc = CRC16(data[2:])
+    else:
+        crc = calculateCRC(data[2:])
         
     data.append(int(crc/256))
     data.append(crc%256)
@@ -101,8 +103,25 @@ def Log(s,_verbosity=NORMAL):
     with open("logs/serialData.log","a") as file:
         file.write(dateStr+" >> "+str(s)+"\n")
         
+# legacy, should be substituted with CRC16
 def calculateCRC(data):
     crc=0
     for d in data:
         crc+=d
+    return crc
+
+# Corresponds to CRC-16/XMODEM on https://crccalc.com/
+def CRC16(data):
+    crc = 0
+    generator = 0x1021
+    
+    for byte in data:
+        crc ^= byte << 8
+        for i in range(8):
+
+            if crc & 0x8000 != 0:
+                crc = (crc << 1) ^ generator
+                crc &= 0xFFFF # ensure 16 bit width
+            else:
+                crc <<= 1 # shift left
     return crc

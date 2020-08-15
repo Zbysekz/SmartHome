@@ -1,1 +1,1 @@
-{"priceLastDay": 123, "yearPerc": 56.3, "dailyIncrease": 0.0}
+{"priceLastDay": 34, "yearPerc": 15.6, "dailyIncrease": 0.0}

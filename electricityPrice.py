@@ -30,7 +30,7 @@ import json
 import databaseInfluxDB
 from datetime import datetime,timedelta
 
-printDebug = False
+printDebug = True
 
 def yearPrice(consHighTariff_wh = 0,consLowTariff_wh = 0, numPhases = 3, amperage = 25):
 
@@ -71,6 +71,7 @@ def yearPrice(consHighTariff_wh = 0,consLowTariff_wh = 0, numPhases = 3, amperag
 def percent(consHighTariff_wh = 0, consLowTariff_wh = 0, monthlyCashAdvance=0):
 
     yPrice = yearPrice(consHighTariff_wh, consLowTariff_wh)
+    Log("Roční cena:"+str(yPrice)+" Kč")
     diff = ((yPrice/12) / monthlyCashAdvance)*100
     return round(diff,1)
 
@@ -122,13 +123,11 @@ def getConsSumLastDay():
 # cena za minulý den
 # cena za poslední měsíc
 # plnění od posledního vyúčtování (procenta, Wh na oba tarify)
-# možnost vynulovat tlačítkem vyúčtováním
+# TODO? možnost vynulovat tlačítkem vyúčtováním
 
 def run():
-    powerHighTariff_wh = 0
-    powerLowTariff_wh = 1000
     
-    monthlyCashAdvance = 2200
+    monthlyCashAdvance = 2960
     
     yearCons = findYearConsForCashAdvance(monthlyCashAdvance)
     price_kWh = monthlyCashAdvance*12/(yearCons[1]/1000)
@@ -141,9 +140,9 @@ def run():
     Log("Spotřeba za včerejší den:"+str(lastDay_low_Wh)+" Wh "+str(lastDay_std_Wh)+" Wh")
 
     totalSum_low,totalSum_std = databaseInfluxDB.getTotalSum()
-    
     with open('consumptionData/totalSumBias.txt','r') as f:
-        txt = f.read().split(';');
+        f.readline()# skip first line
+        txt = f.readline().split(';');
 
     totalSumBias_low = int(txt[0])
     totalSumBias_std= int(txt[1])
@@ -154,7 +153,7 @@ def run():
     Log("Roční suma nízký tarif: "+str(totalSum_low)+" Wh ; Vysoký tarif:"+str(totalSum_std)+" Wh")
 
     yearPerc = percent(totalSum_std, totalSum_low, monthlyCashAdvance)
-
+    Log("Roční plnění:"+str(yearPerc)+"%")
     # ------------ CALCULATE DAILY INCREASE
     with open('consumptionData/dailyIncrease.txt', 'r') as f:
         txt = f.read().split(';');
@@ -172,6 +171,7 @@ def run():
     else:
         dailyIncrease = float(txt[2])
 
+    Log("Denní nárůst:"+str(dailyIncrease)+"%")
     #-----------------------
 
     js = {'priceLastDay': int(price_kWh*(lastDay_std_Wh+lastDay_low_Wh)/1000),

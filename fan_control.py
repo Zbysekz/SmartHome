@@ -8,7 +8,7 @@ import sys
 import RPi.GPIO as GPIO
 
 pin = 18 # The pin ID, edit here to change it
-maxTMP = 60 # The maximum temperature in Celsius after which we trigger the fan
+maxTMP = 50 # The maximum temperature in Celsius after which we trigger the fan
 
 def setup():
     GPIO.setmode(GPIO.BCM)
@@ -29,6 +29,7 @@ def fanOFF():
     return()
 def getTEMP():
     CPU_temp = float(getCPUtemperature())
+    print(CPU_temp)
     if CPU_temp>maxTMP:
         fanON()
     else:
