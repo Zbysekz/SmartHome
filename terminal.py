@@ -41,9 +41,9 @@ def sendCal(id):
     except sqlite3.OperationalError:
         print("Cannot write to database..")
 def buttonTempCallback():
-    sendCal("4")
+    sendCal("5")
 def buttonVoltCallback():
-    sendCal("3")
+    sendCal("4")
 
       
 top = Tk()
@@ -54,8 +54,8 @@ B = Button(top,text="OK",command = buttonCallback)
 B.place(x=50,y=45)
 
 DEST = Entry(top)
-DEST.place(x=0,y=10,width=80)
-DEST.insert(0,"192.168.0.1")
+DEST.place(x=0,y=10,width=100)
+DEST.insert(0,"192.168.0.12")
 
 LEN = Entry(top)
 LEN.place(x=100,y=10,width=30)

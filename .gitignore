@@ -1,3 +1,4 @@
 *.log
 **.pyc
-consumptionData/*
+consumptionData/electricityPriceData.txt
+consumptionData/totalSumBias.txt
