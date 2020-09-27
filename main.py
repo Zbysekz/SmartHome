@@ -342,7 +342,7 @@ def IncomingData(data):
     #print ("DATA INCOME!!:"+str(data))
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
-    if data[0]==100:
+    if data[0]==100:# data from keyboard
         doorSW = False if (data[1]&0x01)==0 else True
         gasAlarm = True if (data[1]&0x02)==0 else False
         gas = data[2]*256+data[3]
@@ -412,17 +412,30 @@ def IncomingData(data):
         gasAlarm2 = data[1]
         PIRalarm = data[2]
         
-        if(gasAlarm2):
+        if gasAlarm2:
             Log("PIR GAS ALARM!!")
             alarm |= GAS_ALARM_PIR
             if (alarm_last & GAS_ALARM_PIR == 0):
                 databaseSQLite.updateValue("alarm", int(alarm))
 
-                phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - PIR sensor!!")
+                txt = "Home system: PIR sensor - FIRE/GAS ALARM !!"
+                Log(txt)
+                phone.SendSMS(MY_NUMBER1, txt)
                 KeyboardRefresh()
                 PIRSensorRefresh()
-    
-        
+        elif PIRalarm:
+            alarm |= PIR_ALARM
+            if (alarm_last & PIR_ALARM == 0):
+                databaseSQLite.updateValue("alarm", int(alarm))
+
+                txt = "Home system: PIR sensor - MOVEMENT ALARM !!"
+                Log(txt)
+                phone.SendSMS(MY_NUMBER1, txt)
+                KeyboardRefresh()
+                PIRSensorRefresh()
+
+
+
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
     elif(data[0]<10 and len(data)>=2):#other events, reserved for keyboard
@@ -466,6 +479,7 @@ def IncomingEvent(data):
             alarm=0
             alarmCounting=False
             alarmCnt=0
+            Log("UNLOCKED by keyboard PIN")
     
     if data[0]==2:
         if data[1]==0:#unlock RFID
@@ -473,8 +487,9 @@ def IncomingEvent(data):
             alarm=0
             alarmCounting=False
             alarmCnt=0
+            Log("UNLOCKED by keyboard RFID")
     
-    if(lockLast!=locked or alarmLast != alarm):
+    if(lockLast!=locked or alarmLast != alarm):# change in locked state or alarm state
         KeyboardRefresh()
         PIRSensorRefresh()
         

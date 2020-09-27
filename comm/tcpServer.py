@@ -25,7 +25,7 @@ terminate = False # termination by user keyboard
 NORMAL = 0
 RICH = 1
 FULL = 2
-verbosity = FULL
+verbosity = RICH
 
 
 def Init():
