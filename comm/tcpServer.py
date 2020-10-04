@@ -62,7 +62,7 @@ def Handle():
 
         conn.settimeout(4.0)
         #if you have something to send, send it
-        sendWasPerfromed = False
+        sendWasPerformed = False
         for tx in sendQueue:
             if(tx[1]==addr[0]):#only if we have something to send to the address that has connected
                 #print("Sending:")
@@ -71,12 +71,12 @@ def Handle():
                 conn.send(tx[0])
                 sendQueue.remove(tx)
 
-                sendWasPerfromed = True
+                sendWasPerformed = True
 
-        if not sendWasPerfromed:
+        if not sendWasPerformed:
             Log("Nothing to be send to this connected device '"+str(addr[0])+"'", FULL)
 
-        
+        time.sleep(0.1) # give client some time to send me data
         #data receive
         r, _, _ = select.select([conn], [], [],4)
         if r:

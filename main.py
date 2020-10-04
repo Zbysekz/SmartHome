@@ -22,6 +22,7 @@ import electricityPrice
 import time
 
 #-------------DEFINITIONS-----------------------
+SMS_NOTIFICATION = True
 RESTART_ON_EXCEPTION = False
 PIN_BTN_PC = 26
 PIN_GAS_ALARM = 23
@@ -150,7 +151,7 @@ def CheckGasSensor():
             Log("RPI GAS ALARM!!");
             alarm |= GAS_ALARM_RPI
             databaseSQLite.updateValue("alarm", int(alarm))
-            if (alarm_last == 0):
+            if (alarm_last & GAS_ALARM_RPI == 0 and SMS_NOTIFICATION):
                 phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
             KeyboardRefresh()
             PIRSensorRefresh()
@@ -215,7 +216,8 @@ def timerGeneral():#it is calling itself periodically
             alarm|=DOOR_ALARM
             alarmCounting=False
 
-            phone.SendSMS(MY_NUMBER1,"Home system: door ALARM !!")
+            if SMS_NOTIFICATION:
+                phone.SendSMS(MY_NUMBER1,"Home system: door ALARM !!")
 
             databaseSQLite.updateValue("alarm", int(alarm))
             KeyboardRefresh()
@@ -342,7 +344,7 @@ def IncomingData(data):
     #print ("DATA INCOME!!:"+str(data))
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
-    if data[0]==100:
+    if data[0]==100:# data from keyboard
         doorSW = False if (data[1]&0x01)==0 else True
         gasAlarm = True if (data[1]&0x02)==0 else False
         gas = data[2]*256+data[3]
@@ -405,28 +407,48 @@ def IncomingData(data):
         tempPIR = (data[1] * 256 + data[2])/10.0
         tempPIR = tempPIR - 4.2  # calibration
 
-        databaseInfluxDB.insertValue('temperature','PIR sensor',tempPIR)
-        databaseInfluxDB.insertValue('humidity','PIR sensor',(data[3]*256+data[4])/10.0)
+        humidPIR = (data[3]*256+data[4])/10.0
+        
+        # check validity and store values
+        if tempPIR>-30.0 and tempPIR < 80.0:
+            databaseInfluxDB.insertValue('temperature','PIR sensor',tempPIR)
+        if humidPIR>=0.0 and tempPIR <= 100.0:
+            databaseInfluxDB.insertValue('humidity','PIR sensor',humidPIR)
+            
         databaseInfluxDB.insertValue('gas','PIR sensor',(data[5]*256+data[6]))
     elif data[0]==105:# data from PIR sensor
         gasAlarm2 = data[1]
         PIRalarm = data[2]
         
-        if(gasAlarm2):
+        if gasAlarm2:
             Log("PIR GAS ALARM!!")
             alarm |= GAS_ALARM_PIR
             if (alarm_last & GAS_ALARM_PIR == 0):
                 databaseSQLite.updateValue("alarm", int(alarm))
 
-                phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - PIR sensor!!")
+                txt = "Home system: PIR sensor - FIRE/GAS ALARM !!"
+                Log(txt)
+                if SMS_NOTIFICATION:
+                    phone.SendSMS(MY_NUMBER1, txt)
                 KeyboardRefresh()
                 PIRSensorRefresh()
-    
-        
+        elif PIRalarm and locked:
+            alarm |= PIR_ALARM
+            if (alarm_last & PIR_ALARM == 0):
+                databaseSQLite.updateValue("alarm", int(alarm))
+
+                txt = "Home system: PIR sensor - MOVEMENT ALARM !!"
+                Log(txt)
+                if SMS_NOTIFICATION:
+                    phone.SendSMS(MY_NUMBER1, txt)
+                KeyboardRefresh()
+                PIRSensorRefresh()
+
+
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
     elif(data[0]<10 and len(data)>=2):#other events, reserved for keyboard
-            Log("Incoming event!",FULL)
+            Log("Incoming event!")
             comm.SendACK(data,IP_KEYBOARD)
             databaseInfluxDB.insertEvent(getEventString1(data[0]),getEventString2(data[1]))
             IncomingEvent(data)
@@ -466,6 +488,7 @@ def IncomingEvent(data):
             alarm=0
             alarmCounting=False
             alarmCnt=0
+            Log("UNLOCKED by keyboard PIN")
     
     if data[0]==2:
         if data[1]==0:#unlock RFID
@@ -473,6 +496,7 @@ def IncomingEvent(data):
             alarm=0
             alarmCounting=False
             alarmCnt=0
+            Log("UNLOCKED by keyboard RFID")
     
     if(lockLast!=locked or alarmLast != alarm):
         KeyboardRefresh()
