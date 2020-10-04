@@ -439,11 +439,11 @@ def IncomingData(data):
 
                 txt = "Home system: PIR sensor - MOVEMENT ALARM !!"
                 Log(txt)
+
                 if SMS_NOTIFICATION:
                     phone.SendSMS(MY_NUMBER1, txt)
                 KeyboardRefresh()
                 PIRSensorRefresh()
-
 
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
@@ -498,7 +498,7 @@ def IncomingEvent(data):
             alarmCnt=0
             Log("UNLOCKED by keyboard RFID")
     
-    if(lockLast!=locked or alarmLast != alarm):
+    if(lockLast!=locked or alarmLast != alarm):# change in locked state or alarm state
         KeyboardRefresh()
         PIRSensorRefresh()
         
