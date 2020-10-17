@@ -38,7 +38,7 @@ IP_PIR_SENSOR = '192.168.0.14'
 NORMAL = 0
 RICH = 1
 FULL = 2
-verbosity = NORMAL
+verbosity = FULL
 #-----------------------------------------------
 
 #-------------STATE VARIABLES-------------------
@@ -64,7 +64,6 @@ gasSensorPrepared=False
 tmrPrepareGasSensor = time.time()
 alarm_last = 0
 #-----------------------------------------------
-
 
 ###############################################################################################################
 def main():
@@ -122,7 +121,6 @@ def main():
         return
 ######################## MAIN LOOP ####################################################################################
     while(1):
-
         #TCP server communication - remote devices--------
         comm.Handle()
 
@@ -132,6 +130,7 @@ def main():
         phone.Process()
         
         data = comm.DataReceived()
+        
         if(data!=[]):
             IncomingData(data)
         #-------------------------------------------------
@@ -141,6 +140,7 @@ def main():
         CheckGasSensor();
 
         alarm_last = alarm
+            
 
 
 def CheckGasSensor():
@@ -341,7 +341,7 @@ def TogglePCbutton():
     
 def IncomingData(data):
     global alarm
-    #print ("DATA INCOME!!:"+str(data))
+    Log("Incoming data:"+str(data), FULL)
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
     if data[0]==100:# data from keyboard
@@ -379,7 +379,7 @@ def IncomingData(data):
         databaseSQLite.updateValue('pressure',(data[3]*65536+data[4]*256+data[5])/100);
         databaseSQLite.updateValue('voltageMet',(data[6]*256+data[7])/1000);
     elif data[0]>10 and data[0]<=40:
-        databaseInfluxDB.insertValue('voltage','BMS '+str(data[1]),(data[2]*256+data[3])/1000);
+        databaseInfluxDB.insertValue('voltage','BMS '+str(data[1]),(data[2]*256+data[3])/100);
         databaseInfluxDB.insertValue('temperature','BMS '+str(data[1]),(data[4]*256+data[5])/100);
     elif data[0]>40 and data[0]<70:
         volCal = struct.unpack('f',bytes([data[2],data[3],data[4],data[5]]))[0]

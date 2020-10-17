@@ -7,13 +7,13 @@ rxBuffer=[0]*RXBUFFSIZE
 rxPtr=0
 crcH=0
 crcL=0
-rcvdData=[]#list of lists of rcvd datas
+rcvdData=[]#list of lists of rcvd data
 rxLen=0
 
 NORMAL = 0
 RICH = 1
 FULL = 2
-verbosity = NORMAL
+verbosity = RICH
 
 def getRcvdData():#get last data and remove from queue
     if(len(rcvdData)>0):
@@ -51,7 +51,10 @@ def Receive(rcv):
     elif(readState==3):
         rxBuffer[rxPtr] = rcv#data
         rxPtr+=1
-        if(rxPtr>=RXBUFFSIZE or rxPtr>=rxLen):
+        if rxPtr>=RXBUFFSIZE:
+           Log("ERR5 (Buff FULL)",RICH)
+           readState=0
+        elif rxPtr>=rxLen:
             readState=4
     elif(readState==4):
         crcH=rcv#high crc
@@ -70,9 +73,12 @@ def Receive(rcv):
             rcvdData.append(rxBuffer[0:rxLen])
             readState=0
             Log("New data received!",FULL)
+            if len(rcvdData)>10:
+                Log("Rcv queue is large! Len:"+str(len(rcvdData)),NORMAL)
         else:
             readState=0
             Log("ERR4",RICH)
+            
 def CreatePacket(d,crc16=False):
     data=bytearray(3)
     data[0]=111#start byte
