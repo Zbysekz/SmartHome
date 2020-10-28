@@ -38,7 +38,7 @@ IP_PIR_SENSOR = '192.168.0.14'
 NORMAL = 0
 RICH = 1
 FULL = 2
-verbosity = FULL
+verbosity = RICH
 #-----------------------------------------------
 
 #-------------STATE VARIABLES-------------------
@@ -124,15 +124,15 @@ def main():
         #TCP server communication - remote devices--------
         comm.Handle()
 
-        if comm.terminate:
-            return# keyboard termination
+        if comm.isTerminated():
+            return# user interrupt termination
 
         phone.Process()
         
         data = comm.DataReceived()
-        
-        if(data!=[]):
+        while(data!=[]): # process all received packets
             IncomingData(data)
+            data = comm.DataReceived()
         #-------------------------------------------------
 
         watchDogAlarmThread=0; #to be able to detect lag in this loop
@@ -235,8 +235,9 @@ def timerGeneral():#it is calling itself periodically
             Log(inst.args)  # arguments stored in .args
             Log(inst)
 
-    
-    if watchDogAlarmThread > 4:
+    if not comm.isTerminated(): # do not continue if app terminated
+        return
+    elif watchDogAlarmThread > 4:
         
         Log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
         if RESTART_ON_EXCEPTION:
@@ -261,7 +262,8 @@ def timerPhone():
     databaseSQLite.updateValue('phoneSignalInfo',str(phone.getSignalInfo()));
     databaseSQLite.updateValue('phoneCommState',int(phone.getCommState()));
     
-    threading.Timer(20,timerPhone).start()
+    if not comm.isTerminated(): # do not continue if app terminated
+        threading.Timer(20,timerPhone).start()
   
 def PIRSensorRefresh():
     
@@ -389,7 +391,6 @@ def IncomingData(data):
         databaseInfluxDB.insertValue('BMS calibration','BMS '+str(data[1])+' temp',tempCal,one_day_RP=True);
     
     elif data[0]==102:# data from Roomba
-        print(data)
         databaseInfluxDB.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000)
         databaseInfluxDB.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000)
         databaseInfluxDB.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000)

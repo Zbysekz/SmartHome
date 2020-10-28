@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import socket
+from serialData import Receiver
 import serialData
 import time
 import select
@@ -10,6 +11,7 @@ import traceback
 import subprocess
 from datetime import datetime
 import databaseSQLite
+from threading import Thread
 
 conn=''
 s=''
@@ -25,7 +27,7 @@ terminate = False # termination by user keyboard
 NORMAL = 0
 RICH = 1
 FULL = 2
-verbosity = RICH
+verbosity = NORMAL
 
 
 def Init():
@@ -39,12 +41,15 @@ def Init():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setblocking(0)
     s.bind((TCP_IP, TCP_PORT))
-    s.listen(1)
+    s.listen(5)
 
     tmrPrintBufferStat = time.time()
  
     #conn.close()
     #print ('end')
+
+def isTerminated():
+    return terminate
 
 def Handle():    
     global conn, BUFFER_SIZE, s, sendQueue, terminate
@@ -54,47 +59,16 @@ def Handle():
     try:
         s.settimeout(4.0)
         conn, addr = s.accept()
-        Log('Device with address '+str(addr[0])+' was connected',FULL)
+        ip = addr[0]
+        Log('Device with address '+str(ip)+' was connected',FULL)
         if addr[0] not in onlineDevices:
-            onlineDevices.append(addr[0])
-            Log('New device with address ' + str(addr[0]) + ' was connected')
-            databaseSQLite.AddOnlineDevice(str(addr[0]))
+            onlineDevices.append(ip)
+            Log('New device with address ' + str(ip) + ' was connected')
+            databaseSQLite.AddOnlineDevice(str(ip))
 
         conn.settimeout(4.0)
-        #if you have something to send, send it
-        sendWasPerformed = False
-        for tx in sendQueue:
-            if(tx[1]==addr[0]):#only if we have something to send to the address that has connected
-                #print("Sending:")
-                #for a in tx[0]:
-                #    print(">>"+str(a))
-                conn.send(tx[0])
-                sendQueue.remove(tx)
-
-                sendWasPerformed = True
-
-        if not sendWasPerformed:
-            Log("Nothing to be send to this connected device '"+str(addr[0])+"'", FULL)
-
-        time.sleep(0.1) # give client some time to send me data
-        #data receive
-        r, _, _ = select.select([conn], [], [],4)
-        if r:
-            data = conn.recv(BUFFER_SIZE)
-        else:
-            Log("Device '"+str(addr[0])+"' was connected, but haven't send any data.")
-            return;
-
-        if not data: return
-        st = ""
-
-        for d in data:
-            serialData.Receive(d)
-            st+= str(d)+", "
-
-        Log("Received data:"+str(st), FULL)
-
-        conn.close()
+        
+        Thread(target=ReceiveThread, args=(conn, ip)).start()
 
     except KeyboardInterrupt:
         Log("Interrupted by user keyboard -----")
@@ -110,7 +84,52 @@ def Handle():
             Log("Exception:")
             Log(''.join('!! ' + line for line in lines))
 
-def Send(data, destination, crc16=False):#put in send queue
+def ReceiveThread(conn, ip):
+    #if you have something to send, send it
+    sendWasPerformed = False
+    for tx in sendQueue:
+        if(tx[1]==ip):#only if we have something to send to the address that has connected
+            #print("Sending:")
+            #for a in tx[0]:
+            #    print(">>"+str(a))
+            conn.send(tx[0])
+            sendQueue.remove(tx)
+
+            sendWasPerformed = True
+
+    if not sendWasPerformed:
+        Log("Nothing to be send to this connected device '"+str(ip)+"'", FULL)
+
+    time.sleep(0.1) # give client some time to send me data
+    
+    
+    receiverInstance = Receiver()
+    while True:
+        #data receive
+        r, _, _ = select.select([conn], [], [],4)
+        if r:
+            data = conn.recv(BUFFER_SIZE)
+        else:
+            Log("Device '"+str(ip)+"' was connected, but haven't send any data.")
+            break
+
+        if not data:
+            break
+
+        st = ""
+        for d in data:
+             # if last received byte was ok, finish
+             # client can send multiple complete packets
+            isMeteostation = str(ip)=="192.168.0.10"#extra exception for meteostation
+            if not receiverInstance.Receive(d, noCRC=isMeteostation):
+                Log("Error above for ip:"+str(ip))
+            st+= str(d)+", "
+        
+        Log("Received data:"+str(st), FULL)
+
+    conn.close()
+        
+def Send(data, destination, crc16=True):#put in send queue
     global sendQueue, onlineDevices
 
     if len(sendQueue) >= TXQUEUELIMIT_PER_DEVICE: # if buffer is at least that full

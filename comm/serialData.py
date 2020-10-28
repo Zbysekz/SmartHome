@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-readState=0
-RXBUFFSIZE=100
-rxBuffer=[0]*RXBUFFSIZE
-rxPtr=0
-crcH=0
-crcL=0
 rcvdData=[]#list of lists of rcvd data
-rxLen=0
+
+RXBUFFSIZE=100
 
 NORMAL = 0
 RICH = 1
@@ -22,64 +17,82 @@ def getRcvdData():#get last data and remove from queue
         return temp
     return [];
 
-def ResetReceiver():
-    rxPtr=0
-    readState=0
-    
-def Receive(rcv):
-    global readState,rxBuffer,rxPtr,crcH,crcL,RXBUFFSIZE,rxLen
+class Receiver():
 
-    #prijimame zpravu
-    if(readState==0):
-        if(rcv==111):
-            readState=1 #start token
-    elif(readState==1):
-        if(rcv==222):
-            readState=2
-        else:
-            readState=0#second start token
-            Log("ERR1",RICH)
-    elif(readState==2):
-        rxLen = rcv#length
+    def __init__(self):
+        self.readState=0
+        self.rxBuffer=[0]*RXBUFFSIZE
+        self.rxPtr=0
+        self.crcH=0
+        self.crcL=0
+        self.rxLen=0
+
+    def ResetReceiver(self):
+        self.rxPtr=0
+        self.readState=0
         
-        if(rxLen>20):
-            readState=0
-            Log("ERR2",RICH)
-        else:
-            readState=3
-        rxPtr=0
-    elif(readState==3):
-        rxBuffer[rxPtr] = rcv#data
-        rxPtr+=1
-        if rxPtr>=RXBUFFSIZE:
-           Log("ERR5 (Buff FULL)",RICH)
-           readState=0
-        elif rxPtr>=rxLen:
-            readState=4
-    elif(readState==4):
-        crcH=rcv#high crc
-        readState=5
-    elif(readState==5):
-        crcL=rcv#low crc
-        calcCRC = rxLen+calculateCRC(rxBuffer[0:rxPtr])
-        if( calcCRC == crcL+crcH*256):#crc check
-            readState=6
-        else:
-            readState=0
-            Log("ERR3 (CRC mismatch)",RICH)
-            Log("calc:"+str(calcCRC),RICH)
-    elif(readState==6):
-        if(rcv==222):#end token
-            rcvdData.append(rxBuffer[0:rxLen])
-            readState=0
-            Log("New data received!",FULL)
-            if len(rcvdData)>10:
-                Log("Rcv queue is large! Len:"+str(len(rcvdData)),NORMAL)
-        else:
-            readState=0
-            Log("ERR4",RICH)
+    # returns false if some error occurs
+    def Receive(self, rcv, noCRC=False):
+        result = True
+        #prijimame zpravu
+        if(self.readState==0):
+            if(rcv==111):
+                self.readState=1 #start token
+        elif(self.readState==1):
+            if(rcv==222):
+                self.readState=2
+            else:
+                self.readState=0#second start token
+                Log("ERR1",RICH)
+                result = False
+        elif(self.readState==2):
+            self.rxLen = rcv#length
             
-def CreatePacket(d,crc16=False):
+            if(self.rxLen>20):
+                self.readState=0
+                Log("ERR2",RICH)
+                result = False
+            else:
+                self.readState=3
+            self.rxPtr=0
+        elif(self.readState==3):
+            self.rxBuffer[self.rxPtr] = rcv#data
+            self.rxPtr+=1
+            if self.rxPtr>=RXBUFFSIZE:
+               Log("ERR5 (Buff FULL)",RICH)
+               self.readState=0
+               result = False
+            elif self.rxPtr>=self.rxLen:
+                self.readState=4
+        elif(self.readState==4):
+            self.crcH=rcv#high crc
+            self.readState=5
+        elif(self.readState==5):
+            self.crcL=rcv#low crc
+            calcCRC = CRC16([self.rxLen,*self.rxBuffer[0:self.rxPtr]]) # include length
+            if( calcCRC == self.crcL+self.crcH*256) or noCRC:#crc check
+                self.readState=6
+            else:
+                self.readState=0
+                result = False
+                Log("ERR3 (CRC mismatch)",RICH)
+                Log("calc:"+str(calcCRC),RICH)
+        elif(self.readState==6):
+            if(rcv==222):#end token
+                rcvdData.append(self.rxBuffer[0:self.rxLen])
+                self.readState=0
+                Log("New data received!",FULL)
+                if len(rcvdData)>10:
+                    Log("Rcv queue is large! Len:"+str(len(rcvdData)),NORMAL)
+            else:
+                self.readState=0
+                result = False
+                Log("ERR4",RICH)
+        
+        return result
+            
+# general methods
+def CreatePacket(d,crc16=True):
     data=bytearray(3)
     data[0]=111#start byte
     data[1]=222#start byte
