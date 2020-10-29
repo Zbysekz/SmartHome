@@ -9,7 +9,7 @@ os.sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/comm')
 #avgModule = importlib.machinery.SourceFileLoader('getMeas',os.path.abspath("/var/www/SmartHomeWeb/getMeas.py")).load_module()
 
 import comm
-import databaseInfluxDB
+import databaseMySQL
 import databaseSQLite
 import time, threading
 import phone
@@ -353,11 +353,11 @@ def IncomingData(data):
         temp = (data[4]*256+data[5])/10 + 0.5
         RH = (data[6]*256+data[7])/10
         
-        databaseInfluxDB.insertValue('bools','door switch 1',doorSW)
-        databaseInfluxDB.insertValue('bools','gas alarm 1',gasAlarm)
-        #databaseInfluxDB.insertValue('gas','keyboard',gas)
-        databaseInfluxDB.insertValue('temperature','keyboard',temp)
-        databaseInfluxDB.insertValue('humidity','keyboard',RH)
+        databaseMySQL.insertValue('bools','door switch 1',doorSW)
+        databaseMySQL.insertValue('bools','gas alarm 1',gasAlarm)
+        #databaseMySQL.insertValue('gas','keyboard',gas)
+        databaseMySQL.insertValue('temperature','keyboard',temp)
+        databaseMySQL.insertValue('humidity','keyboard',RH)
         
         databaseSQLite.updateValue('temp1',temp);
         databaseSQLite.updateValue('humidity',RH);
@@ -373,36 +373,36 @@ def IncomingData(data):
         if meteoTemp>32767:
             meteoTemp=meteoTemp-65536 #negative values are inverted like this
         
-        databaseInfluxDB.insertValue('temperature','meteostation 1',meteoTemp/100)
-        databaseInfluxDB.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100)
-        databaseInfluxDB.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000)
+        databaseMySQL.insertValue('temperature','meteostation 1',meteoTemp/100)
+        databaseMySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100)
+        databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000)
         
         databaseSQLite.updateValue('temp2',(data[1]*256+data[2])/100);
         databaseSQLite.updateValue('pressure',(data[3]*65536+data[4]*256+data[5])/100);
         databaseSQLite.updateValue('voltageMet',(data[6]*256+data[7])/1000);
     elif data[0]>10 and data[0]<=40:
-        databaseInfluxDB.insertValue('voltage','BMS '+str(data[1]),(data[2]*256+data[3])/100);
-        databaseInfluxDB.insertValue('temperature','BMS '+str(data[1]),(data[4]*256+data[5])/100);
+        databaseMySQL.insertValue('voltage','BMS '+str(data[1]),(data[2]*256+data[3])/100);
+        databaseMySQL.insertValue('temperature','BMS '+str(data[1]),(data[4]*256+data[5])/100);
     elif data[0]>40 and data[0]<70:
         volCal = struct.unpack('f',bytes([data[2],data[3],data[4],data[5]]))[0]
         tempCal = struct.unpack('f',bytes([data[6],data[7],data[8],data[9]]))[0]
         
-        databaseInfluxDB.insertValue('BMS calibration','BMS '+str(data[1])+' volt',volCal,one_day_RP=True);
-        databaseInfluxDB.insertValue('BMS calibration','BMS '+str(data[1])+' temp',tempCal,one_day_RP=True);
+        databaseMySQL.insertValue('BMS calibration','BMS '+str(data[1])+' volt',volCal,one_day_RP=True);
+        databaseMySQL.insertValue('BMS calibration','BMS '+str(data[1])+' temp',tempCal,one_day_RP=True);
     
     elif data[0]==102:# data from Roomba
-        databaseInfluxDB.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000)
-        databaseInfluxDB.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000)
-        databaseInfluxDB.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000)
+        databaseMySQL.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000)
+        databaseMySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000)
+        databaseMySQL.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000)
     elif data[0]==103:# data from rackUno
         #store power
-        databaseInfluxDB.insertValue('power','grid',(data[1]*256+data[2]))
+        databaseMySQL.insertValue('power','grid',(data[1]*256+data[2]))
         
         #now store consumption according to tariff
         if data[3]!=0: # T1
-            databaseInfluxDB.insertValue('consumption','lowTariff',(data[1]*256+data[2])/60) # from power to consumption - 1puls=1Wh
+            databaseMySQL.insertValue('consumption','lowTariff',(data[1]*256+data[2])/60) # from power to consumption - 1puls=1Wh
         else:
-            databaseInfluxDB.insertValue('consumption','stdTariff',(data[1]*256+data[2])/60)# from power to consumption - 1puls=1Wh
+            databaseMySQL.insertValue('consumption','stdTariff',(data[1]*256+data[2])/60)# from power to consumption - 1puls=1Wh
     
     elif data[0]==104:# data from PIR sensor
         tempPIR = (data[1] * 256 + data[2])/10.0
@@ -412,11 +412,11 @@ def IncomingData(data):
         
         # check validity and store values
         if tempPIR>-30.0 and tempPIR < 80.0:
-            databaseInfluxDB.insertValue('temperature','PIR sensor',tempPIR)
+            databaseMySQL.insertValue('temperature','PIR sensor',tempPIR)
         if humidPIR>=0.0 and tempPIR <= 100.0:
-            databaseInfluxDB.insertValue('humidity','PIR sensor',humidPIR)
+            databaseMySQL.insertValue('humidity','PIR sensor',humidPIR)
             
-        databaseInfluxDB.insertValue('gas','PIR sensor',(data[5]*256+data[6]))
+        databaseMySQL.insertValue('gas','PIR sensor',(data[5]*256+data[6]))
     elif data[0]==105:# data from PIR sensor
         gasAlarm2 = data[1]
         PIRalarm = data[2]
@@ -451,7 +451,7 @@ def IncomingData(data):
     elif(data[0]<10 and len(data)>=2):#other events, reserved for keyboard
             Log("Incoming event!")
             comm.SendACK(data,IP_KEYBOARD)
-            databaseInfluxDB.insertEvent(getEventString1(data[0]),getEventString2(data[1]))
+            databaseMySQL.insertEvent(getEventString1(data[0]),getEventString2(data[1]))
             IncomingEvent(data)
     else:
         Log("Unknown event, data:"+str(data));
