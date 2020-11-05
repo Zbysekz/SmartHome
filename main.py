@@ -10,7 +10,6 @@ os.sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/comm')
 
 import comm
 import databaseMySQL
-import databaseSQLite
 import time, threading
 import phone
 from datetime import datetime
@@ -92,7 +91,7 @@ def main():
         phone.Connect()
         Log("Ok")
 
-        databaseSQLite.RemoveOnlineDevices()
+        databaseMySQL.RemoveOnlineDevices()
         
         timerGeneral()#it will call itself periodically - new thread
       
@@ -106,8 +105,8 @@ def main():
         GPIO.setup(PIN_GAS_ALARM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         Log("Ok")
 
-        databaseSQLite.updateValue("locked", int(locked))
-        databaseSQLite.updateValue("alarm", int(alarm))
+        databaseMySQL.updateState("locked", int(locked))
+        databaseMySQL.updateState("alarm", int(alarm))
 
     except Exception as inst:
         Log(type(inst))    # the exception instance
@@ -150,7 +149,7 @@ def CheckGasSensor():
         if (not GPIO.input(PIN_GAS_ALARM)):
             Log("RPI GAS ALARM!!");
             alarm |= GAS_ALARM_RPI
-            databaseSQLite.updateValue("alarm", int(alarm))
+            databaseMySQL.updateState("alarm", int(alarm))
             if (alarm_last & GAS_ALARM_RPI == 0 and SMS_NOTIFICATION):
                 phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
             KeyboardRefresh()
@@ -181,7 +180,7 @@ def timerGeneral():#it is calling itself periodically
         wifiCheckCnt = wifiCheckCnt + 1
     
     #check if there are data in sqlite3 that we want to send
-    data = databaseSQLite.getTXbuffer()
+    data = databaseMySQL.getTXbuffer()
     if(len(data)):
         try:
             for packet in data:
@@ -193,7 +192,7 @@ def timerGeneral():#it is calling itself periodically
         except ValueError:
             Log("SQLite - getTXbuffer - Value Error:"+str(packet[0]))
 
-    data = databaseSQLite.getCmds()
+    data = databaseMySQL.getCmds()
     if data is not None:
         if data[0] is not None:#heatingInihibt
             comm.Send(bytes([1, data[0]]), IP_RACKUNO)
@@ -202,7 +201,7 @@ def timerGeneral():#it is calling itself periodically
         if data[2] is not None:  # resetAlarm
             Log("Alarm deactivated by web interface.")
             alarm = 0
-            databaseSQLite.updateValue("alarm", int(alarm))
+            databaseMySQL.updateState("alarm", int(alarm))
             KeyboardRefresh()
             PIRSensorRefresh()
 
@@ -219,7 +218,7 @@ def timerGeneral():#it is calling itself periodically
             if SMS_NOTIFICATION:
                 phone.SendSMS(MY_NUMBER1,"Home system: door ALARM !!")
 
-            databaseSQLite.updateValue("alarm", int(alarm))
+            databaseMySQL.updateState("alarm", int(alarm))
             KeyboardRefresh()
             PIRSensorRefresh()
          
@@ -259,8 +258,8 @@ def timerPhone():
     phone.clearIncomeSMSList()
 
     
-    databaseSQLite.updateValue('phoneSignalInfo',str(phone.getSignalInfo()));
-    databaseSQLite.updateValue('phoneCommState',int(phone.getCommState()));
+    databaseMySQL.updateState('phoneSignalInfo',str(phone.getSignalInfo()));
+    databaseMySQL.updateState('phoneCommState',int(phone.getCommState()));
     
     if not comm.isTerminated(): # do not continue if app terminated
         threading.Timer(20,timerPhone).start()
@@ -301,19 +300,19 @@ def IncomingSMS(data):
         elif(data[0].startswith("lock")):
             locked = True
 
-            databaseSQLite.updateValue("locked",int(locked))
+            databaseMySQL.updateState("locked",int(locked))
             Log("Locked by SMS command.")
         elif(data[0].startswith("unlock")):
             locked = False
 
-            databaseSQLite.updateValue("locked", int(locked))
+            databaseMySQL.updateState("locked", int(locked))
             Log("Unlocked by SMS command.")
         elif(data[0].startswith("deactivate alarm")):
             alarm = 0
             locked = False
 
-            databaseSQLite.updateValue("alarm",int(alarm))
-            databaseSQLite.updateValue("locked",int(locked))
+            databaseMySQL.updateState("alarm",int(alarm))
+            databaseMySQL.updateState("locked",int(locked))
             Log("Alarm deactivated by SMS command.")
         elif data[0].startswith("toggle PC"):
             Log("Toggle PC button by SMS command.")
@@ -359,9 +358,6 @@ def IncomingData(data):
         databaseMySQL.insertValue('temperature','keyboard',temp)
         databaseMySQL.insertValue('humidity','keyboard',RH)
         
-        databaseSQLite.updateValue('temp1',temp);
-        databaseSQLite.updateValue('humidity',RH);
-        
         global alarmCounting,locked
      
         if(doorSW and locked and alarm&DOOR_ALARM == 0 and not alarmCounting):
@@ -377,9 +373,6 @@ def IncomingData(data):
         databaseMySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100)
         databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000)
         
-        databaseSQLite.updateValue('temp2',(data[1]*256+data[2])/100);
-        databaseSQLite.updateValue('pressure',(data[3]*65536+data[4]*256+data[5])/100);
-        databaseSQLite.updateValue('voltageMet',(data[6]*256+data[7])/1000);
     elif data[0]>10 and data[0]<=40:
         databaseMySQL.insertValue('voltage','BMS '+str(data[1]),(data[2]*256+data[3])/100);
         databaseMySQL.insertValue('temperature','BMS '+str(data[1]),(data[4]*256+data[5])/100);
@@ -425,7 +418,7 @@ def IncomingData(data):
             Log("PIR GAS ALARM!!")
             alarm |= GAS_ALARM_PIR
             if (alarm_last & GAS_ALARM_PIR == 0):
-                databaseSQLite.updateValue("alarm", int(alarm))
+                databaseMySQL.updateValue("alarm", int(alarm))
 
                 txt = "Home system: PIR sensor - FIRE/GAS ALARM !!"
                 Log(txt)
@@ -436,7 +429,7 @@ def IncomingData(data):
         elif PIRalarm and locked:
             alarm |= PIR_ALARM
             if (alarm_last & PIR_ALARM == 0):
-                databaseSQLite.updateValue("alarm", int(alarm))
+                databaseMySQL.updateState("alarm", int(alarm))
 
                 txt = "Home system: PIR sensor - MOVEMENT ALARM !!"
                 Log(txt)
@@ -503,8 +496,8 @@ def IncomingEvent(data):
         KeyboardRefresh()
         PIRSensorRefresh()
         
-        databaseSQLite.updateValue("locked", int(locked))
-        databaseSQLite.updateValue("alarm", int(alarm))
+        databaseMySQL.updateState("locked", int(locked))
+        databaseMySQL.updateState("alarm", int(alarm))
         
         #if locked:
         #    os.system("sudo service motion start")

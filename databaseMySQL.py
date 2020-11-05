@@ -13,6 +13,9 @@ def getTotalSum():
     
     return next(points_low)['sum'], next(points_std)['sum']
 
+def RemoveOnlineDevices():
+    return
+
 def getValues(kind, sensorName, timeFrom, timeTo, sum = False):
     
     try:
@@ -81,7 +84,31 @@ def insertValue(name, sensorName, value, timestamp=None):
         return True
     else:
         return False
+
+def updateState(name, value):
+    try:
+        mydb = mysql.connector.connect(
+          host="localhost",
+          user="mainScript",
+          password="mainScript",
+          database="db1"
+        )
+        
+        mycursor = mydb.cursor()
+        
+        sql = "UPDATE state SET "+str(name)+"=%s"
+        val = (value,)
+        mycursor.execute(sql, val)
+
+        mydb.commit()
             
+    except Exception as e:
+        Log("Error while writing to database for state:"+name+" exception:")
+        Log(type(e))    # the exception instance
+        Log(e.args)     # arguments stored in .args
+        Log(e)
+        return False
+    
 def insertEvent(desc1, desc2, timestamp=None):
     try:
         mydb = mysql.connector.connect(
@@ -114,7 +141,12 @@ def insertEvent(desc1, desc2, timestamp=None):
     else:
         return False        
         
+#TODO
+def getCmds():
+    return None
 
+def getTXbuffer():
+    return []
           
 
 def Log(strr):
