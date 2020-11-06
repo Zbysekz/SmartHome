@@ -10,7 +10,7 @@ import sys
 import traceback
 import subprocess
 from datetime import datetime
-import databaseSQLite
+import databaseMySQL
 from threading import Thread
 
 conn=''
@@ -64,7 +64,7 @@ def Handle():
         if addr[0] not in onlineDevices:
             onlineDevices.append(ip)
             Log('New device with address ' + str(ip) + ' was connected')
-            databaseSQLite.AddOnlineDevice(str(ip))
+            databaseMySQL.AddOnlineDevice(str(ip))
 
         conn.settimeout(4.0)
         
@@ -139,7 +139,7 @@ def Send(data, destination, crc16=True):#put in send queue
             if destination in onlineDevices:
                 onlineDevices.remove(destination)
                 Log("Device with address:'"+destination+"' become OFFLINE!")
-                databaseSQLite.RemoveOnlineDevice(destination)
+                databaseMySQL.RemoveOnlineDevice(destination)
             # now remove the oldest message and further normally append newest
             oldMsgs = [msg for msg in sendQueue if msg[1] == destination]
 

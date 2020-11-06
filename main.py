@@ -33,6 +33,7 @@ IP_KEYBOARD = '192.168.0.11'
 IP_ROOMBA = '192.168.0.13'
 IP_RACKUNO = '192.168.0.5'
 IP_PIR_SENSOR = '192.168.0.14'
+IP_SERVER = '192.168.0.3' # it is localhost
 
 NORMAL = 0
 RICH = 1
@@ -70,7 +71,7 @@ def main():
 
     Log("Entry point main.py")
     try:
-        os.system("sudo service motion stop")
+        #os.system("sudo service motion stop")
         Log("Initializing TCP port...")
         initTCP=True
         nOfTries=0
@@ -108,10 +109,11 @@ def main():
         databaseMySQL.updateState("locked", int(locked))
         databaseMySQL.updateState("alarm", int(alarm))
 
-    except Exception as inst:
-        Log(type(inst))    # the exception instance
-        Log(inst.args)     # arguments stored in .args
-        Log(inst)
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        Log(str(e))
+        Log(str(exc_type) +" : "+ str(fname) + " : " +str(exc_tb.tb_lineno))
         if RESTART_ON_EXCEPTION:
             Log("Rebooting Raspberry PI in one minute")
             
@@ -179,31 +181,23 @@ def timerGeneral():#it is calling itself periodically
     else:
         wifiCheckCnt = wifiCheckCnt + 1
     
-    #check if there are data in sqlite3 that we want to send
-    data = databaseMySQL.getTXbuffer()
+    #check if there are data in mysql that we want to send
+    data = databaseMySQL.getTxBuffer()
     if(len(data)):
         try:
             for packet in data:
                 byteArray = bytes([int(x) for x in packet[0].split(',')])
-                print("Sending data from SQLITE database:")
-                print(byteArray)
-                print(packet[1])
-                comm.Send(byteArray,packet[1],crc16=True)
+                Log("Sending data from MYSQL database to:")
+                
+                if packet[1] == IP_SERVER:
+                    Log("LOCALHOST")
+                    Log(byteArray)
+                    ExecuteTxCommand(byteArray)
+                else:
+                    Log(packet[1])
+                    comm.Send(byteArray,packet[1],crc16=True)
         except ValueError:
-            Log("SQLite - getTXbuffer - Value Error:"+str(packet[0]))
-
-    data = databaseMySQL.getCmds()
-    if data is not None:
-        if data[0] is not None:#heatingInihibt
-            comm.Send(bytes([1, data[0]]), IP_RACKUNO)
-        if data[1] is not None:#ventilationCmd
-            comm.Send(bytes([2, data[1]]), IP_RACKUNO)
-        if data[2] is not None:  # resetAlarm
-            Log("Alarm deactivated by web interface.")
-            alarm = 0
-            databaseMySQL.updateState("alarm", int(alarm))
-            KeyboardRefresh()
-            PIRSensorRefresh()
+            Log("MySQL - getTXbuffer - Value Error:"+str(packet[0]))
 
     if alarmCounting:#user must make unlock until counter expires
         Log("Alarm check",FULL)
@@ -228,13 +222,15 @@ def timerGeneral():#it is calling itself periodically
         tmrPriceCalc = time.time()
         try:
             electricityPrice.run()
-        except Exception as inst:
+        except Exception as e:
             Log("Exception for electricityPrice.run()")
-            Log(type(inst))  # the exception instance
-            Log(inst.args)  # arguments stored in .args
-            Log(inst)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            Log(str(e))
+            Log(str(exc_type) +" : "+ str(fname) + " : " +str(exc_tb.tb_lineno))
 
-    if not comm.isTerminated(): # do not continue if app terminated
+    if comm.isTerminated(): # do not continue if app terminated
+        Log("Ending General thread, because comm is terminated.")
         return
     elif watchDogAlarmThread > 4:
         
@@ -247,6 +243,17 @@ def timerGeneral():#it is calling itself periodically
         watchDogAlarmThread+=1
 
 ####################################################################################################################
+def ExecuteTxCommand(data):
+    global alarm
+    if data[0] == 0:  # resetAlarm
+        Log("Alarm deactivated by web interface.")
+        alarm = 0
+        databaseMySQL.updateState("alarm", int(alarm))
+        KeyboardRefresh()
+        PIRSensorRefresh()
+    elif data[0] == 1:
+        Log("TODO command")
+        
 
 def timerPhone():
     phone.ReadSMS()

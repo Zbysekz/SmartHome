@@ -27,7 +27,7 @@
 
 
 import json
-import databaseInfluxDB
+import databaseMySQL
 from datetime import datetime,timedelta
 
 printDebug = True
@@ -107,14 +107,12 @@ def findYearConsForCashAdvance(monthlyCashAdvance):
     
 
 def getConsSumLastDay():
-    data_low = databaseInfluxDB.getValues('two_months','consumption','lowTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),sum=True)
-    data_std = databaseInfluxDB.getValues('two_months','consumption','stdTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),sum=True)
+    consLow = databaseMySQL.getValues('consumption','lowTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),_sum=True)
+    consStd = databaseMySQL.getValues('consumption','stdTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),_sum=True)
     
-    consLow = next(data_low,None)
-    consStd = next(data_std,None)
     
-    consLow = 0 if consLow is None else consLow['sum']
-    consStd = 0 if consStd is None else consStd['sum']
+    consLow = 0 if consLow[0] is None else consLow[0]
+    consStd = 0 if consStd[0] is None else consStd[0]
     
     
     return [consLow,consStd]
@@ -139,7 +137,7 @@ def run():
     
     Log("Spotřeba za včerejší den:"+str(lastDay_low_Wh)+" Wh "+str(lastDay_std_Wh)+" Wh")
 
-    totalSum_low,totalSum_std = databaseInfluxDB.getTotalSum()
+    totalSum_low,totalSum_std = databaseMySQL.getTotalSum()
     with open('consumptionData/totalSumBias.txt','r') as f:
         f.readline()# skip first line
         txt = f.readline().split(';');

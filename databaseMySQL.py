@@ -3,6 +3,9 @@
 
 import mysql.connector
 import time
+import sys
+import os
+from datetime import datetime
 
    
 def getTotalSum():
@@ -11,33 +14,81 @@ def getTotalSum():
     points_std=getValues("consumption","stdTariff",datetime(2000,1,1,0,0),datetime.now(),True)
 
     
-    return next(points_low)['sum'], next(points_std)['sum']
+    return points_low[0], points_std[0]
+
+def AddOnlineDevice(ip):
+    try:
+        db, cursor = Connect()
+        
+        sql = "INSERT INTO onlineDevices (ip, onlineSince) VALUES (%s, NOW())"
+        val = (ip,)
+        cursor.execute(sql, val)
+
+        db.commit()
+        cursor.close()
+        db.close()
+            
+    except Exception as e:
+        Log("Error while writing to database for AddOnlineDevice:"+ip+" exception:")
+        LogException(e)
+        return False
+    
+    return True
 
 def RemoveOnlineDevices():
-    return
-
-def getValues(kind, sensorName, timeFrom, timeTo, sum = False):
+    RemoveOnlineDevice(ip=None)
     
+def RemoveOnlineDevice(ip):
     try:
-        mydb = mysql.connector.connect(
+        db, cursor = Connect()
+        
+        if ip is None: # delete all
+            sql = "DELETE FROM onlineDevices"
+            cursor.execute(sql)
+        else:
+            sql = "DELETE FROM onlineDevices WHERE ip=%s"
+            val = (ip,)
+            cursor.execute(sql)
+
+        db.commit()
+        cursor.close()
+        db.close()
+            
+    except Exception as e:
+        Log("Error while writing to database for RemoveOnlineDevice, exception:")
+        LogException(e)
+        return False
+    
+    return True
+
+def Connect():
+    db = mysql.connector.connect(
           host="localhost",
           user="mainScript",
           password="mainScript",
           database="db1"
         )
         
-        mycursor = mydb.cursor()
+    cursor = db.cursor()
         
-        if not sum:
+    return db, cursor
+
+def getValues(kind, sensorName, timeFrom, timeTo, _sum = False):
+    
+    try:
+        db, cursor = Connect()
+        
+        
+        if not _sum:
             select = 'SELECT value'
         else:
             select = 'SELECT SUM(value)'
         
         sql = select+" FROM measurements WHERE source=%s AND time > %s AND time < %s"
         val = (sensorName, timeFrom, timeTo)
-        mycursor.execute(sql, val)
+        cursor.execute(sql, val)
 
-        result = mycursor.fetchall()
+        result = cursor.fetchall()
         
         values = []
         for x in result:
@@ -45,9 +96,7 @@ def getValues(kind, sensorName, timeFrom, timeTo, sum = False):
             
     except Exception as e:
         Log("Error while writing to database for measurement:"+sensorName+" exception:")
-        Log(type(e))    # the exception instance
-        Log(e.args)     # arguments stored in .args
-        Log(e)
+        LogException(e)
         return False
 
     
@@ -55,103 +104,99 @@ def getValues(kind, sensorName, timeFrom, timeTo, sum = False):
 
 def insertValue(name, sensorName, value, timestamp=None):
     try:
-        mydb = mysql.connector.connect(
-          host="localhost",
-          user="mainScript",
-          password="mainScript",
-          database="db1"
-        )
-        
-        mycursor = mydb.cursor()
+        db, cursor = Connect()
         
         if not timestamp: # if not defined, set time now
             timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
 
-        sql = "INSERT INTO measurements (time, kind, source, value) VALUES (%s, %s, %s, %s)"
-        val = (timestamp, name, sensorName, value)
-        mycursor.execute(sql, val)
-
-        mydb.commit()
+        args = (timestamp, name, sensorName, value)
+        res = cursor.callproc('insertMeasurement',args)
+        
+        db.commit()
+        cursor.close()
+        db.close()
             
     except Exception as e:
         Log("Error while writing to database for measurement:"+name+" exception:")
-        Log(type(e))    # the exception instance
-        Log(e.args)     # arguments stored in .args
-        Log(e)
+        LogException(e)
         return False
+
+    return True
     
-    if mycursor.rowcount>0:
-        return True
-    else:
-        return False
 
 def updateState(name, value):
     try:
-        mydb = mysql.connector.connect(
-          host="localhost",
-          user="mainScript",
-          password="mainScript",
-          database="db1"
-        )
-        
-        mycursor = mydb.cursor()
+        db, cursor = Connect()
         
         sql = "UPDATE state SET "+str(name)+"=%s"
         val = (value,)
-        mycursor.execute(sql, val)
+        cursor.execute(sql, val)
 
-        mydb.commit()
+        db.commit()
+        
+        cursor.close()
+        db.close()
             
     except Exception as e:
         Log("Error while writing to database for state:"+name+" exception:")
-        Log(type(e))    # the exception instance
-        Log(e.args)     # arguments stored in .args
-        Log(e)
+        LogException(e)
         return False
     
 def insertEvent(desc1, desc2, timestamp=None):
     try:
-        mydb = mysql.connector.connect(
-          host="localhost",
-          user="mainScript",
-          password="mainScript",
-          database="db1"
-        )
-        
-        mycursor = mydb.cursor()
+        db, cursor = Connect()
         
         if not timestamp: # if not defined, set time now
             timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
 
         sql = "INSERT INTO events (time, desc1, desc2) VALUES (%s, %s, %s)"
         val = (timestamp, desc1, desc2)
-        mycursor.execute(sql, val)
+        cursor.execute(sql, val)
 
-        mydb.commit()
+        db.commit()
+        cursor.close()
+        db.close()
             
     except Exception as e:
         Log("Error while writing to database for events:"+desc1+" exception:")
-        Log(type(e))    # the exception instance
-        Log(e.args)     # arguments stored in .args
-        Log(e)
+        LogException(e)
         return False
     
-    if mycursor.rowcount>0:
+    if cursor.rowcount>0:
         return True
     else:
         return False        
         
-#TODO
-def getCmds():
-    return None
+def getTxBuffer():
+    try:
+        db, cursor = Connect()
+        
+        res = cursor.callproc('getTxCommands')
+        
+        db.commit()
+        for d in cursor.stored_results():
+            data = d.fetchall()
+        cursor.close()
+        db.close()
+            
+    except Exception as e:
+        Log("Error while writing to database for getTXbuffer, exception:")
+        LogException(e)
+        return []
 
-def getTXbuffer():
-    return []
+    
+    return data
+
           
+def LogException(e):
+    exc_type, exc_obj, exc_tb = sys.exc_info()
+    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+    Log(str(e))
+    Log(str(exc_type) +" : "+ str(fname) + " : " +str(exc_tb.tb_lineno))
 
 def Log(strr):
     txt=str(strr)
-    print("LOGGED:"+txt)
+    print("LOG:"+txt)
     from datetime import datetime
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with open("logs/databaseMySQL.log","a") as file:
