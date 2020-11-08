@@ -1,1 +1,0 @@
-{"priceLastDay": 51, "yearPerc": 20.8, "dailyIncrease": 0.1999999999999993}

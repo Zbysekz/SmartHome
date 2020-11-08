@@ -1,2 +1,0 @@
-#bias suma low tariff; bias suma std tariff
-7293000;71800;

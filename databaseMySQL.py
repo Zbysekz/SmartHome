@@ -73,6 +73,44 @@ def Connect():
         
     return db, cursor
 
+def updatePriceData(name, value):
+    try:
+        db, cursor = Connect()
+        
+        sql = "UPDATE prices SET value=%s WHERE name=%s"
+        val = (value,name)
+        cursor.execute(sql, val)
+        
+        db.commit()
+
+            
+    except Exception as e:
+        Log("Error while writing to database for updatePriceData name:"+str(name)+", exception:")
+        LogException(e)
+        return False
+
+    return True
+    
+def getPriceData():
+    try:
+        db, cursor = Connect()
+        
+        sql = "SELECT name, value FROM prices"
+        cursor.execute(sql)
+
+        data = cursor.fetchall()
+        
+        values = {}
+        for d in data:
+            values[d[0]] = d[1]
+            
+    except Exception as e:
+        Log("Error while writing to database for getPriceData, exception:")
+        LogException(e)
+        return None
+
+    return values
+
 def getValues(kind, sensorName, timeFrom, timeTo, _sum = False):
     
     try:
@@ -97,7 +135,7 @@ def getValues(kind, sensorName, timeFrom, timeTo, _sum = False):
     except Exception as e:
         Log("Error while writing to database for measurement:"+sensorName+" exception:")
         LogException(e)
-        return False
+        return None
 
     
     return values

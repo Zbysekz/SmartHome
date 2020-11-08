@@ -138,50 +138,27 @@ def run():
     Log("Spotřeba za včerejší den:"+str(lastDay_low_Wh)+" Wh "+str(lastDay_std_Wh)+" Wh")
 
     totalSum_low,totalSum_std = databaseMySQL.getTotalSum()
-    with open('consumptionData/totalSumBias.txt','r') as f:
-        f.readline()# skip first line
-        txt = f.readline().split(';');
-
-    totalSumBias_low = int(txt[0])
-    totalSumBias_std= int(txt[1])
     
-    totalSum_low = totalSum_low - totalSumBias_low#abychom ziskali roční spotřebu - od posledního vyúčtování
-    totalSum_std = totalSum_std - totalSumBias_std
+    priceData = databaseMySQL.getPriceData() 
+ 
+    
+    totalSum_low = totalSum_low - priceData['totalSumBias_low']#abychom ziskali roční spotřebu - od posledního vyúčtování
+    totalSum_std = totalSum_std - priceData['totalSumBias_std']
     
     Log("Roční suma nízký tarif: "+str(totalSum_low)+" Wh ; Vysoký tarif:"+str(totalSum_std)+" Wh")
 
     yearPerc = percent(totalSum_std, totalSum_low, monthlyCashAdvance)
     Log("Roční plnění:"+str(yearPerc)+"%")
-    # ------------ CALCULATE DAILY INCREASE
-    with open('consumptionData/dailyIncrease.txt', 'r') as f:
-        txt = f.read().split(';');
 
-    fileTime = datetime.strptime(txt[0], '%Y-%m-%d %H:%M:%S.%f')
-
-    dailyIncrease = 0.0
-    if (fileTime.day != datetime.now().day): # new day
-        prevPct = float(txt[1])
-        dailyIncrease = yearPerc - prevPct
-
-        with open("consumptionData/dailyIncrease.txt", 'w') as f:
-            f.write(str(datetime.now())+";"+str(yearPerc)+";"+str(dailyIncrease))
-
-    else:
-        dailyIncrease = float(txt[2])
-
-    Log("Denní nárůst:"+str(dailyIncrease)+"%")
     #-----------------------
 
-    js = {'priceLastDay': int(price_kWh*(lastDay_std_Wh+lastDay_low_Wh)/1000),
-          'yearPerc': yearPerc,
-          'dailyIncrease': dailyIncrease
-          }
 
-    with open("consumptionData/electricityPriceData.txt",'w') as f:
-        f.write(json.dumps(js))
+    priceLastDay = price_kWh*(lastDay_std_Wh+lastDay_low_Wh)/1000
+    Log("Cena  za včerejší den:" +str(int(priceLastDay)) + " Kč")
 
-
-
+    databaseMySQL.updatePriceData("priceLastDay", priceLastDay)
+    databaseMySQL.updatePriceData("yearPerc", yearPerc)
+    
 
 
 def Log(msg):
