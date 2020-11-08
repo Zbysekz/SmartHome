@@ -136,9 +136,9 @@ def main():
             data = comm.DataReceived()
         #-------------------------------------------------
 
-        watchDogAlarmThread=0; #to be able to detect lag in this loop
+        watchDogAlarmThread=0 #to be able to detect lag in this loop
 
-        CheckGasSensor();
+        CheckGasSensor()
 
         alarm_last = alarm
             
@@ -232,7 +232,7 @@ def timerGeneral():#it is calling itself periodically
     if comm.isTerminated(): # do not continue if app terminated
         Log("Ending General thread, because comm is terminated.")
         return
-    elif watchDogAlarmThread > 4:
+    elif watchDogAlarmThread > 8:
         
         Log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
         if RESTART_ON_EXCEPTION:
