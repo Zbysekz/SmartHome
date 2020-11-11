@@ -5,7 +5,7 @@ import mysql.connector
 import time
 import sys
 import os
-from datetime import datetime
+from datetime import datetime,timezone
 
    
 def getTotalSum():
@@ -20,7 +20,7 @@ def AddOnlineDevice(ip):
     try:
         db, cursor = Connect()
         
-        sql = "INSERT INTO onlineDevices (ip, onlineSince) VALUES (%s, NOW())"
+        sql = "INSERT INTO onlineDevices (ip, onlineSince) VALUES (%s, UTC_TIMESTAMP())"
         val = (ip,)
         cursor.execute(sql, val)
 
@@ -145,7 +145,7 @@ def insertValue(name, sensorName, value, timestamp=None):
         db, cursor = Connect()
         
         if not timestamp: # if not defined, set time now
-            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
         args = (timestamp, name, sensorName, value)
         res = cursor.callproc('insertMeasurement',args)
@@ -185,7 +185,7 @@ def insertEvent(desc1, desc2, timestamp=None):
         db, cursor = Connect()
         
         if not timestamp: # if not defined, set time now
-            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
         sql = "INSERT INTO events (time, desc1, desc2) VALUES (%s, %s, %s)"
         val = (timestamp, desc1, desc2)
