@@ -225,6 +225,24 @@ def getTxBuffer():
     
     return data
 
+def insertTxCommand(destination, data):
+    try:
+        db, cursor = Connect()
+        
+        sql = "INSERT INTO TXbuffer (destination, data) VALUES (%s, %s)"
+        val = (destination, str(data))
+        cursor.execute(sql, val)
+
+        db.commit()
+        cursor.close()
+        db.close()
+            
+    except Exception as e:
+        Log("Error while writing to database for insertTxCommand:"+destination+" exception:")
+        LogException(e)
+        return False
+
+    return True
           
 def LogException(e):
     exc_type, exc_obj, exc_tb = sys.exc_info()

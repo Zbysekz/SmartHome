@@ -195,6 +195,7 @@ def timerGeneral():#it is calling itself periodically
                     ExecuteTxCommand(byteArray)
                 else:
                     Log(packet[1])
+                    Log(byteArray)
                     comm.Send(byteArray,packet[1],crc16=True)
         except ValueError:
             Log("MySQL - getTXbuffer - Value Error:"+str(packet[0]))

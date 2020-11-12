@@ -85,48 +85,54 @@ def Handle():
             Log(''.join('!! ' + line for line in lines))
 
 def ReceiveThread(conn, ip):
-    #if you have something to send, send it
-    sendWasPerformed = False
-    for tx in sendQueue:
-        if(tx[1]==ip):#only if we have something to send to the address that has connected
-            #print("Sending:")
-            #for a in tx[0]:
-            #    print(">>"+str(a))
-            conn.send(tx[0])
-            sendQueue.remove(tx)
+    try:
+        #if you have something to send, send it
+        sendWasPerformed = False
+        for tx in sendQueue:
+            if(tx[1]==ip):#only if we have something to send to the address that has connected
+                #print("Sending:")
+                #for a in tx[0]:
+                #    print(">>"+str(a))
+                conn.send(tx[0])
+                sendQueue.remove(tx)
 
-            sendWasPerformed = True
+                sendWasPerformed = True
 
-    if not sendWasPerformed:
-        Log("Nothing to be send to this connected device '"+str(ip)+"'", FULL)
+        if not sendWasPerformed:
+            Log("Nothing to be send to this connected device '"+str(ip)+"'", FULL)
 
-    time.sleep(0.1) # give client some time to send me data
-    
-    
-    receiverInstance = Receiver()
-    while True:
-        #data receive
-        r, _, _ = select.select([conn], [], [],4)
-        if r:
-            data = conn.recv(BUFFER_SIZE)
-        else:
-            Log("Device '"+str(ip)+"' was connected, but haven't send any data.")
-            break
-
-        if not data:
-            break
-
-        st = ""
-        for d in data:
-             # if last received byte was ok, finish
-             # client can send multiple complete packets
-            isMeteostation = str(ip)=="192.168.0.10"#extra exception for meteostation
-            if not receiverInstance.Receive(d, noCRC=isMeteostation):
-                Log("Error above for ip:"+str(ip))
-            st+= str(d)+", "
+        time.sleep(0.1) # give client some time to send me data
         
-        Log("Received data:"+str(st), FULL)
+        
+        receiverInstance = Receiver()
+        while True:
+            #data receive
+            r, _, _ = select.select([conn], [], [],4)
+            if r:
+                data = conn.recv(BUFFER_SIZE)
+            else:
+                Log("Device '"+str(ip)+"' was connected, but haven't send any data.")
+                break
 
+            if not data:
+                break
+
+            st = ""
+            for d in data:
+                 # if last received byte was ok, finish
+                 # client can send multiple complete packets
+                isMeteostation = str(ip)=="192.168.0.10"#extra exception for meteostation
+                if not receiverInstance.Receive(d, noCRC=isMeteostation):
+                    Log("Error above for ip:"+str(ip))
+                st+= str(d)+", "
+            
+            Log("Received data:"+str(st), FULL)
+    except:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        Log("Exception in rcv thread:")
+        Log(''.join('!! ' + line for line in lines))
+            
     conn.close()
         
 def Send(data, destination, crc16=True):#put in send queue

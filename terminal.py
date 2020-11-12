@@ -1,18 +1,16 @@
 #!/usr/bin/python3
 from tkinter import *
-import sqlite3
+import databaseMySQL
 import struct
 
-def SendData(data):
-    conn=sqlite3.connect('/home/pi/main.db')
+IP_RACKUNO = "192.168.0.5"
+IP_POWERWALL = "192.168.0.12"
 
-    curs=conn.cursor()
-    
-    try:
-        curs.execute("INSERT into TXbuffer values ((?),(?));",(DEST.get(),data))
-        conn.commit()
-    except sqlite3.OperationalError:
-        print("Cannot write to database..")
+def SendData(data, address=None):
+    if address is None:
+        address = DEST.get()
+        
+    databaseMySQL.insertTxCommand(address, data)
 
 def sendRawCallback():
           
@@ -35,18 +33,26 @@ def sendCal(id):
     SendData(data)
     
 def buttonTempCallback():
-    sendCal("5")
+    sendCal("5", address=IP_POWERWALL)
 def buttonVoltCallback():
-    sendCal("4")
+    sendCal("4", address=IP_POWERWALL)
 
 def buttonConnectCallback():
-    SendData("7")
+    SendData("7", address=IP_POWERWALL)
 def buttonDisconnectCallback():
-    SendData("8")
-      
+    SendData("8", address=IP_POWERWALL)
+
+def buttonHeatInhibitCallback():
+    SendData("1,1", address=IP_RACKUNO)
+def buttonStopHeatInhibitCallback():
+    SendData("1,0", address=IP_RACKUNO)
+    
+def buttonVentilationCallback():
+    SendData("2,"+str(E_VENT.get()), address=IP_RACKUNO)
+
 top = Tk()
 top.title('Terminal')
-top.geometry("400x250")
+top.geometry("400x350")
 
 B = Button(top,text="Send raw",command = sendRawCallback)
 B.place(x=50,y=45)
@@ -106,13 +112,29 @@ B = Button(top,text="VoltCal",command = buttonVoltCallback)
 B.place(x=20,y=140)
 
 #CONNECT and DISCONNECT BATTERY
-l = Label(top, text="BATTERY:")
+l = Label(top, text="Battery:")
 l.place(x=0, y=180)
 B = Button(top,text="Connect",command = buttonConnectCallback)
 B.place(x=0,y=200)
 B = Button(top,text="Disconnect",command = buttonDisconnectCallback)
 B.place(x=100,y=200)
 
+#HEATING INHIBIT
+l = Label(top, text="Heating inhibition:")
+l.place(x=0, y=240)
+B = Button(top,text="Inhibit",command = buttonHeatInhibitCallback)
+B.place(x=0,y=260)
+B = Button(top,text="Stop inhibit",command = buttonStopHeatInhibitCallback)
+B.place(x=100,y=260)
+
+#VENTILATION
+l = Label(top, text="Ventilation control:")
+l.place(x=0, y=300)
+B = Button(top,text="OK",command = buttonVentilationCallback)
+B.place(x=100,y=320)
+E_VENT = Entry(top)
+E_VENT.place(x=30,y=320,width=30)
+E_VENT.insert(0,"0")
 
 
 top.mainloop()
