@@ -34,6 +34,7 @@ IP_ROOMBA = '192.168.0.13'
 IP_RACKUNO = '192.168.0.5'
 IP_PIR_SENSOR = '192.168.0.14'
 IP_SERVER = '192.168.0.3' # it is localhost
+IP_POWERWALL = '192.168.0.12'
 
 NORMAL = 0
 RICH = 1
@@ -65,6 +66,7 @@ tmrPrepareGasSensor = time.time()
 alarm_last = 0
 
 tmrRackComm = 0
+tmrPowerwallComm=0
 #-----------------------------------------------
 
 ###############################################################################################################
@@ -183,15 +185,15 @@ def timerGeneral():#it is calling itself periodically
     else:
         wifiCheckCnt = wifiCheckCnt + 1
         
-    if tmrRackComm!=-1 and time.time() - tmrRackComm > 100: # 100s - nothing came from rackUno for this time
+    if tmrRackComm!=0 and time.time() - tmrRackComm > 100: # 100s - nothing came from rackUno for this time
         Log("Comm timeout for RackUNO!")
-        tmrRackComm=-1
+        tmrRackComm=0
         databaseMySQL.RemoveOnlineDevice(IP_RACKUNO)
         
-    if tmrPowerwallComm!=-1 and time.time() - tmrPowerwallComm > 100: # 100s - nothing came from powerwall for this time
+    if tmrPowerwallComm!=0 and time.time() - tmrPowerwallComm > 100: # 100s - nothing came from powerwall for this time
         databaseMySQL.RemoveOnlineDevice(IP_POWERWALL)
         Log("Comm timeout for Powerwall!")
-        tmrPowerwallComm=-1
+        tmrPowerwallComm=0
         
     #check if there are data in mysql that we want to send
     data = databaseMySQL.getTxBuffer()
