@@ -20,7 +20,7 @@ def AddOnlineDevice(ip):
     try:
         db, cursor = Connect()
         
-        sql = "INSERT INTO onlineDevices (ip, onlineSince) VALUES (%s, UTC_TIMESTAMP())"
+        sql = "UPDATE onlineDevices SET online=1,stateChangeTime=UTC_TIMESTAMP() WHERE ip=%s"
         val = (ip,)
         cursor.execute(sql, val)
 
@@ -43,12 +43,12 @@ def RemoveOnlineDevice(ip):
         db, cursor = Connect()
         
         if ip is None: # delete all
-            sql = "DELETE FROM onlineDevices"
+            sql = "UPDATE onlineDevices SET online=0,stateChangeTime=UTC_TIMESTAMP()"
             cursor.execute(sql)
         else:
-            sql = "DELETE FROM onlineDevices WHERE ip=%s"
+            sql = "UPDATE onlineDevices SET online=0,stateChangeTime=UTC_TIMESTAMP() WHERE ip=%s"
             val = (ip,)
-            cursor.execute(sql)
+            cursor.execute(sql, val)
 
         db.commit()
         cursor.close()

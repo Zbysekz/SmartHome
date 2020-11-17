@@ -128,17 +128,19 @@ def STATE_SMS_read():
     NextState();
     
 def STATE_SMS_read2():
-    global serPort,readSMSsender, nOfReceivedSMS,commState
+    global serPort,readSMSsender, nOfReceivedSMS,commState,configLine
     
     rcvLines = ReceiveLinesFromSerial()
     
     for rcvLine in rcvLines:
+        Log("Phone RCV:"+str(rcvLine),FULL)
         if(b"OK" in rcvLine):
             serPort.write(bytes("AT+CMGL=\x22ALL\x22\x0D",'UTF-8'));
             
             readSMSsender = ""
             nOfReceivedSMS = 0
     
+            configLine = ""
             NextState();
             break
 
@@ -148,8 +150,15 @@ def STATE_SMS_read2():
         commState=False
     
     
+# Example:
+# Phone RCV2:b'AT+CMGL="ALL"\r\r'
+# Phone RCV2:b'+CMGL: 1,"REC UNREAD","+420602187490","","20/11/1'
+# Phone RCV2:b'4,08:30:40+04"\r'
+# Phone RCV2:b'heating off\r'
+# Phone RCV2:b'\r'
+# Phone RCV2:b'OK\r'
 def STATE_SMS_read3():
-    global readSMSsender, readSMStext, incomeSMSList, nOfReceivedSMS, commState
+    global readSMSsender, readSMStext, incomeSMSList, nOfReceivedSMS, commState, configLine
 
     rcvLines = ReceiveLinesFromSerial()
     
@@ -163,9 +172,14 @@ def STATE_SMS_read3():
                 incomeSMSList.append((readSMStext,readSMSsender))
                 readSMSsender = ""
                 continue
-            elif(b"+CMGL:" in rcvLine):
-                ss = rcvLine.decode("utf-8")
-                readSMSsender = ss.split(',')[2].replace('"','')
+            elif(b"+CMGL:" in rcvLine or configLine!=""):#waits for sms sender, but wait for complete line
+                Log("Phone RCV2:"+str(rcvLine),NORMAL)
+                configLine += rcvLine.decode("utf-8")
+
+                if('\r' in configLine):#we have it complete
+                    readSMSsender = configLine.split(',')[2].replace('"','')
+                    timeOfReceive = configLine.split(',')[4].replace('"','')
+                    configLine=""
                 continue
             elif(b"OK" in rcvLine):
                 if nOfReceivedSMS > 0:
@@ -362,7 +376,7 @@ def getSignalInfo():
 def ReceiveLinesFromSerial():
     global serPort,clearBufferWhenPhoneOffline
 
-    maxChars = 200#maximalne tolik znaku lze precist
+    maxChars = 200#max this count of chars can be read
     rcvLine = bytes()
     rcvLines = []
     ptr=0

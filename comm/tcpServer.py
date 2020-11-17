@@ -41,7 +41,7 @@ def Init():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setblocking(0)
     s.bind((TCP_IP, TCP_PORT))
-    s.listen(5)
+    s.listen(10)
 
     tmrPrintBufferStat = time.time()
  
@@ -60,7 +60,7 @@ def Handle():
         s.settimeout(4.0)
         conn, addr = s.accept()
         ip = addr[0]
-        Log('Device with address '+str(ip)+' was connected',FULL)
+        Log('Device with address '+str(ip)+' was connected',NORMAL)
         if addr[0] not in onlineDevices:
             onlineDevices.append(ip)
             Log('New device with address ' + str(ip) + ' was connected')
@@ -130,7 +130,7 @@ def ReceiveThread(conn, ip):
     except:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-        Log("Exception in rcv thread:")
+        Log("Exception in rcv thread, IP:"+str(ip))
         Log(''.join('!! ' + line for line in lines))
             
     conn.close()

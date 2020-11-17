@@ -63,6 +63,8 @@ tmrPriceCalc = 0
 gasSensorPrepared=False
 tmrPrepareGasSensor = time.time()
 alarm_last = 0
+
+tmrRackComm = 0
 #-----------------------------------------------
 
 ###############################################################################################################
@@ -166,7 +168,7 @@ def CheckGasSensor():
      
 def timerGeneral():#it is calling itself periodically
     global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,wifiCheckCnt,tmrPriceCalc
-    
+    global tmrPowerwallComm, tmrRackComm
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt=0
         KeyboardRefresh()
@@ -180,7 +182,17 @@ def timerGeneral():#it is calling itself periodically
            Log("UNABLE TO REACH ROUTER!")
     else:
         wifiCheckCnt = wifiCheckCnt + 1
-    
+        
+    if tmrRackComm!=-1 and time.time() - tmrRackComm > 100: # 100s - nothing came from rackUno for this time
+        Log("Comm timeout for RackUNO!")
+        tmrRackComm=-1
+        databaseMySQL.RemoveOnlineDevice(IP_RACKUNO)
+        
+    if tmrPowerwallComm!=-1 and time.time() - tmrPowerwallComm > 100: # 100s - nothing came from powerwall for this time
+        databaseMySQL.RemoveOnlineDevice(IP_POWERWALL)
+        Log("Comm timeout for Powerwall!")
+        tmrPowerwallComm=-1
+        
     #check if there are data in mysql that we want to send
     data = databaseMySQL.getTxBuffer()
     if(len(data)):
@@ -328,9 +340,11 @@ def IncomingSMS(data):
         elif data[0].startswith("heating on"):
             Log("Heating on by SMS command.")
             comm.Send(bytes([1, 0]), IP_RACKUNO)
+            phone.SendSMS(data[1], "Ok. Heating was set ON.")
         elif data[0].startswith("heating off"):
             Log("Heating off by SMS command.")
             comm.Send(bytes([1, 1]), IP_RACKUNO)
+            phone.SendSMS(data[1], "Ok. Heating was set OFF.")
         elif data[0].startswith("help"):
             Log("Sending help hints back")
             phone.SendSMS(data[1], "get status;lock;unlock;deactivate alarm;toggle PC;heating on; heating off;")
@@ -349,7 +363,7 @@ def TogglePCbutton():
     GPIO.output(PIN_BTN_PC,False)
     
 def IncomingData(data):
-    global alarm
+    global alarm,tmrRackComm
     Log("Incoming data:"+str(data), FULL)
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
@@ -396,6 +410,7 @@ def IncomingData(data):
         databaseMySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000)
         databaseMySQL.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000)
     elif data[0]==103:# data from rackUno
+        tmrRackComm = time.time()
         #store power
         databaseMySQL.insertValue('power','grid',(data[1]*256+data[2]))
         
