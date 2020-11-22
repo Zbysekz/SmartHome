@@ -67,6 +67,8 @@ alarm_last = 0
 
 tmrRackComm = 0
 tmrPowerwallComm=0
+
+bufferedCellModVoltage = 24*[0]
 #-----------------------------------------------
 
 ###############################################################################################################
@@ -96,7 +98,7 @@ def main():
         phone.Connect()
         Log("Ok")
 
-        databaseMySQL.RemoveOnlineDevices()
+        databaseMySQL.RemoveOnlineDevices() # clean up online device table
         
         timerGeneral()#it will call itself periodically - new thread
       
@@ -188,12 +190,13 @@ def timerGeneral():#it is calling itself periodically
     if tmrRackComm!=0 and time.time() - tmrRackComm > 100: # 100s - nothing came from rackUno for this time
         Log("Comm timeout for RackUNO!")
         tmrRackComm=0
-        databaseMySQL.RemoveOnlineDevice(IP_RACKUNO)
+        comm.RemoveOnlineDevice(IP_RACKUNO)
         
     if tmrPowerwallComm!=0 and time.time() - tmrPowerwallComm > 100: # 100s - nothing came from powerwall for this time
-        databaseMySQL.RemoveOnlineDevice(IP_POWERWALL)
         Log("Comm timeout for Powerwall!")
         tmrPowerwallComm=0
+        comm.RemoveOnlineDevice(IP_POWERWALL)
+        
         
     #check if there are data in mysql that we want to send
     data = databaseMySQL.getTxBuffer()
@@ -365,7 +368,7 @@ def TogglePCbutton():
     GPIO.output(PIN_BTN_PC,False)
     
 def IncomingData(data):
-    global alarm,tmrRackComm
+    global alarm, tmrRackComm, bufferedCellModVoltage
     Log("Incoming data:"+str(data), FULL)
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
@@ -397,16 +400,44 @@ def IncomingData(data):
         databaseMySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100)
         databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000)
         
-    elif data[0]>10 and data[0]<=40:
-        databaseMySQL.insertValue('voltage','BMS '+str(data[1]),(data[2]*256+data[3])/100);
-        databaseMySQL.insertValue('temperature','BMS '+str(data[1]),(data[4]*256+data[5])/100);
-    elif data[0]>40 and data[0]<70:
+    elif data[0]>10 and data[0]<=40:# POWERWALL
+        
+        voltage = (data[2]*256+data[3])/100
+        if data[1]<24:
+            bufferedCellModVoltage[data[1]] = voltage # we need to store voltages for each module, to calculate burning energy later
+            
+        databaseMySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage);
+        databaseMySQL.insertValue('temperature','powerwall cell '+str(data[1]),(data[4]*256+data[5])/10);
+    elif data[0]>40 and data[0]<=70:# POWERWALL - calibrations
         volCal = struct.unpack('f',bytes([data[2],data[3],data[4],data[5]]))[0]
         tempCal = struct.unpack('f',bytes([data[6],data[7],data[8],data[9]]))[0]
         
-        databaseMySQL.insertValue('BMS calibration','BMS '+str(data[1])+' volt',volCal,one_day_RP=True);
-        databaseMySQL.insertValue('BMS calibration','BMS '+str(data[1])+' temp',tempCal,one_day_RP=True);
-    
+        databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' volt',volCal,one_day_RP=True);
+        databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' temp',tempCal,one_day_RP=True);
+    elif data[0]>70 and data[0]<100:# POWERWALL - statistics
+        databaseMySQL.insertValue('counter','powerwall cell '+str(data[1]),(data[2]*256+data[3]));
+        
+        # compensate dimensionless value from module to represent Wh
+        # P=(U^2)/R
+        # BurnedEnergy[Wh] = P*T/60
+        if data[1]<24:
+            bufVolt = bufferedCellModVoltage[data[1]]
+            if bufVolt==0:
+                bufVolt = 4 # it is too soon to have buffered voltage
+        else:
+            bufVolt = 4 # some sensible value if error occurs
+        val = (data[4]*256+data[5]) # this value is counter for how long bypass was switched on
+        T = 10 # each 10 min data comes.
+        R = 2 # Ohms of burning resistor
+        # coeficient, depends on T and on timer on cell module,
+        # e.g. we get this value if we are burning 100% of period T
+        valFor100Duty = 462 * T 
+        
+        Energy = (pow(bufVolt,2)/R)*T/60.0
+        Energy = Energy*(min(val,valFor100Duty)/valFor100Duty) # duty calculation
+            
+        databaseMySQL.insertValue('consumption','powerwall cell '+str(data[1]),Energy);
+        
     elif data[0]==102:# data from Roomba
         databaseMySQL.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000)
         databaseMySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000)
@@ -443,7 +474,7 @@ def IncomingData(data):
             Log("PIR GAS ALARM!!")
             alarm |= GAS_ALARM_PIR
             if (alarm_last & GAS_ALARM_PIR == 0):
-                databaseMySQL.updateValue("alarm", int(alarm))
+                databaseMySQL.updateState("alarm", int(alarm))
 
                 txt = "Home system: PIR sensor - FIRE/GAS ALARM !!"
                 Log(txt)

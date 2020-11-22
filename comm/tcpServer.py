@@ -60,7 +60,7 @@ def Handle():
         s.settimeout(4.0)
         conn, addr = s.accept()
         ip = addr[0]
-        Log('Device with address '+str(ip)+' was connected',NORMAL)
+        Log('Device with address '+str(ip)+' was connected',RICH)
         if addr[0] not in onlineDevices:
             onlineDevices.append(ip)
             Log('New device with address ' + str(ip) + ' was connected')
@@ -89,10 +89,7 @@ def ReceiveThread(conn, ip):
         #if you have something to send, send it
         sendWasPerformed = False
         for tx in sendQueue:
-            if(tx[1]==ip):#only if we have something to send to the address that has connected
-                #print("Sending:")
-                #for a in tx[0]:
-                #    print(">>"+str(a))
+            if(tx[1]==ip):#only if we have something to send to the address that has connected                  
                 conn.send(tx[0])
                 sendQueue.remove(tx)
 
@@ -127,6 +124,7 @@ def ReceiveThread(conn, ip):
                 st+= str(d)+", "
             
             Log("Received data:"+str(st), FULL)
+                    
     except:
         exc_type, exc_value, exc_traceback = sys.exc_info()
         lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
@@ -142,10 +140,7 @@ def Send(data, destination, crc16=True):#put in send queue
         cnt = sum([msg[1] == destination for msg in sendQueue]) # how much are with same address
         if cnt >= TXQUEUELIMIT_PER_DEVICE:# this device will become offline
 
-            if destination in onlineDevices:
-                onlineDevices.remove(destination)
-                Log("Device with address:'"+destination+"' become OFFLINE!")
-                databaseMySQL.RemoveOnlineDevice(destination)
+            RemoveOnlineDevice(destination)
             # now remove the oldest message and further normally append newest
             oldMsgs = [msg for msg in sendQueue if msg[1] == destination]
 
@@ -157,6 +152,14 @@ def Send(data, destination, crc16=True):#put in send queue
     else:
         Log("MAXIMUM TX QUEUE LIMIT REACHED!!")
 
+def RemoveOnlineDevice(destination):
+    global onlineDevices
+    
+    if destination in onlineDevices:
+        onlineDevices.remove(destination)
+        Log("Device with address:'"+destination+"' became OFFLINE!")
+        databaseMySQL.RemoveOnlineDevice(destination)
+                
 def SendACK(data,destination):
     #poslem CRC techto dat na danou destinaci
     global sendQueue,TXQUEUELIMIT

@@ -21,38 +21,57 @@ def sendRawCallback():
     
     SendData(data)
     
-def sendCal(id):
+def sendCal(id, address):
         
     data = id+","+modID.get()
-    print(type(tempCal.get()))
     
     buffer = struct.pack('f',float(tempCal.get()))
     
     data+=","+str(buffer[0])+","+str(buffer[1])+","+str(buffer[2])+","+str(buffer[3]);
     
-    SendData(data)
+    SendData(data, address)
     
 def buttonTempCallback():
     sendCal("5", address=IP_POWERWALL)
 def buttonVoltCallback():
     sendCal("4", address=IP_POWERWALL)
 
-def buttonConnectCallback():
-    SendData("7", address=IP_POWERWALL)
-def buttonDisconnectCallback():
-    SendData("8", address=IP_POWERWALL)
+def buttonBurnCallback():
+    data = "14,"+modID2.get()
+    
+    val = int(float(eBurnV.get())*100)
+    
+    data+=","+str(val//256)+","+str(val%256)
+    
+    SendData(data, address=IP_POWERWALL)
 
+def buttonRunCallback():
+    SendData("10", address=IP_POWERWALL)
+def buttonChargeOnlyCallback():
+    SendData("11", address=IP_POWERWALL)
+def buttonDisconnectCallback():
+    SendData("12", address=IP_POWERWALL)
+def buttonResetCallback():
+    SendData("13", address=IP_POWERWALL)
+    
+def buttonAddressSetCallback():
+    SendData("7,"+str(eCellID.get())+","+str(eCellNewAddr.get()), address=IP_POWERWALL)
+def buttonProvisionCallback():
+    SendData("2", address=IP_POWERWALL)
+def buttonBlinkCallback():
+    SendData("0,"+str(eCellID.get())+",170", address=IP_POWERWALL)
 def buttonHeatInhibitCallback():
     SendData("1,1", address=IP_RACKUNO)
 def buttonStopHeatInhibitCallback():
     SendData("1,0", address=IP_RACKUNO)
-    
+
+      
 def buttonVentilationCallback():
     SendData("2,"+str(E_VENT.get()), address=IP_RACKUNO)
 
 top = Tk()
 top.title('Terminal')
-top.geometry("400x350")
+top.geometry("500x500")
 
 B = Button(top,text="Send raw",command = sendRawCallback)
 B.place(x=50,y=45)
@@ -93,47 +112,83 @@ e.append(E6)
 e.append(E7)
 e.append(E8)
 
-#--------------------------temperature and voltage calibration
-l = Label(top, text="Calibration:")
-l.place(x=0, y=80)
-
-B = Button(top,text="TempCal",command = buttonTempCallback)
+B = Button(top,text="Provision",command = buttonProvisionCallback)
 B.place(x=20,y=100)
 
+B = Button(top,text="Blink cell",command = buttonBlinkCallback)
+B.place(x=110,y=100)
+
+B = Button(top,text="Set new addr",command = buttonAddressSetCallback)
+B.place(x=200,y=100)
+
+eCellID = Entry(top)
+eCellID.place(x=350,y=105,width=40)
+eCellID.insert(0,"24")
+
+eCellNewAddr = Entry(top)
+eCellNewAddr.place(x=400,y=105,width=40)
+eCellNewAddr.insert(0,"24")
+
+#--------------------------temperature and voltage calibration
+y=140
+l = Label(top, text="Calibration:")
+l.place(x=0, y=y)
+
+B = Button(top,text="TempCal",command = buttonTempCallback)
+B.place(x=20,y=y+20)
+
 modID = Entry(top)
-modID.place(x=140,y=120,width=80)
-modID.insert(0,"1")
+modID.place(x=120,y=y+40,width=50)
+modID.insert(0,"24")
 
 tempCal = Entry(top)
-tempCal.place(x=210,y=120,width=80)
+tempCal.place(x=190,y=y+40,width=50)
 tempCal.insert(0,"1.00")
 
 B = Button(top,text="VoltCal",command = buttonVoltCallback)
-B.place(x=20,y=140)
+B.place(x=20,y=y+60)
+
+B = Button(top,text="Burn",command = buttonBurnCallback)
+B.place(x=280,y=y+40)
+
+modID2 = Entry(top)
+modID2.place(x=350,y=y+40,width=50)
+modID2.insert(0,"24")
+
+eBurnV = Entry(top)
+eBurnV.place(x=420,y=y+40,width=50)
+eBurnV.insert(0,"4.0")
 
 #CONNECT and DISCONNECT BATTERY
+y=240
 l = Label(top, text="Battery:")
-l.place(x=0, y=180)
-B = Button(top,text="Connect",command = buttonConnectCallback)
-B.place(x=0,y=200)
+l.place(x=0, y=y)
+B = Button(top,text="Run",command = buttonRunCallback)
+B.place(x=0,y=y+20)
+B = Button(top,text="ChargeOnly",command = buttonChargeOnlyCallback)
+B.place(x=60,y=y+20)
 B = Button(top,text="Disconnect",command = buttonDisconnectCallback)
-B.place(x=100,y=200)
+B.place(x=180,y=y+20)
+B = Button(top,text="Reset Error",command = buttonResetCallback)
+B.place(x=300,y=y+20)
 
 #HEATING INHIBIT
+y=300
 l = Label(top, text="Heating inhibition:")
-l.place(x=0, y=240)
+l.place(x=0, y=y)
 B = Button(top,text="Inhibit",command = buttonHeatInhibitCallback)
-B.place(x=0,y=260)
+B.place(x=0,y=y+20)
 B = Button(top,text="Stop inhibit",command = buttonStopHeatInhibitCallback)
-B.place(x=100,y=260)
+B.place(x=100,y=y+20)
 
 #VENTILATION
+y=360
 l = Label(top, text="Ventilation control:")
-l.place(x=0, y=300)
+l.place(x=0, y=y)
 B = Button(top,text="OK",command = buttonVentilationCallback)
-B.place(x=100,y=320)
+B.place(x=100,y=y+20)
 E_VENT = Entry(top)
-E_VENT.place(x=30,y=320,width=30)
+E_VENT.place(x=30,y=y+20,width=30)
 E_VENT.insert(0,"0")
 
 
