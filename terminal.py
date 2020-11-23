@@ -25,16 +25,32 @@ def sendCal(id, address):
         
     data = id+","+modID.get()
     
-    buffer = struct.pack('f',float(tempCal.get()))
+    buffer = struct.pack('f',float(eCal1.get()))
     
     data+=","+str(buffer[0])+","+str(buffer[1])+","+str(buffer[2])+","+str(buffer[3]);
     
     SendData(data, address)
     
+def sendCal2(id, address):
+        
+    data = id+","+modID.get()
+    
+    buffer = struct.pack('f',float(eCal2.get()))
+    
+    data+=","+str(buffer[0])+","+str(buffer[1])+","+str(buffer[2])+","+str(buffer[3]);
+    
+    SendData(data, address)
+
+    
 def buttonTempCallback():
     sendCal("5", address=IP_POWERWALL)
 def buttonVoltCallback():
     sendCal("4", address=IP_POWERWALL)
+    
+def buttonTemp2Callback():
+    sendCal2("16", address=IP_POWERWALL)
+def buttonVolt2Callback():
+    sendCal2("15", address=IP_POWERWALL)
 
 def buttonBurnCallback():
     data = "14,"+modID2.get()
@@ -137,16 +153,24 @@ l.place(x=0, y=y)
 B = Button(top,text="TempCal",command = buttonTempCallback)
 B.place(x=20,y=y+20)
 
+B = Button(top,text="TempCal",command = buttonTemp2Callback)
+B.place(x=40,y=y+20)
+
 modID = Entry(top)
 modID.place(x=120,y=y+40,width=50)
 modID.insert(0,"24")
 
-tempCal = Entry(top)
-tempCal.place(x=190,y=y+40,width=50)
-tempCal.insert(0,"1.00")
+eCal1 = Entry(top)
+eCal1.place(x=190,y=y+40,width=50)
+eCal1.insert(0,"1.00")
+eCal2 = Entry(top)
+eCal2.place(x=190,y=y+60,width=50)
+eCal2.insert(0,"1.00")
 
 B = Button(top,text="VoltCal",command = buttonVoltCallback)
 B.place(x=20,y=y+60)
+B = Button(top,text="VoltCal",command = buttonVolt2Callback)
+B.place(x=40,y=y+60)
 
 B = Button(top,text="Burn",command = buttonBurnCallback)
 B.place(x=280,y=y+40)

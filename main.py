@@ -401,7 +401,7 @@ def IncomingData(data):
         databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000)
         
     elif data[0]>10 and data[0]<=40:# POWERWALL
-        
+        print("POWERWALL:"+str(data))
         voltage = (data[2]*256+data[3])/100
         if data[1]<24:
             bufferedCellModVoltage[data[1]] = voltage # we need to store voltages for each module, to calculate burning energy later
