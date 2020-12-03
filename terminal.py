@@ -85,6 +85,11 @@ def buttonStopHeatInhibitCallback():
 def buttonVentilationCallback():
     SendData("2,"+str(E_VENT.get()), address=IP_RACKUNO)
 
+def buttonSwitchToGridCallback():
+    SendData("3", address=IP_RACKUNO)
+def buttonSwitchToSolarCallback():
+    SendData("4", address=IP_RACKUNO)
+    
 top = Tk()
 top.title('Terminal')
 top.geometry("500x500")
@@ -215,6 +220,14 @@ E_VENT = Entry(top)
 E_VENT.place(x=30,y=y+20,width=30)
 E_VENT.insert(0,"0")
 
+#VENTILATION
+y=420
+l = Label(top, text="Switching source of power:")
+l.place(x=0, y=y)
+B = Button(top,text="GRID",command = buttonSwitchToGridCallback)
+B.place(x=20,y=y+20)
+B = Button(top,text="SOLAR",command = buttonSwitchToSolarCallback)
+B.place(x=120,y=y+20)
 
 top.mainloop()
 

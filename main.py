@@ -401,13 +401,24 @@ def IncomingData(data):
         databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000)
         
     elif data[0]>10 and data[0]<=40:# POWERWALL
-        print("POWERWALL:"+str(data))
         voltage = (data[2]*256+data[3])/100
         if data[1]<24:
             bufferedCellModVoltage[data[1]] = voltage # we need to store voltages for each module, to calculate burning energy later
-            
-        databaseMySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage);
-        databaseMySQL.insertValue('temperature','powerwall cell '+str(data[1]),(data[4]*256+data[5])/10);
+        temp = (data[4]*256+data[5])/10
+        
+        if voltage < 5:
+            databaseMySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage);
+        if temp < 70:
+            databaseMySQL.insertValue('temperature','powerwall cell '+str(data[1]),temp);
+    elif data[0]==10: # POWERWALL STATUS
+        stateMachineStatus = data[1]
+        errorStatus = data[2]
+        errorStatus_cause = data[3]
+        
+        databaseMySQL.insertValue('status','powerwall_stateMachineStatus',stateMachineStatus)
+        databaseMySQL.insertValue('status','powerwall_errorStatus',errorStatus)
+        databaseMySQL.insertValue('status','powerwall_errorStatus_cause',errorStatus_cause)
+                                  
     elif data[0]>40 and data[0]<=70:# POWERWALL - calibrations
         volCal = struct.unpack('f',bytes([data[2],data[3],data[4],data[5]]))[0]
         tempCal = struct.unpack('f',bytes([data[6],data[7],data[8],data[9]]))[0]
@@ -494,7 +505,12 @@ def IncomingData(data):
                     phone.SendSMS(MY_NUMBER1, txt)
                 KeyboardRefresh()
                 PIRSensorRefresh()
-
+    elif data[0]==106:# data from powerwall ESP
+        databaseMySQL.insertValue('voltage','powerwallSum',(data[1]*256+data[2])/100.0)
+        databaseMySQL.insertValue('temperature','powerwallOutside',(data[3]*256+data[4])/100.0)
+        databaseMySQL.insertValue('power','solar',(data[5]*256+data[6])/100.0)
+        databaseMySQL.insertValue('consumption','powerwallDaily',(data[7]*256+data[8])/100.0)
+        
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
     elif(data[0]<10 and len(data)>=2):#other events, reserved for keyboard

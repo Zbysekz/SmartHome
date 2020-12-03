@@ -85,15 +85,20 @@ def Handle():
             Log(''.join('!! ' + line for line in lines))
 
 def ReceiveThread(conn, ip):
+    global sendQueue
     try:
         #if you have something to send, send it
         sendWasPerformed = False
+        
+        queueNotForThisIp = [x for x in sendQueue if x[1]!=ip]
+        
         for tx in sendQueue:
             if(tx[1]==ip):#only if we have something to send to the address that has connected                  
                 conn.send(tx[0])
-                sendQueue.remove(tx)
 
                 sendWasPerformed = True
+        
+        sendQueue = queueNotForThisIp # replace items with the items that we haven't sent
 
         if not sendWasPerformed:
             Log("Nothing to be send to this connected device '"+str(ip)+"'", FULL)
