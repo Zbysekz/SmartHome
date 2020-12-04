@@ -19,6 +19,7 @@ import sys
 import struct
 import electricityPrice
 import time
+from powerwall import calculatePowerwallSOC
 
 #-------------DEFINITIONS-----------------------
 SMS_NOTIFICATION = True
@@ -506,7 +507,11 @@ def IncomingData(data):
                 KeyboardRefresh()
                 PIRSensorRefresh()
     elif data[0]==106:# data from powerwall ESP
-        databaseMySQL.insertValue('voltage','powerwallSum',(data[1]*256+data[2])/100.0)
+        powerwallVolt = (data[1]*256+data[2])/100.0
+        databaseMySQL.insertValue('voltage','powerwallSum',powerwallVolt)
+        soc = calculatePowerwallSOC(powerwallVolt)
+        databaseMySQL.insertValue('status','powerwallSoc',soc)
+        
         databaseMySQL.insertValue('temperature','powerwallOutside',(data[3]*256+data[4])/100.0)
         databaseMySQL.insertValue('power','solar',(data[5]*256+data[6])/100.0)
         databaseMySQL.insertValue('consumption','powerwallDaily',(data[7]*256+data[8])/100.0)
