@@ -140,14 +140,14 @@ def getValues(kind, sensorName, timeFrom, timeTo, _sum = False):
     
     return values
 
-def insertValue(name, sensorName, value, timestamp=None):
+def insertValue(name, sensorName, value, timestamp=None, periodicity=0):
     try:
         db, cursor = Connect()
         
         if not timestamp: # if not defined, set time now
             timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
-        args = (timestamp, name, sensorName, value)
+        args = (timestamp, name, sensorName, value, periodicity)
         res = cursor.callproc('insertMeasurement',args)
         
         db.commit()
@@ -160,7 +160,24 @@ def insertValue(name, sensorName, value, timestamp=None):
         return False
 
     return True
-    
+
+def insertDailySolarCons(value):
+    try:
+        db, cursor = Connect()
+        
+        args = (value,)
+        res = cursor.callproc('DailySolarCons',args)
+        
+        db.commit()
+        cursor.close()
+        db.close()
+            
+    except Exception as e:
+        Log("Error while writing to database for insertDailyCons, exception:")
+        LogException(e)
+        return False
+
+    return True
 
 def updateState(name, value):
     try:

@@ -41,6 +41,10 @@ NORMAL = 0
 RICH = 1
 FULL = 2
 verbosity = RICH
+
+# for periodicity mysql inserts
+HOUR = 3600
+MINUTE = 60
 #-----------------------------------------------
 
 #-------------STATE VARIABLES-------------------
@@ -61,15 +65,18 @@ watchDogAlarmThread=0
 alarmCnt=0
 keyboardRefreshCnt=0
 wifiCheckCnt=0
-tmrPriceCalc = 0
+tmrPriceCalc = time.time()
 gasSensorPrepared=False
 tmrPrepareGasSensor = time.time()
 alarm_last = 0
 
 tmrRackComm = 0
 tmrPowerwallComm=0
+tmrConsPowerwall = 0
 
 bufferedCellModVoltage = 24*[0]
+solarPower = 0
+powerwall_stateMachineStatus = 0
 #-----------------------------------------------
 
 ###############################################################################################################
@@ -320,6 +327,8 @@ def IncomingSMS(data):
                 txt = "PIR movement alarm"
             elif locked:
                 txt = "Locked"
+            txt += ", powerwall status:"+str(powerwall_stateMachineStatus)
+            txt += ", solar power:" + str(solarPower)+" W"
 
             phone.SendSMS(data[1], txt)
             Log("Get status by SMS command.")
@@ -369,7 +378,7 @@ def TogglePCbutton():
     GPIO.output(PIN_BTN_PC,False)
     
 def IncomingData(data):
-    global alarm, tmrRackComm, bufferedCellModVoltage
+    global alarm, tmrRackComm, bufferedCellModVoltage,solarPower,powerwall_stateMachineStatus,tmrConsPowerwall
     Log("Incoming data:"+str(data), FULL)
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
@@ -380,11 +389,11 @@ def IncomingData(data):
         temp = (data[4]*256+data[5])/10 + 0.5
         RH = (data[6]*256+data[7])/10
         
-        databaseMySQL.insertValue('bools','door switch 1',doorSW)
-        databaseMySQL.insertValue('bools','gas alarm 1',gasAlarm)
+        databaseMySQL.insertValue('bools','door switch 1',doorSW,10*MINUTE)
+        databaseMySQL.insertValue('bools','gas alarm 1',gasAlarm,10*MINUTE)
         #databaseMySQL.insertValue('gas','keyboard',gas)
-        databaseMySQL.insertValue('temperature','keyboard',temp)
-        databaseMySQL.insertValue('humidity','keyboard',RH)
+        databaseMySQL.insertValue('temperature','keyboard',temp,10*MINUTE)
+        databaseMySQL.insertValue('humidity','keyboard',RH,10*MINUTE)
         
         global alarmCounting,locked
      
@@ -397,9 +406,9 @@ def IncomingData(data):
         if meteoTemp>32767:
             meteoTemp=meteoTemp-65536 #negative values are inverted like this
         
-        databaseMySQL.insertValue('temperature','meteostation 1',meteoTemp/100)
-        databaseMySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100)
-        databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000)
+        databaseMySQL.insertValue('temperature','meteostation 1',meteoTemp/100,10*MINUTE)
+        databaseMySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100,30*MINUTE)
+        databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000,30*MINUTE)
         
     elif data[0]>10 and data[0]<=40:# POWERWALL
         voltage = (data[2]*256+data[3])/100
@@ -408,15 +417,15 @@ def IncomingData(data):
         temp = (data[4]*256+data[5])/10
         
         if voltage < 5:
-            databaseMySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage);
+            databaseMySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage, 10*MINUTE);
         if temp < 70:
-            databaseMySQL.insertValue('temperature','powerwall cell '+str(data[1]),temp);
+            databaseMySQL.insertValue('temperature','powerwall cell '+str(data[1]),temp, 10*MINUTE);
     elif data[0]==10: # POWERWALL STATUS
-        stateMachineStatus = data[1]
+        powerwall_stateMachineStatus = data[1]
         errorStatus = data[2]
         errorStatus_cause = data[3]
         
-        databaseMySQL.insertValue('status','powerwall_stateMachineStatus',stateMachineStatus)
+        databaseMySQL.insertValue('status','powerwall_stateMachineStatus',powerwall_stateMachineStatus)
         databaseMySQL.insertValue('status','powerwall_errorStatus',errorStatus)
         databaseMySQL.insertValue('status','powerwall_errorStatus_cause',errorStatus_cause)
                                   
@@ -424,10 +433,10 @@ def IncomingData(data):
         volCal = struct.unpack('f',bytes([data[2],data[3],data[4],data[5]]))[0]
         tempCal = struct.unpack('f',bytes([data[6],data[7],data[8],data[9]]))[0]
         
-        databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' volt',volCal,one_day_RP=True);
-        databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' temp',tempCal,one_day_RP=True);
+        #databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' volt',volCal,one_day_RP=True);
+        #databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' temp',tempCal,one_day_RP=True);
     elif data[0]>70 and data[0]<100:# POWERWALL - statistics
-        databaseMySQL.insertValue('counter','powerwall cell '+str(data[1]),(data[2]*256+data[3]));
+        databaseMySQL.insertValue('counter','powerwall cell '+str(data[1]),(data[2]*256+data[3]),periodicity=30*MINUTE);
         
         # compensate dimensionless value from module to represent Wh
         # P=(U^2)/R
@@ -451,19 +460,20 @@ def IncomingData(data):
         databaseMySQL.insertValue('consumption','powerwall cell '+str(data[1]),Energy);
         
     elif data[0]==102:# data from Roomba
-        databaseMySQL.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000)
-        databaseMySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000)
-        databaseMySQL.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000)
+        databaseMySQL.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000,10*MINUTE)
+        databaseMySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000,10*MINUTE)
+        databaseMySQL.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000,10*MINUTE)
     elif data[0]==103:# data from rackUno
         tmrRackComm = time.time()
         #store power
         databaseMySQL.insertValue('power','grid',(data[1]*256+data[2]))
         
         #now store consumption according to tariff
-        if data[3]!=0: # T1
-            databaseMySQL.insertValue('consumption','lowTariff',(data[1]*256+data[2])/60) # from power to consumption - 1puls=1Wh
+        if data[5]!=0: # T1
+            databaseMySQL.insertValue('consumption','lowTariff',(data[3]*256+data[4])/60) # from power to consumption - 1puls=1Wh
         else:
-            databaseMySQL.insertValue('consumption','stdTariff',(data[1]*256+data[2])/60)# from power to consumption - 1puls=1Wh
+            databaseMySQL.insertValue('consumption','stdTariff',(data[3]*256+data[4])/60)# from power to consumption - 1puls=1Wh
+        databaseMySQL.insertValue('status','rackUno_stateMachineStatus',data[6])
     
     elif data[0]==104:# data from PIR sensor
         tempPIR = (data[1] * 256 + data[2])/10.0
@@ -473,11 +483,11 @@ def IncomingData(data):
         
         # check validity and store values
         if tempPIR>-30.0 and tempPIR < 80.0:
-            databaseMySQL.insertValue('temperature','PIR sensor',tempPIR)
+            databaseMySQL.insertValue('temperature','PIR sensor',tempPIR,10*MINUTE)
         if humidPIR>=0.0 and tempPIR <= 100.0:
-            databaseMySQL.insertValue('humidity','PIR sensor',humidPIR)
+            databaseMySQL.insertValue('humidity','PIR sensor',humidPIR,10*MINUTE)
             
-        databaseMySQL.insertValue('gas','PIR sensor',(data[5]*256+data[6]))
+        databaseMySQL.insertValue('gas','PIR sensor',(data[5]*256+data[6]),10*MINUTE)
     elif data[0]==105:# data from PIR sensor
         gasAlarm2 = data[1]
         PIRalarm = data[2]
@@ -508,38 +518,32 @@ def IncomingData(data):
                 PIRSensorRefresh()
     elif data[0]==106:# data from powerwall ESP
         powerwallVolt = (data[1]*256+data[2])/100.0
-        databaseMySQL.insertValue('voltage','powerwallSum',powerwallVolt)
+        databaseMySQL.insertValue('voltage','powerwallSum',powerwallVolt,10*MINUTE)
         soc = calculatePowerwallSOC(powerwallVolt)
-        databaseMySQL.insertValue('status','powerwallSoc',soc)
+        databaseMySQL.insertValue('status','powerwallSoc',soc,10*MINUTE)
         
-        databaseMySQL.insertValue('temperature','powerwallOutside',(data[3]*256+data[4])/100.0)
-        databaseMySQL.insertValue('power','solar',(data[5]*256+data[6])/100.0)
-        databaseMySQL.insertValue('consumption','powerwallDaily',(data[7]*256+data[8])/100.0)
+        databaseMySQL.insertValue('temperature','powerwallOutside',(data[3]*256+data[4])/100.0,30*MINUTE)
+        solarPower = (data[5]*256+data[6])/100.0
+        databaseMySQL.insertValue('power','solar',solarPower)
+        
+        if time.time() - tmrConsPowerwall > 3600: # each hour
+            tmrConsPowerwall = time.time()
+            databaseMySQL.insertDailySolarCons((data[7]*256+data[8]))
         
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
-    elif(data[0]<10 and len(data)>=2):#other events, reserved for keyboard
+    elif(data[0]<4 and len(data)>=2):#events for keyboard
             Log("Incoming event!")
             comm.SendACK(data,IP_KEYBOARD)
-            databaseMySQL.insertEvent(getEventString1(data[0]),getEventString2(data[1]))
+            databaseMySQL.insertEvent(data[0],data[1])
             IncomingEvent(data)
+            
+    elif(data[0]<10 and len(data)>=2):#other events
+            Log("Incoming event!")
+            databaseMySQL.insertEvent(data[0],data[1])
+        
     else:
         Log("Unknown event, data:"+str(data));
-            
-def getEventString1(id):#get text by event id
-    textList = ["First event",
-                "Second event"]
-    if(id>=len(textList) or id <0):
-        return "id."+str(id)
-    return textList[id]
-    
-
-def getEventString2(id):#get text by event sub id
-    textList = ["First subevent",
-                "Second subevent"]
-    if(id>=len(textList) or id <0):
-        return "id."+str(id)
-    return textList[id]
     
 def IncomingEvent(data):
     global locked,alarm,alarmCounting,alarmCnt

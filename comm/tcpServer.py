@@ -102,6 +102,8 @@ def ReceiveThread(conn, ip):
 
         if not sendWasPerformed:
             Log("Nothing to be send to this connected device '"+str(ip)+"'", FULL)
+        
+        conn.send(serialData.CreatePacket(bytes([199]))) # ending packet - signalizing that we don't have anything to sent no more
 
         time.sleep(0.1) # give client some time to send me data
         

@@ -77,6 +77,8 @@ class Receiver():
                 result = False
                 Log("ERR3 (CRC mismatch)",RICH)
                 Log("calc:"+str(calcCRC),RICH)
+                Log("real:"+str(self.crcL+self.crcH*256))
+                Log([self.rxLen,*self.rxBuffer[0:self.rxPtr]],RICH)
         elif(self.readState==6):
             if(rcv==222):#end token
                 rcvdData.append(self.rxBuffer[0:self.rxLen])
