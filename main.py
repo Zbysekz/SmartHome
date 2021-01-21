@@ -389,11 +389,11 @@ def IncomingData(data):
         temp = (data[4]*256+data[5])/10 + 0.5
         RH = (data[6]*256+data[7])/10
         
-        databaseMySQL.insertValue('bools','door switch 1',doorSW,10*MINUTE)
-        databaseMySQL.insertValue('bools','gas alarm 1',gasAlarm,10*MINUTE)
+        databaseMySQL.insertValue('bools','door switch 1',doorSW,periodicity =10*MINUTE)
+        databaseMySQL.insertValue('bools','gas alarm 1',gasAlarm,periodicity =10*MINUTE)
         #databaseMySQL.insertValue('gas','keyboard',gas)
-        databaseMySQL.insertValue('temperature','keyboard',temp,10*MINUTE)
-        databaseMySQL.insertValue('humidity','keyboard',RH,10*MINUTE)
+        databaseMySQL.insertValue('temperature','keyboard',temp,periodicity =10*MINUTE)
+        databaseMySQL.insertValue('humidity','keyboard',RH,periodicity =10*MINUTE)
         
         global alarmCounting,locked
      
@@ -406,9 +406,9 @@ def IncomingData(data):
         if meteoTemp>32767:
             meteoTemp=meteoTemp-65536 #negative values are inverted like this
         
-        databaseMySQL.insertValue('temperature','meteostation 1',meteoTemp/100,10*MINUTE)
-        databaseMySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100,30*MINUTE)
-        databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000,30*MINUTE)
+        databaseMySQL.insertValue('temperature','meteostation 1',meteoTemp/100,periodicity =10*MINUTE)
+        databaseMySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100,periodicity =30*MINUTE)
+        databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000,periodicity =30*MINUTE)
         
     elif data[0]>10 and data[0]<=40:# POWERWALL
         voltage = (data[2]*256+data[3])/100
@@ -417,9 +417,9 @@ def IncomingData(data):
         temp = (data[4]*256+data[5])/10
         
         if voltage < 5:
-            databaseMySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage, 10*MINUTE);
+            databaseMySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage, periodicity =10*MINUTE);
         if temp < 70:
-            databaseMySQL.insertValue('temperature','powerwall cell '+str(data[1]),temp, 10*MINUTE);
+            databaseMySQL.insertValue('temperature','powerwall cell '+str(data[1]),temp, periodicity =10*MINUTE);
     elif data[0]==10: # POWERWALL STATUS
         powerwall_stateMachineStatus = data[1]
         errorStatus = data[2]
@@ -428,14 +428,18 @@ def IncomingData(data):
         databaseMySQL.insertValue('status','powerwall_stateMachineStatus',powerwall_stateMachineStatus)
         databaseMySQL.insertValue('status','powerwall_errorStatus',errorStatus)
         databaseMySQL.insertValue('status','powerwall_errorStatus_cause',errorStatus_cause)
-                                  
-    elif data[0]>40 and data[0]<=70:# POWERWALL - calibrations
+                     
+    elif data[0]==69:# general statistics from powerwall
+        P = 60.0 # power of the heating element
+        databaseMySQL.insertValue('consumption','powerwall_heating',(data[2]*256+data[1])*P/360.0)#counting pulse per 10s => 6 = P*1Wmin => P/360Wh
+        
+    elif data[0]>40 and data[0]<=69:# POWERWALL - calibrations
         volCal = struct.unpack('f',bytes([data[2],data[3],data[4],data[5]]))[0]
         tempCal = struct.unpack('f',bytes([data[6],data[7],data[8],data[9]]))[0]
         
         #databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' volt',volCal,one_day_RP=True);
         #databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' temp',tempCal,one_day_RP=True);
-    elif data[0]>70 and data[0]<100:# POWERWALL - statistics
+    elif data[0]>70 and data[0]<99:# POWERWALL - statistics
         databaseMySQL.insertValue('counter','powerwall cell '+str(data[1]),(data[2]*256+data[3]),periodicity=30*MINUTE);
         
         # compensate dimensionless value from module to represent Wh
@@ -460,9 +464,9 @@ def IncomingData(data):
         databaseMySQL.insertValue('consumption','powerwall cell '+str(data[1]),Energy);
         
     elif data[0]==102:# data from Roomba
-        databaseMySQL.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000,10*MINUTE)
-        databaseMySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000,10*MINUTE)
-        databaseMySQL.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000,10*MINUTE)
+        databaseMySQL.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000,periodicity =10*MINUTE)
+        databaseMySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000,periodicity =10*MINUTE)
+        databaseMySQL.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000,periodicity =10*MINUTE)
     elif data[0]==103:# data from rackUno
         tmrRackComm = time.time()
         #store power
@@ -477,17 +481,17 @@ def IncomingData(data):
     
     elif data[0]==104:# data from PIR sensor
         tempPIR = (data[1] * 256 + data[2])/10.0
-        tempPIR = tempPIR - 4.2  # calibration
+        tempPIR = tempPIR - 0.0  # calibration - SHT20 is precalibrated from factory
 
         humidPIR = (data[3]*256+data[4])/10.0
         
         # check validity and store values
         if tempPIR>-30.0 and tempPIR < 80.0:
-            databaseMySQL.insertValue('temperature','PIR sensor',tempPIR,10*MINUTE)
+            databaseMySQL.insertValue('temperature','PIR sensor',tempPIR,periodicity = 10*MINUTE)
         if humidPIR>=0.0 and tempPIR <= 100.0:
-            databaseMySQL.insertValue('humidity','PIR sensor',humidPIR,10*MINUTE)
+            databaseMySQL.insertValue('humidity','PIR sensor',humidPIR,periodicity =10*MINUTE)
             
-        databaseMySQL.insertValue('gas','PIR sensor',(data[5]*256+data[6]),10*MINUTE)
+        databaseMySQL.insertValue('gas','PIR sensor',(data[5]*256+data[6]),periodicity =10*MINUTE)
     elif data[0]==105:# data from PIR sensor
         gasAlarm2 = data[1]
         PIRalarm = data[2]
@@ -518,11 +522,14 @@ def IncomingData(data):
                 PIRSensorRefresh()
     elif data[0]==106:# data from powerwall ESP
         powerwallVolt = (data[1]*256+data[2])/100.0
-        databaseMySQL.insertValue('voltage','powerwallSum',powerwallVolt,10*MINUTE)
+        databaseMySQL.insertValue('voltage','powerwallSum',powerwallVolt,periodicity =10*MINUTE)
         soc = calculatePowerwallSOC(powerwallVolt)
-        databaseMySQL.insertValue('status','powerwallSoc',soc,10*MINUTE)
-        
-        databaseMySQL.insertValue('temperature','powerwallOutside',(data[3]*256+data[4])/100.0,30*MINUTE)
+        databaseMySQL.insertValue('status','powerwallSoc',soc,periodicity =10*MINUTE)
+
+        temperature = (data[3]*256+data[4])
+        if temperature > 32767:
+            temperature =  temperature - 65536 # negative temperatures
+        databaseMySQL.insertValue('temperature','powerwallOutside', temperature/100.0, periodicity =30*MINUTE)
         solarPower = (data[5]*256+data[6])/100.0
         databaseMySQL.insertValue('power','solar',solarPower)
         
