@@ -146,7 +146,10 @@ def main():
         
         data = comm.DataReceived()
         while(data!=[]): # process all received packets
-            IncomingData(data)
+            try:
+                IncomingData(data)
+            except IndexError:
+                Log("IndexError while processing incoming data! data:"+str(data))
             data = comm.DataReceived()
         #-------------------------------------------------
 
@@ -195,7 +198,7 @@ def timerGeneral():#it is calling itself periodically
     else:
         wifiCheckCnt = wifiCheckCnt + 1
         
-    if tmrRackComm!=0 and time.time() - tmrRackComm > 100: # 100s - nothing came from rackUno for this time
+    if tmrRackComm!=0 and time.time() - tmrRackComm > 200: # 200s - nothing came from rackUno for this time
         Log("Comm timeout for RackUNO!")
         tmrRackComm=0
         comm.RemoveOnlineDevice(IP_RACKUNO)
@@ -389,11 +392,11 @@ def IncomingData(data):
         temp = (data[4]*256+data[5])/10 + 0.5
         RH = (data[6]*256+data[7])/10
         
-        databaseMySQL.insertValue('bools','door switch 1',doorSW,periodicity =10*MINUTE)
-        databaseMySQL.insertValue('bools','gas alarm 1',gasAlarm,periodicity =10*MINUTE)
+        databaseMySQL.insertValue('bools','door switch 1',doorSW,periodicity =120*MINUTE, writeNowDiff = 1)
+        #databaseMySQL.insertValue('bools','gas alarm 1',gasAlarm,periodicity =30*MINUTE, writeNowDiff = 1)
         #databaseMySQL.insertValue('gas','keyboard',gas)
-        databaseMySQL.insertValue('temperature','keyboard',temp,periodicity =10*MINUTE)
-        databaseMySQL.insertValue('humidity','keyboard',RH,periodicity =10*MINUTE)
+        databaseMySQL.insertValue('temperature','keyboard',temp,periodicity =60*MINUTE, writeNowDiff = 1)
+        databaseMySQL.insertValue('humidity','keyboard',RH,periodicity =60*MINUTE, writeNowDiff = 1)
         
         global alarmCounting,locked
      
@@ -406,9 +409,9 @@ def IncomingData(data):
         if meteoTemp>32767:
             meteoTemp=meteoTemp-65536 #negative values are inverted like this
         
-        databaseMySQL.insertValue('temperature','meteostation 1',meteoTemp/100,periodicity =10*MINUTE)
-        databaseMySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100,periodicity =30*MINUTE)
-        databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000,periodicity =30*MINUTE)
+        databaseMySQL.insertValue('temperature','meteostation 1',meteoTemp/100,periodicity =60*MINUTE, writeNowDiff = 0.5)
+        databaseMySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100,periodicity =50*MINUTE, writeNowDiff = 100)
+        databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000,periodicity =50*MINUTE, writeNowDiff = 0.2)
         
     elif data[0]>10 and data[0]<=40:# POWERWALL
         voltage = (data[2]*256+data[3])/100
@@ -417,9 +420,9 @@ def IncomingData(data):
         temp = (data[4]*256+data[5])/10
         
         if voltage < 5:
-            databaseMySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage, periodicity =10*MINUTE);
+            databaseMySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage, periodicity =30*MINUTE, writeNowDiff = 0.1);
         if temp < 70:
-            databaseMySQL.insertValue('temperature','powerwall cell '+str(data[1]),temp, periodicity =10*MINUTE);
+            databaseMySQL.insertValue('temperature','powerwall cell '+str(data[1]),temp, periodicity =30*MINUTE, writeNowDiff = 0.5);
     elif data[0]==10: # POWERWALL STATUS
         powerwall_stateMachineStatus = data[1]
         errorStatus = data[2]
@@ -440,7 +443,7 @@ def IncomingData(data):
         #databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' volt',volCal,one_day_RP=True);
         #databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' temp',tempCal,one_day_RP=True);
     elif data[0]>70 and data[0]<99:# POWERWALL - statistics
-        databaseMySQL.insertValue('counter','powerwall cell '+str(data[1]),(data[2]*256+data[3]),periodicity=30*MINUTE);
+        databaseMySQL.insertValue('counter','powerwall cell '+str(data[1]),(data[2]*256+data[3]),periodicity=30*MINUTE)
         
         # compensate dimensionless value from module to represent Wh
         # P=(U^2)/R
@@ -464,16 +467,20 @@ def IncomingData(data):
         databaseMySQL.insertValue('consumption','powerwall cell '+str(data[1]),Energy);
         
     elif data[0]==102:# data from Roomba
-        databaseMySQL.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000,periodicity =10*MINUTE)
-        databaseMySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000,periodicity =10*MINUTE)
-        databaseMySQL.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000,periodicity =10*MINUTE)
+        databaseMySQL.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000,periodicity =60*MINUTE, writeNowDiff = 0.2)
+        databaseMySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000,periodicity =60*MINUTE, writeNowDiff = 0.2)
+        databaseMySQL.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000,periodicity =60*MINUTE, writeNowDiff = 0.2)
     elif data[0]==103:# data from rackUno
         tmrRackComm = time.time()
         #store power
         databaseMySQL.insertValue('power','grid',(data[1]*256+data[2]))
         
         #now store consumption according to tariff
-        if data[5]!=0: # T1
+        stdTariff = (data[5]&0x01)==0
+        detectSolarPower = (data[5] & 0x02) == 0
+        print("solar detect:"+str(detectSolarPower))
+
+        if not stdTariff: # T1 - low tariff
             databaseMySQL.insertValue('consumption','lowTariff',(data[3]*256+data[4])/60) # from power to consumption - 1puls=1Wh
         else:
             databaseMySQL.insertValue('consumption','stdTariff',(data[3]*256+data[4])/60)# from power to consumption - 1puls=1Wh
@@ -487,11 +494,11 @@ def IncomingData(data):
         
         # check validity and store values
         if tempPIR>-30.0 and tempPIR < 80.0:
-            databaseMySQL.insertValue('temperature','PIR sensor',tempPIR,periodicity = 10*MINUTE)
+            databaseMySQL.insertValue('temperature','PIR sensor',tempPIR,periodicity = 60*MINUTE, writeNowDiff = 1)
         if humidPIR>=0.0 and tempPIR <= 100.0:
-            databaseMySQL.insertValue('humidity','PIR sensor',humidPIR,periodicity =10*MINUTE)
+            databaseMySQL.insertValue('humidity','PIR sensor',humidPIR,periodicity =60*MINUTE, writeNowDiff = 1)
             
-        databaseMySQL.insertValue('gas','PIR sensor',(data[5]*256+data[6]),periodicity =10*MINUTE)
+        databaseMySQL.insertValue('gas','PIR sensor',(data[5]*256+data[6]),periodicity =60*MINUTE, writeNowDiff = 50)
     elif data[0]==105:# data from PIR sensor
         gasAlarm2 = data[1]
         PIRalarm = data[2]
@@ -522,20 +529,23 @@ def IncomingData(data):
                 PIRSensorRefresh()
     elif data[0]==106:# data from powerwall ESP
         powerwallVolt = (data[1]*256+data[2])/100.0
-        databaseMySQL.insertValue('voltage','powerwallSum',powerwallVolt,periodicity =10*MINUTE)
+        databaseMySQL.insertValue('voltage','powerwallSum',powerwallVolt,periodicity =30*MINUTE, writeNowDiff = 1)
         soc = calculatePowerwallSOC(powerwallVolt)
-        databaseMySQL.insertValue('status','powerwallSoc',soc,periodicity =10*MINUTE)
+        databaseMySQL.insertValue('status','powerwallSoc',soc,periodicity =30*MINUTE, writeNowDiff = 1)
 
         temperature = (data[3]*256+data[4])
         if temperature > 32767:
             temperature =  temperature - 65536 # negative temperatures
-        databaseMySQL.insertValue('temperature','powerwallOutside', temperature/100.0, periodicity =30*MINUTE)
+        databaseMySQL.insertValue('temperature','powerwallOutside', temperature/100.0, periodicity =30*MINUTE, writeNowDiff = 2)
         solarPower = (data[5]*256+data[6])/100.0
         databaseMySQL.insertValue('power','solar',solarPower)
         
         if time.time() - tmrConsPowerwall > 3600: # each hour
             tmrConsPowerwall = time.time()
             databaseMySQL.insertDailySolarCons((data[7]*256+data[8]))
+
+        databaseMySQL.insertValue('status', 'powerwallEpeverBatteryStatus', data[9]*256+data[10], periodicity=30 * MINUTE, writeNowDiff = 1)
+        databaseMySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[11]*256+data[12], periodicity=30 * MINUTE, writeNowDiff = 1)
         
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)

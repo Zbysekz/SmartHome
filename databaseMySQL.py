@@ -140,14 +140,14 @@ def getValues(kind, sensorName, timeFrom, timeTo, _sum = False):
     
     return values
 
-def insertValue(name, sensorName, value, timestamp=None, periodicity=0):
+def insertValue(name, sensorName, value, timestamp=None, periodicity=0, writeNowDiff = 1):
     try:
         db, cursor = Connect()
         
         if not timestamp: # if not defined, set time now
             timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
-        args = (timestamp, name, sensorName, value, periodicity)
+        args = (timestamp, name, sensorName, value, periodicity, writeNowDiff)
         res = cursor.callproc('insertMeasurement',args)
         
         db.commit()
