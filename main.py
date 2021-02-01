@@ -9,7 +9,7 @@ os.sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/comm')
 #avgModule = importlib.machinery.SourceFileLoader('getMeas',os.path.abspath("/var/www/SmartHomeWeb/getMeas.py")).load_module()
 
 import comm
-import databaseMySQL
+from databaseMySQL import cMySQL
 import time, threading
 import phone
 from datetime import datetime
@@ -20,6 +20,7 @@ import struct
 import electricityPrice
 import time
 from powerwall import calculatePowerwallSOC
+from measureTime import MeasureTime
 
 #-------------DEFINITIONS-----------------------
 SMS_NOTIFICATION = True
@@ -77,11 +78,24 @@ tmrConsPowerwall = 0
 bufferedCellModVoltage = 24*[0]
 solarPower = 0
 powerwall_stateMachineStatus = 0
+
+# cycle time
+tmrCycleTime = 0
+cycleTime_avg = 0
+cycleTime_cnt = 0
+cycleTime_tmp = time.time()
+cycleTime = 0
+cycleTime_max = 0
 #-----------------------------------------------
+
+MySQL = cMySQL()
+MySQL_GeneralThread = cMySQL()
+MySQL_phoneThread = cMySQL()
 
 ###############################################################################################################
 def main():
     global watchDogAlarmThread, alarm, alarm_last, locked
+    global tmrCycleTime,cycleTime_avg, cycleTime_cnt,cycleTime_tmp,cycleTime,cycleTime_max
 
     Log("Entry point main.py")
     try:
@@ -106,7 +120,7 @@ def main():
         phone.Connect()
         Log("Ok")
 
-        databaseMySQL.RemoveOnlineDevices() # clean up online device table
+        MySQL.RemoveOnlineDevices() # clean up online device table
         
         timerGeneral()#it will call itself periodically - new thread
       
@@ -120,8 +134,8 @@ def main():
         GPIO.setup(PIN_GAS_ALARM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         Log("Ok")
 
-        databaseMySQL.updateState("locked", int(locked))
-        databaseMySQL.updateState("alarm", int(alarm))
+        MySQL.updateState("locked", int(locked))
+        MySQL.updateState("alarm", int(alarm))
 
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -134,30 +148,61 @@ def main():
             os.system("shutdown -r 1")#reboot after one minute
             input("Reboot in one minute. Press Enter to continue...")
         return
-######################## MAIN LOOP ####################################################################################
+
+    measureTimeMainLoop = MeasureTime()
+    measureTimeComm = MeasureTime()
+    measureTimePhone = MeasureTime()
+    measureTimeDataRcv = MeasureTime()
+    ######################## MAIN LOOP ####################################################################################
     while(1):
+        measureTimeComm.Start()
         #TCP server communication - remote devices--------
-        comm.Handle()
+        comm.Handle(MySQL)
+        measureTimeComm.Measure()
 
         if comm.isTerminated():
             return# user interrupt termination
 
+        measureTimePhone.Start()
         phone.Process()
-        
+        measureTimePhone.Measure()
+
+        # ----------------------------------------------
+        measureTimeDataRcv.Start()
+
         data = comm.DataReceived()
-        while(data!=[]): # process all received packets
-            try:
-                IncomingData(data)
-            except IndexError:
-                Log("IndexError while processing incoming data! data:"+str(data))
-            data = comm.DataReceived()
-        #-------------------------------------------------
+        processedData = []
+        if data:
+            MySQL.PersistentConnect()
+            while data: # process all received packets
+                try:
+                    processedData += [data]
+                    IncomingData(data)
+                except IndexError:
+                    Log("IndexError while processing incoming data! data:"+str(data))
+                data = comm.DataReceived()
+            MySQL.PersistentDisconnect()
+
+        measureTimeDataRcv.Measure()
+        if measureTimeDataRcv.getLastPeriod()>4:
+            Log("Data RCV took "+"{:.1f}".format(measureTimeDataRcv.getMaxPeriod()) + " s")
+            Log(processedData)
+        # -------------------------------------------------
 
         watchDogAlarmThread=0 #to be able to detect lag in this loop
 
         CheckGasSensor()
 
         alarm_last = alarm
+
+        measureTimeMainLoop.Measure()
+
+        if measureTimeMainLoop.getMaxPeriod() > 6:
+            measureTimeMainLoop.PrintOncePer(30,Log, "MainLoop")
+            measureTimeDataRcv.PrintOncePer(30, Log, "Data rcv")
+            measureTimeComm.PrintOncePer(30, Log, "Comm")
+            measureTimePhone.PrintOncePer(30,Log,"Phone")
+        measureTimeMainLoop.Start()
             
 
 
@@ -168,7 +213,7 @@ def CheckGasSensor():
         if (not GPIO.input(PIN_GAS_ALARM)):
             Log("RPI GAS ALARM!!");
             alarm |= GAS_ALARM_RPI
-            databaseMySQL.updateState("alarm", int(alarm))
+            MySQL.updateState("alarm", int(alarm))
             if (alarm_last & GAS_ALARM_RPI == 0 and SMS_NOTIFICATION):
                 phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
             KeyboardRefresh()
@@ -184,6 +229,7 @@ def CheckGasSensor():
 def timerGeneral():#it is calling itself periodically
     global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,wifiCheckCnt,tmrPriceCalc
     global tmrPowerwallComm, tmrRackComm
+
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt=0
         KeyboardRefresh()
@@ -201,16 +247,17 @@ def timerGeneral():#it is calling itself periodically
     if tmrRackComm!=0 and time.time() - tmrRackComm > 200: # 200s - nothing came from rackUno for this time
         Log("Comm timeout for RackUNO!")
         tmrRackComm=0
-        comm.RemoveOnlineDevice(IP_RACKUNO)
+        comm.RemoveOnlineDevice(MySQL_GeneralThread, IP_RACKUNO)
         
     if tmrPowerwallComm!=0 and time.time() - tmrPowerwallComm > 100: # 100s - nothing came from powerwall for this time
         Log("Comm timeout for Powerwall!")
         tmrPowerwallComm=0
-        comm.RemoveOnlineDevice(IP_POWERWALL)
+
+        comm.RemoveOnlineDevice(MySQL_GeneralThread, IP_POWERWALL)
         
         
     #check if there are data in mysql that we want to send
-    data = databaseMySQL.getTxBuffer()
+    data = MySQL_GeneralThread.getTxBuffer()
     if(len(data)):
         try:
             for packet in data:
@@ -220,7 +267,7 @@ def timerGeneral():#it is calling itself periodically
                 if packet[1] == IP_SERVER:
                     Log("LOCALHOST")
                     Log(byteArray)
-                    ExecuteTxCommand(byteArray)
+                    ExecuteTxCommand(MySQL_GeneralThread, byteArray)
                 else:
                     Log(packet[1])
                     Log(byteArray)
@@ -241,13 +288,13 @@ def timerGeneral():#it is calling itself periodically
             if SMS_NOTIFICATION:
                 phone.SendSMS(MY_NUMBER1,"Home system: door ALARM !!")
 
-            databaseMySQL.updateState("alarm", int(alarm))
+            MySQL_GeneralThread.updateState("alarm", int(alarm))
             KeyboardRefresh()
             PIRSensorRefresh()
          
     
     
-    if time.time() - tmrPriceCalc > 3600:#each 1 hour
+    if time.time() - tmrPriceCalc > 3600*4:#each 4 hour
         tmrPriceCalc = time.time()
         try:
             electricityPrice.run()
@@ -272,12 +319,12 @@ def timerGeneral():#it is calling itself periodically
         watchDogAlarmThread+=1
 
 ####################################################################################################################
-def ExecuteTxCommand(data):
+def ExecuteTxCommand(mySQLinstance, data):
     global alarm
     if data[0] == 0:  # resetAlarm
         Log("Alarm deactivated by web interface.")
         alarm = 0
-        databaseMySQL.updateState("alarm", int(alarm))
+        mySQLinstance.updateState("alarm", int(alarm))
         KeyboardRefresh()
         PIRSensorRefresh()
     elif data[0] == 1:
@@ -294,8 +341,8 @@ def timerPhone():
     phone.clearIncomeSMSList()
 
     
-    databaseMySQL.updateState('phoneSignalInfo',str(phone.getSignalInfo()));
-    databaseMySQL.updateState('phoneCommState',int(phone.getCommState()));
+    MySQL_phoneThread.updateState('phoneSignalInfo',str(phone.getSignalInfo()));
+    MySQL_phoneThread.updateState('phoneCommState',int(phone.getCommState()));
     
     if not comm.isTerminated(): # do not continue if app terminated
         threading.Timer(20,timerPhone).start()
@@ -338,19 +385,19 @@ def IncomingSMS(data):
         elif(data[0].startswith("lock")):
             locked = True
 
-            databaseMySQL.updateState("locked",int(locked))
+            MySQL_phoneThread.updateState("locked",int(locked))
             Log("Locked by SMS command.")
         elif(data[0].startswith("unlock")):
             locked = False
 
-            databaseMySQL.updateState("locked", int(locked))
+            MySQL_phoneThread.updateState("locked", int(locked))
             Log("Unlocked by SMS command.")
         elif(data[0].startswith("deactivate alarm")):
             alarm = 0
             locked = False
 
-            databaseMySQL.updateState("alarm",int(alarm))
-            databaseMySQL.updateState("locked",int(locked))
+            MySQL_phoneThread.updateState("alarm",int(alarm))
+            MySQL_phoneThread.updateState("locked",int(locked))
             Log("Alarm deactivated by SMS command.")
         elif data[0].startswith("toggle PC"):
             Log("Toggle PC button by SMS command.")
@@ -382,6 +429,7 @@ def TogglePCbutton():
     
 def IncomingData(data):
     global alarm, tmrRackComm, bufferedCellModVoltage,solarPower,powerwall_stateMachineStatus,tmrConsPowerwall
+    global alarmCounting
     Log("Incoming data:"+str(data), FULL)
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
@@ -392,13 +440,13 @@ def IncomingData(data):
         temp = (data[4]*256+data[5])/10 + 0.5
         RH = (data[6]*256+data[7])/10
         
-        databaseMySQL.insertValue('bools','door switch 1',doorSW,periodicity =120*MINUTE, writeNowDiff = 1)
-        #databaseMySQL.insertValue('bools','gas alarm 1',gasAlarm,periodicity =30*MINUTE, writeNowDiff = 1)
-        #databaseMySQL.insertValue('gas','keyboard',gas)
-        databaseMySQL.insertValue('temperature','keyboard',temp,periodicity =60*MINUTE, writeNowDiff = 1)
-        databaseMySQL.insertValue('humidity','keyboard',RH,periodicity =60*MINUTE, writeNowDiff = 1)
+        MySQL.insertValue('bools','door switch 1',doorSW,periodicity =120*MINUTE, writeNowDiff = 1)
+        #MySQL.insertValue('bools','gas alarm 1',gasAlarm,periodicity =30*MINUTE, writeNowDiff = 1)
+        #MySQL.insertValue('gas','keyboard',gas)
+        MySQL.insertValue('temperature','keyboard',temp,periodicity =60*MINUTE, writeNowDiff = 1)
+        MySQL.insertValue('humidity','keyboard',RH,periodicity =60*MINUTE, writeNowDiff = 1)
         
-        global alarmCounting,locked
+
      
         if(doorSW and locked and alarm&DOOR_ALARM == 0 and not alarmCounting):
             alarmCounting=True
@@ -409,9 +457,9 @@ def IncomingData(data):
         if meteoTemp>32767:
             meteoTemp=meteoTemp-65536 #negative values are inverted like this
         
-        databaseMySQL.insertValue('temperature','meteostation 1',meteoTemp/100,periodicity =60*MINUTE, writeNowDiff = 0.5)
-        databaseMySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100,periodicity =50*MINUTE, writeNowDiff = 100)
-        databaseMySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000,periodicity =50*MINUTE, writeNowDiff = 0.2)
+        MySQL.insertValue('temperature','meteostation 1',meteoTemp/100,periodicity =60*MINUTE, writeNowDiff = 0.5)
+        MySQL.insertValue('pressure','meteostation 1',(data[3]*65536+data[4]*256+data[5])/100,periodicity =50*MINUTE, writeNowDiff = 100)
+        MySQL.insertValue('voltage','meteostation 1',(data[6]*256+data[7])/1000,periodicity =50*MINUTE, writeNowDiff = 0.2)
         
     elif data[0]>10 and data[0]<=40:# POWERWALL
         voltage = (data[2]*256+data[3])/100
@@ -420,30 +468,30 @@ def IncomingData(data):
         temp = (data[4]*256+data[5])/10
         
         if voltage < 5:
-            databaseMySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage, periodicity =30*MINUTE, writeNowDiff = 0.1);
+            MySQL.insertValue('voltage','powerwall cell '+str(data[1]), voltage, periodicity =30*MINUTE, writeNowDiff = 0.1);
         if temp < 70:
-            databaseMySQL.insertValue('temperature','powerwall cell '+str(data[1]),temp, periodicity =30*MINUTE, writeNowDiff = 0.5);
+            MySQL.insertValue('temperature','powerwall cell '+str(data[1]),temp, periodicity =30*MINUTE, writeNowDiff = 0.5);
     elif data[0]==10: # POWERWALL STATUS
         powerwall_stateMachineStatus = data[1]
         errorStatus = data[2]
         errorStatus_cause = data[3]
         
-        databaseMySQL.insertValue('status','powerwall_stateMachineStatus',powerwall_stateMachineStatus)
-        databaseMySQL.insertValue('status','powerwall_errorStatus',errorStatus)
-        databaseMySQL.insertValue('status','powerwall_errorStatus_cause',errorStatus_cause)
+        MySQL.insertValue('status','powerwall_stateMachineStatus',powerwall_stateMachineStatus)
+        MySQL.insertValue('status','powerwall_errorStatus',errorStatus)
+        MySQL.insertValue('status','powerwall_errorStatus_cause',errorStatus_cause)
                      
     elif data[0]==69:# general statistics from powerwall
         P = 60.0 # power of the heating element
-        databaseMySQL.insertValue('consumption','powerwall_heating',(data[2]*256+data[1])*P/360.0)#counting pulse per 10s => 6 = P*1Wmin => P/360Wh
+        MySQL.insertValue('consumption','powerwall_heating',(data[2]*256+data[1])*P/360.0)#counting pulse per 10s => 6 = P*1Wmin => P/360Wh
         
     elif data[0]>40 and data[0]<=69:# POWERWALL - calibrations
         volCal = struct.unpack('f',bytes([data[2],data[3],data[4],data[5]]))[0]
         tempCal = struct.unpack('f',bytes([data[6],data[7],data[8],data[9]]))[0]
         
-        #databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' volt',volCal,one_day_RP=True);
-        #databaseMySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' temp',tempCal,one_day_RP=True);
+        #MySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' volt',volCal,one_day_RP=True);
+        #MySQL.insertValue('BMS calibration','powerwall calib.'+str(data[1])+' temp',tempCal,one_day_RP=True);
     elif data[0]>70 and data[0]<99:# POWERWALL - statistics
-        databaseMySQL.insertValue('counter','powerwall cell '+str(data[1]),(data[2]*256+data[3]),periodicity=30*MINUTE)
+        MySQL.insertValue('counter','powerwall cell '+str(data[1]),(data[2]*256+data[3]),periodicity=30*MINUTE)
         
         # compensate dimensionless value from module to represent Wh
         # P=(U^2)/R
@@ -464,27 +512,28 @@ def IncomingData(data):
         Energy = (pow(bufVolt,2)/R)*T/60.0
         Energy = Energy*(min(val,valFor100Duty)/valFor100Duty) # duty calculation
             
-        databaseMySQL.insertValue('consumption','powerwall cell '+str(data[1]),Energy);
+        MySQL.insertValue('consumption','powerwall cell '+str(data[1]),Energy);
         
     elif data[0]==102:# data from Roomba
-        databaseMySQL.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000,periodicity =60*MINUTE, writeNowDiff = 0.2)
-        databaseMySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000,periodicity =60*MINUTE, writeNowDiff = 0.2)
-        databaseMySQL.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000,periodicity =60*MINUTE, writeNowDiff = 0.2)
+        MySQL.insertValue('voltage','roomba cell 1',(data[1]*256+data[2])/1000,periodicity =60*MINUTE, writeNowDiff = 0.2)
+        MySQL.insertValue('voltage','roomba cell 2',(data[3]*256+data[4])/1000,periodicity =60*MINUTE, writeNowDiff = 0.2)
+        MySQL.insertValue('voltage','roomba cell 3',(data[5]*256+data[6])/1000,periodicity =60*MINUTE, writeNowDiff = 0.2)
     elif data[0]==103:# data from rackUno
         tmrRackComm = time.time()
         #store power
-        databaseMySQL.insertValue('power','grid',(data[1]*256+data[2]))
+        MySQL.insertValue('power','grid',(data[1]*256+data[2]))
         
         #now store consumption according to tariff
         stdTariff = (data[5]&0x01)==0
         detectSolarPower = (data[5] & 0x02) == 0
-        print("solar detect:"+str(detectSolarPower))
+
+        MySQL.insertValue('status', 'rackUno_detectSolarPower', int(detectSolarPower))
 
         if not stdTariff: # T1 - low tariff
-            databaseMySQL.insertValue('consumption','lowTariff',(data[3]*256+data[4])/60) # from power to consumption - 1puls=1Wh
+            MySQL.insertValue('consumption','lowTariff',(data[3]*256+data[4])/60) # from power to consumption - 1puls=1Wh
         else:
-            databaseMySQL.insertValue('consumption','stdTariff',(data[3]*256+data[4])/60)# from power to consumption - 1puls=1Wh
-        databaseMySQL.insertValue('status','rackUno_stateMachineStatus',data[6])
+            MySQL.insertValue('consumption','stdTariff',(data[3]*256+data[4])/60)# from power to consumption - 1puls=1Wh
+        MySQL.insertValue('status','rackUno_stateMachineStatus',data[6])
     
     elif data[0]==104:# data from PIR sensor
         tempPIR = (data[1] * 256 + data[2])/10.0
@@ -494,11 +543,11 @@ def IncomingData(data):
         
         # check validity and store values
         if tempPIR>-30.0 and tempPIR < 80.0:
-            databaseMySQL.insertValue('temperature','PIR sensor',tempPIR,periodicity = 60*MINUTE, writeNowDiff = 1)
+            MySQL.insertValue('temperature','PIR sensor',tempPIR,periodicity = 60*MINUTE, writeNowDiff = 1)
         if humidPIR>=0.0 and tempPIR <= 100.0:
-            databaseMySQL.insertValue('humidity','PIR sensor',humidPIR,periodicity =60*MINUTE, writeNowDiff = 1)
+            MySQL.insertValue('humidity','PIR sensor',humidPIR,periodicity =60*MINUTE, writeNowDiff = 1)
             
-        databaseMySQL.insertValue('gas','PIR sensor',(data[5]*256+data[6]),periodicity =60*MINUTE, writeNowDiff = 50)
+        MySQL.insertValue('gas','PIR sensor',(data[5]*256+data[6]),periodicity =60*MINUTE, writeNowDiff = 50)
     elif data[0]==105:# data from PIR sensor
         gasAlarm2 = data[1]
         PIRalarm = data[2]
@@ -507,7 +556,7 @@ def IncomingData(data):
             Log("PIR GAS ALARM!!")
             alarm |= GAS_ALARM_PIR
             if (alarm_last & GAS_ALARM_PIR == 0):
-                databaseMySQL.updateState("alarm", int(alarm))
+                MySQL.updateState("alarm", int(alarm))
 
                 txt = "Home system: PIR sensor - FIRE/GAS ALARM !!"
                 Log(txt)
@@ -518,7 +567,7 @@ def IncomingData(data):
         elif PIRalarm and locked:
             alarm |= PIR_ALARM
             if (alarm_last & PIR_ALARM == 0):
-                databaseMySQL.updateState("alarm", int(alarm))
+                MySQL.updateState("alarm", int(alarm))
 
                 txt = "Home system: PIR sensor - MOVEMENT ALARM !!"
                 Log(txt)
@@ -529,35 +578,35 @@ def IncomingData(data):
                 PIRSensorRefresh()
     elif data[0]==106:# data from powerwall ESP
         powerwallVolt = (data[1]*256+data[2])/100.0
-        databaseMySQL.insertValue('voltage','powerwallSum',powerwallVolt,periodicity =30*MINUTE, writeNowDiff = 1)
+        MySQL.insertValue('voltage','powerwallSum',powerwallVolt,periodicity =30*MINUTE, writeNowDiff = 1)
         soc = calculatePowerwallSOC(powerwallVolt)
-        databaseMySQL.insertValue('status','powerwallSoc',soc,periodicity =30*MINUTE, writeNowDiff = 1)
+        MySQL.insertValue('status','powerwallSoc',soc,periodicity =30*MINUTE, writeNowDiff = 1)
 
         temperature = (data[3]*256+data[4])
         if temperature > 32767:
             temperature =  temperature - 65536 # negative temperatures
-        databaseMySQL.insertValue('temperature','powerwallOutside', temperature/100.0, periodicity =30*MINUTE, writeNowDiff = 2)
+        MySQL.insertValue('temperature','powerwallOutside', temperature/100.0, periodicity =30*MINUTE, writeNowDiff = 2)
         solarPower = (data[5]*256+data[6])/100.0
-        databaseMySQL.insertValue('power','solar',solarPower)
+        MySQL.insertValue('power','solar',solarPower)
         
         if time.time() - tmrConsPowerwall > 3600: # each hour
             tmrConsPowerwall = time.time()
-            databaseMySQL.insertDailySolarCons((data[7]*256+data[8]))
+            MySQL.insertDailySolarCons((data[7]*256+data[8]))
 
-        databaseMySQL.insertValue('status', 'powerwallEpeverBatteryStatus', data[9]*256+data[10], periodicity=30 * MINUTE, writeNowDiff = 1)
-        databaseMySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[11]*256+data[12], periodicity=30 * MINUTE, writeNowDiff = 1)
+        MySQL.insertValue('status', 'powerwallEpeverBatteryStatus', data[9]*256+data[10], periodicity=30 * MINUTE, writeNowDiff = 1)
+        MySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[11]*256+data[12], periodicity=30 * MINUTE, writeNowDiff = 1)
         
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
     elif(data[0]<4 and len(data)>=2):#events for keyboard
             Log("Incoming event!")
             comm.SendACK(data,IP_KEYBOARD)
-            databaseMySQL.insertEvent(data[0],data[1])
+            MySQL.insertEvent(data[0],data[1])
             IncomingEvent(data)
             
     elif(data[0]<10 and len(data)>=2):#other events
             Log("Incoming event!")
-            databaseMySQL.insertEvent(data[0],data[1])
+            MySQL.insertEvent(data[0],data[1])
         
     else:
         Log("Unknown event, data:"+str(data));
@@ -594,8 +643,8 @@ def IncomingEvent(data):
         KeyboardRefresh()
         PIRSensorRefresh()
         
-        databaseMySQL.updateState("locked", int(locked))
-        databaseMySQL.updateState("alarm", int(alarm))
+        MySQL.updateState("locked", int(locked))
+        MySQL.updateState("alarm", int(alarm))
         
         #if locked:
         #    os.system("sudo service motion start")

@@ -10,7 +10,6 @@ import sys
 import traceback
 import subprocess
 from datetime import datetime
-import databaseMySQL
 from threading import Thread
 
 conn=''
@@ -28,7 +27,6 @@ NORMAL = 0
 RICH = 1
 FULL = 2
 verbosity = NORMAL
-
 
 def Init():
     global conn, s, tmrPrintBufferStat
@@ -51,7 +49,7 @@ def Init():
 def isTerminated():
     return terminate
 
-def Handle():    
+def Handle(MySQL):
     global conn, BUFFER_SIZE, s, sendQueue, terminate
 
     PrintBufferStatistics()
@@ -64,7 +62,7 @@ def Handle():
         if addr[0] not in onlineDevices:
             onlineDevices.append(ip)
             Log('New device with address ' + str(ip) + ' was connected')
-            databaseMySQL.AddOnlineDevice(str(ip))
+            MySQL.AddOnlineDevice(str(ip))
 
         conn.settimeout(4.0)
         
@@ -159,13 +157,13 @@ def Send(data, destination, crc16=True):#put in send queue
     else:
         Log("MAXIMUM TX QUEUE LIMIT REACHED!!")
 
-def RemoveOnlineDevice(destination):
+def RemoveOnlineDevice(MySQL, destination):
     global onlineDevices
     
     if destination in onlineDevices:
         onlineDevices.remove(destination)
         Log("Device with address:'"+destination+"' became OFFLINE!")
-        databaseMySQL.RemoveOnlineDevice(destination)
+        MySQL.RemoveOnlineDevice(destination)
                 
 def SendACK(data,destination):
     #poslem CRC techto dat na danou destinaci
@@ -183,7 +181,7 @@ def SendACK(data,destination):
 def PrintBufferStatistics():
     global tmrPrintBufferStat, sendQueue
 
-    if time.time() - tmrPrintBufferStat > 600 and len(sendQueue) >= TXQUEUELIMIT_PER_DEVICE: # periodically and only if there are some messages watiting
+    if time.time() - tmrPrintBufferStat > 600 and len(sendQueue) >= TXQUEUELIMIT_PER_DEVICE: # periodically and only if there are some messages waiting
         tmrPrintBufferStat = time.time()
         Log("------ Buffer statistics:")
         Log("Msgs in send buffer:" + str(len(sendQueue)))

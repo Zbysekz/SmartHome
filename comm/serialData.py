@@ -15,9 +15,9 @@ def getRcvdData():#get last data and remove from queue
         temp = rcvdData[0]
         del rcvdData[0]
         return temp
-    return [];
+    return []
 
-class Receiver():
+class Receiver:
 
     def __init__(self):
         self.readState=0
@@ -86,6 +86,7 @@ class Receiver():
                 Log("New data received!",FULL)
                 if len(rcvdData)>10:
                     Log("Rcv queue is large! Len:"+str(len(rcvdData)),NORMAL)
+                    Log(rcvdData, RICH)
             else:
                 self.readState=0
                 result = False
