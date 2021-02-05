@@ -27,10 +27,12 @@
 
 
 import json
-import databaseMySQL
+from databaseMySQL import cMySQL
 from datetime import datetime,timedelta
 
 printDebug = True
+
+MySQL = cMySQL()
 
 def yearPrice(consHighTariff_wh = 0,consLowTariff_wh = 0, numPhases = 3, amperage = 25):
 
@@ -107,8 +109,8 @@ def findYearConsForCashAdvance(monthlyCashAdvance):
     
 
 def getConsSumLastDay():
-    consLow = databaseMySQL.getValues('consumption','lowTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),_sum=True)
-    consStd = databaseMySQL.getValues('consumption','stdTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),_sum=True)
+    consLow = MySQL.getValues('consumption','lowTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),_sum=True)
+    consStd = MySQL.getValues('consumption','stdTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),_sum=True)
     
     
     consLow = 0 if consLow[0] is None else consLow[0]
@@ -137,9 +139,9 @@ def run():
     
     Log("Spotřeba za včerejší den:"+str(lastDay_low_Wh)+" Wh "+str(lastDay_std_Wh)+" Wh")
 
-    totalSum_low,totalSum_std = databaseMySQL.getTotalSum()
+    totalSum_low,totalSum_std = MySQL.getTotalSum()
     
-    priceData = databaseMySQL.getPriceData() 
+    priceData = MySQL.getPriceData()
  
     
     totalSum_low = totalSum_low - priceData['totalSumBias_low']#abychom ziskali roční spotřebu - od posledního vyúčtování
@@ -156,8 +158,8 @@ def run():
     priceLastDay = price_kWh*(lastDay_std_Wh+lastDay_low_Wh)/1000
     Log("Cena  za včerejší den:" +str(int(priceLastDay)) + " Kč")
 
-    databaseMySQL.updatePriceData("priceLastDay", priceLastDay)
-    databaseMySQL.updatePriceData("yearPerc", yearPerc)
+    MySQL.updatePriceData("priceLastDay", priceLastDay)
+    MySQL.updatePriceData("yearPerc", yearPerc)
     
 
 

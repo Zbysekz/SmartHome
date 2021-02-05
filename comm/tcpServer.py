@@ -138,14 +138,14 @@ def ReceiveThread(conn, ip):
             
     conn.close()
         
-def Send(data, destination, crc16=True):#put in send queue
+def Send(MySQL, data, destination, crc16=True):#put in send queue
     global sendQueue, onlineDevices
 
     if len(sendQueue) >= TXQUEUELIMIT_PER_DEVICE: # if buffer is at least that full
         cnt = sum([msg[1] == destination for msg in sendQueue]) # how much are with same address
         if cnt >= TXQUEUELIMIT_PER_DEVICE:# this device will become offline
 
-            RemoveOnlineDevice(destination)
+            RemoveOnlineDevice(MySQL, destination)
             # now remove the oldest message and further normally append newest
             oldMsgs = [msg for msg in sendQueue if msg[1] == destination]
 

@@ -1,16 +1,17 @@
 #!/usr/bin/python3
 from tkinter import *
-import databaseMySQL
+from databaseMySQL import cMySQL
 import struct
 
 IP_RACKUNO = "192.168.0.5"
 IP_POWERWALL = "192.168.0.12"
+MySQL = cMySQL()
 
 def SendData(data, address=None):
     if address is None:
         address = DEST.get()
         
-    databaseMySQL.insertTxCommand(address, data)
+    MySQL.insertTxCommand(address, data)
 
 def sendRawCallback():
           

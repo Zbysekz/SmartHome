@@ -59,6 +59,7 @@ def STATE_idle():
             Log("Phone is ringing!!!")
 
 def STATE_SMS_sendFail():#if sendinf SMS fail, wait for some time and try it again
+    global reqSendSMS
     if CheckTimeout(60):
         reqSendSMS=True
         NextState(STATE_idle)
@@ -68,7 +69,7 @@ def STATE_SMS_send():
     
     serPort.write(bytes("AT+CMGF=1\x0D",'UTF-8'));
         
-    NextState();
+    NextState()
  
 def STATE_SMS_send2():
     global serPort,commState
@@ -77,7 +78,7 @@ def STATE_SMS_send2():
     rcvLines = ReceiveLinesFromSerial()
     
     for rcvLine in rcvLines:
-        if(b"OK" in rcvLine):
+        if b"OK" in rcvLine:
             serPort.write(bytes("AT+CMGS=\x22"+receiverNumber+"\x22\x0D",'UTF-8'));# \x22 is "
             NextState();
             break
@@ -93,7 +94,7 @@ def STATE_SMS_send3():
     rcvLines = ReceiveLinesFromSerial()
     
     for rcvLine in rcvLines:
-        if(b">" in rcvLine):
+        if b">" in rcvLine:
             serPort.write(bytes(sendSMStext+"\x1A",'UTF-8'));
             NextState();
             break
@@ -109,7 +110,7 @@ def STATE_SMS_sendVerify():
     rcvLines = ReceiveLinesFromSerial()
     
     for rcvLine in rcvLines:
-        if(b"OK" in rcvLine):
+        if b"OK" in rcvLine:
             Log("SMS succesfully sent!")
             NextState(STATE_idle);
             commState=True
@@ -134,7 +135,7 @@ def STATE_SMS_read2():
     
     for rcvLine in rcvLines:
         Log("Phone RCV:"+str(rcvLine),FULL)
-        if(b"OK" in rcvLine):
+        if b"OK" in rcvLine:
             serPort.write(bytes("AT+CMGL=\x22ALL\x22\x0D",'UTF-8'));
             
             readSMSsender = ""
@@ -168,12 +169,13 @@ def STATE_SMS_read3():
                 readSMStext = rcvLine.decode("utf-8").replace('\r','')
                 
                 nOfReceivedSMS = nOfReceivedSMS + 1
-                
+
+                Log("Received SMS text:'" + str(readSMStext) + "' From:"+str(readSMSsender), NORMAL)
                 incomeSMSList.append((readSMStext,readSMSsender))
                 readSMSsender = ""
                 continue
-            elif(b"+CMGL:" in rcvLine or configLine!=""):#waits for sms sender, but wait for complete line
-                Log("Phone RCV2:"+str(rcvLine),NORMAL)
+            elif b"+CMGL:" in rcvLine or configLine!="":#waits for sms sender, but wait for complete line
+                Log("Phone RCV2:"+str(rcvLine),FULL)
                 configLine += rcvLine.decode("utf-8")
 
                 if('\r' in configLine):#we have it complete
@@ -181,11 +183,11 @@ def STATE_SMS_read3():
                     timeOfReceive = configLine.split(',')[4].replace('"','')
                     configLine=""
                 continue
-            elif(b"OK" in rcvLine):
+            elif b"OK" in rcvLine:
                 if nOfReceivedSMS > 0:
-                    NextState(STATE_SMS_delete);
+                    NextState(STATE_SMS_delete)
                 else:
-                    NextState(STATE_idle);
+                    NextState(STATE_idle)
                 
                 Log("Check completed, received "+str(nOfReceivedSMS) + " SMS",FULL)
                 Log(incomeSMSList,FULL)
@@ -205,7 +207,7 @@ def STATE_SMS_delete():
     
     serPort.write(bytes("AT+CMGDA=\x22DEL ALL\x22\x0D",'UTF-8'));
     
-    NextState();
+    NextState()
     
 def STATE_SMS_delete2():
     global commState
@@ -214,7 +216,7 @@ def STATE_SMS_delete2():
     
     for rcvLine in rcvLines:#receiving of one way asynchronnous commands
         try:
-            if(b"OK" in rcvLine):
+            if b"OK" in rcvLine:
                 NextState(STATE_idle)
         except:
             continue
@@ -229,7 +231,7 @@ def STATE_SIGNAL_req():
     
     serPort.write(bytes("AT+CMGF=1\x0D",'UTF-8'));
         
-    NextState();
+    NextState()
     
 def STATE_SIGNAL_req2():
     global serPort,commState
@@ -237,7 +239,7 @@ def STATE_SIGNAL_req2():
     rcvLines = ReceiveLinesFromSerial()
     
     for rcvLine in rcvLines:#receiving of one way asynchronnous commands
-        if(b"OK" in rcvLine):
+        if b"OK" in rcvLine:
              serPort.write(bytes("AT+CSQ\x0D",'UTF-8'));
              NextState(STATE_SIGNAL_response);
              break
@@ -255,17 +257,17 @@ def STATE_SIGNAL_response():
     
     for rcvLine in rcvLines:#receiving of one way asynchronnous commands
         try:
-            if(b"+CSQ:" in rcvLine):
+            if b"+CSQ:" in rcvLine:
                 signalStrength = int(rcvLine[rcvLine.find(b"+CSQ:")+5:].split(b',')[0])
                 qualityIndicator = "Excellent" if signalStrength>19 else "Good" if signalStrength>14 else "Average" if signalStrength>9 else "Poor"
             
                 Log("Quality "+qualityIndicator+" -> "+str(signalStrength),FULL)
             
-                NextState(STATE_idle);
+                NextState(STATE_idle)
                 commState=True
-                break;
+                break
         except:
-            continue;
+            continue
 
     if CheckTimeout(5):
         Log("Timeout in state:"+str(currState))
@@ -356,13 +358,13 @@ def SendSMS(receiver,text):
     global receiverNumber,sendSMStext,reqSendSMS
 
     if DISABLE_SMS:
-        Log("SMS feature manually disabled !")
+        Log("SMS feature manually disabled! SMS:'"+str(text)+"' will not be send!")
         return
 
     if reqSendSMS:
-        Log("Already sending SMS!")
-        Log("Text:"+sendSMStext)
+        Log("Already sending SMS! Text:"+str(sendSMStext))
     else:
+        Log("Sending SMS:" + sendSMStext)
         reqSendSMS = True
         receiverNumber = receiver
         sendSMStext = text
