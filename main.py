@@ -24,7 +24,7 @@ from measureTime import MeasureTime
 
 #-------------DEFINITIONS-----------------------
 SMS_NOTIFICATION = True
-RESTART_ON_EXCEPTION = False
+RESTART_ON_EXCEPTION = True
 PIN_BTN_PC = 26
 PIN_GAS_ALARM = 23
 
@@ -65,6 +65,9 @@ rackUno_heatingInhibition = False
 heatingControlInhibit = False
 actualHeatingInhibition = False
 INHIBITED_ROOM_TEMPERATURE = 20.0 # °C
+
+globalFlags = {} # contains data from table globalFlags - controls behaviour of subsystems
+currentValues = {} # contains latest measurements data
 #-----------------------------------------------
 
 #------------AUXILIARY VARIABLES----------------
@@ -86,6 +89,7 @@ tmrVentHeatControl = 0
 bufferedCellModVoltage = 24*[0]
 solarPower = 0
 powerwall_stateMachineStatus = 0
+rackUno_stateMachineStatus = 0
 
 # cycle time
 tmrCycleTime = 0
@@ -213,19 +217,37 @@ def main():
         measureTimeMainLoop.Start()
             
 
-def ControlVentilation():# called each 5 mins
-    global roomHumidity
-    datetimeNow = datetime.now()
-    dayTime = 8 < datetimeNow.hour < 21
+def ControlPowerwall():# called each # 5 mins
+    global globalFlags, currentValues
 
-    if roomHumidity is None:
-        ventilationCommand = 99 # do not control
-    elif roomHumidity >= 60.0 and dayTime:
-        ventilationCommand = 3
-    elif roomHumidity > 59.0:
-        ventilationCommand = 2
-    elif not dayTime:
-        ventilationCommand = 1
+    if globalFlags['autoPowerwallRun'] == 1:
+        # if enough SoC to run UPS
+        if currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues['status_powerwallSoc'] > 50: # more than 50% SoC
+            Log("Auto powerwall control - going to RUN")
+            MySQL.insertTxCommand(IP_POWERWALL, "10") # RUN command
+        # if UPS is running but we are grid powered
+        if currentValues['status_powerwall_stateMachineStatus'] == 10 and currentValues['status_rackUno_stateMachineStatus'] == 0 and currentValues['status_rackUno_detectSolarPower'] == 1:
+            Log("Auto powerwall control - switching to SOLAR power")
+            MySQL.insertTxCommand(IP_RACKUNO, "4") # Switch to SOLAR command
+
+
+def ControlVentilation():# called each 5 mins
+    global roomHumidity, globalFlags
+
+    if globalFlags['autoVentilation'] == 1:
+        datetimeNow = datetime.now()
+        dayTime = 8 < datetimeNow.hour < 20
+
+        if roomHumidity is None:
+            ventilationCommand = 99 # do not control
+        elif roomHumidity >= 60.0 and dayTime:
+            ventilationCommand = 3
+        elif roomHumidity > 59.0:
+            ventilationCommand = 2
+        elif not dayTime:
+            ventilationCommand = 1
+        else:
+            ventilationCommand = 99
     else:
         ventilationCommand = 99
 
@@ -236,19 +258,22 @@ def ControlHeating(): # called each 5 mins
 
     HYSTERESIS = 0.5 # +- °C
 
-    if roomTemperature is not None:
-        if actualHeatingInhibition:
-            if roomTemperature <= INHIBITED_ROOM_TEMPERATURE - HYSTERESIS:
-                actualHeatingInhibition = False
+    if heatingControlInhibit:
+        if roomTemperature is not None:
+            if actualHeatingInhibition:
+                if roomTemperature <= INHIBITED_ROOM_TEMPERATURE - HYSTERESIS:
+                    actualHeatingInhibition = False
+            else:
+                if roomTemperature >= INHIBITED_ROOM_TEMPERATURE + HYSTERESIS:
+                    actualHeatingInhibition = True
+
+
+        if roomTemperature is not None and actualHeatingInhibition:
+            comm.Send(MySQL, bytes([1, 1]), IP_RACKUNO)
         else:
-            if roomTemperature >= INHIBITED_ROOM_TEMPERATURE + HYSTERESIS:
-                actualHeatingInhibition = True
-
-
-    if roomTemperature is not None and actualHeatingInhibition:
-        comm.Send(MySQL, bytes([1, 1]), IP_RACKUNO)
+            comm.Send(MySQL, bytes([1, 0]), IP_RACKUNO)
     else:
-        comm.Send(MySQL, bytes([1, 0]), IP_RACKUNO)
+        comm.Send(MySQL, bytes([1, 0]), IP_RACKUNO) # not controlling
 
 def CheckGasSensor():
     global  alarm, gasSensorPrepared
@@ -267,12 +292,12 @@ def CheckGasSensor():
         if time.time() - tmrPrepareGasSensor > 120:  # after 2 mins
             gasSensorPrepared = True
 
-        
+
 ######################## General timer thread ##########################################################################
      
 def timerGeneral():#it is calling itself periodically
     global alarmCounting,alarmCnt,alarm,watchDogAlarmThread ,MY_NUMBER1,keyboardRefreshCnt,wifiCheckCnt,tmrPriceCalc
-    global tmrPowerwallComm, tmrRackComm, tmrVentHeatControl
+    global tmrPowerwallComm, tmrRackComm, tmrVentHeatControl, globalFlags, currentValues
 
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt=0
@@ -301,8 +326,15 @@ def timerGeneral():#it is calling itself periodically
 
     if time.time() - tmrVentHeatControl > 300: # each 5 mins
         tmrVentHeatControl = time.time()
-        ControlVentilation()
-        ControlHeating()
+        globalFlags = MySQL.getGlobalFlags() # update global flags
+        currentValues = MySQL.getCurrentValues()
+
+        if globalFlags is not None and currentValues is not None: # we get both values from DTB
+            ControlPowerwall()
+            ControlVentilation()
+            ControlHeating()
+        else:
+            tmrVentHeatControl = time.time() - 200 # try it sooner
         
     #check if there are data in mysql that we want to send
     data = MySQL_GeneralThread.getTxBuffer()
@@ -368,15 +400,19 @@ def timerGeneral():#it is calling itself periodically
 
 ####################################################################################################################
 def ExecuteTxCommand(mySQLinstance, data):
-    global alarm
+    global alarm, heatingControlInhibit
     if data[0] == 0:  # resetAlarm
-        Log("Alarm deactivated by web interface.")
+        Log("Alarm deactivated by Tx interface.")
         alarm = 0
         mySQLinstance.updateState("alarm", int(alarm))
         KeyboardRefresh()
         PIRSensorRefresh()
     elif data[0] == 1:
-        Log("TODO command")
+        heatingControlInhibit = False
+        Log("Stop heating control by Tx command")
+    elif data[0] == 2:
+        heatingControlInhibit = True
+        Log("Start heating control by Tx command")
         
 
 def timerPhone():
@@ -396,13 +432,13 @@ def timerPhone():
         threading.Timer(20,timerPhone).start()
   
 def PIRSensorRefresh():
-    
+    global locked, alarm
     Log("PIR sensor refresh!",FULL)
     
     comm.Send(MySQL, bytes([0,int(alarm != 0),int(locked)]),IP_PIR_SENSOR)  #id, alarm(0/1),locked(0/1)
   
 def KeyboardRefresh():
-    
+    global locked, alarm
     Log("Keyboard refresh!",FULL)
     val = (int(alarm != 0)) + 2*(int(locked))
     
@@ -478,8 +514,8 @@ def TogglePCbutton():
     GPIO.output(PIN_BTN_PC,False)
     
 def IncomingData(data):
-    global alarm, tmrRackComm, bufferedCellModVoltage,solarPower,powerwall_stateMachineStatus,tmrConsPowerwall
-    global alarmCounting, roomHumidity, rackUno_heatingInhibition, roomTemperature
+    global alarm, locked, tmrRackComm, bufferedCellModVoltage,solarPower,powerwall_stateMachineStatus,tmrConsPowerwall
+    global alarmCounting, roomHumidity, rackUno_heatingInhibition, roomTemperature, rackUno_stateMachineStatus
     Log("Incoming data:"+str(data), FULL)
 #[100, 3, 0, 0, 1, 21, 2, 119]
 #ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
@@ -498,7 +534,7 @@ def IncomingData(data):
         
 
      
-        if(doorSW and locked and alarm&DOOR_ALARM == 0 and not alarmCounting):
+        if doorSW and locked and (alarm&DOOR_ALARM) == 0 and not alarmCounting:
             alarmCounting=True
             Log("LOCKED and DOORS opened")
     elif data[0]==101:#data from meteostations
@@ -525,13 +561,19 @@ def IncomingData(data):
         powerwall_stateMachineStatus = data[1]
         errorStatus = data[2]
         errorStatus_cause = data[3]
+        solarConnected = (data[4] & 0x01)!=0
+        heating = (data[4] & 0x02)!=0
         
         MySQL.insertValue('status','powerwall_stateMachineStatus',powerwall_stateMachineStatus, periodicity =30*MINUTE, writeNowDiff=1)
         MySQL.insertValue('status','powerwall_errorStatus',errorStatus, periodicity =30*MINUTE, writeNowDiff=1)
         MySQL.insertValue('status','powerwall_errorStatus_cause',errorStatus_cause, periodicity =30*MINUTE, writeNowDiff=1)
+        MySQL.insertValue('status', 'powerwall_solarConnected', solarConnected, periodicity=30 * MINUTE,
+                          writeNowDiff=1)
+        MySQL.insertValue('status', 'powerwall_heating', heating, periodicity=30 * MINUTE,
+                          writeNowDiff=1)
                      
     elif data[0]==69:# general statistics from powerwall
-        P = 60.0 # power of the heating element
+        P = 300.0 * 1 / 7.0 # power of the heating element * duty_cycle : duty_cycle is ratio is 1:6 so 1/7
         WhValue = (data[2]*256+data[1])*P/360.0 #counting pulse per 10s => 6 = P*1Wmin => P/360Wh
         if WhValue > 0:
             MySQL.insertValue('consumption','powerwall_heating',WhValue)
@@ -590,7 +632,9 @@ def IncomingData(data):
             MySQL.insertValue('consumption','lowTariff',(data[3]*256+data[4])/60) # from power to consumption - 1puls=1Wh
         else:
             MySQL.insertValue('consumption','stdTariff',(data[3]*256+data[4])/60)# from power to consumption - 1puls=1Wh
-        MySQL.insertValue('status','rackUno_stateMachineStatus',data[6], periodicity =60*MINUTE, writeNowDiff = 1)
+
+        rackUno_stateMachineStatus = data[6]
+        MySQL.insertValue('status','rackUno_stateMachineStatus',rackUno_stateMachineStatus, periodicity =60*MINUTE, writeNowDiff = 1)
     
     elif data[0]==104:# data from PIR sensor
         tempPIR = (data[1] * 256 + data[2])/10.0
@@ -624,6 +668,7 @@ def IncomingData(data):
 
                 txt = "Home system: PIR sensor - FIRE/GAS ALARM !!"
                 Log(txt)
+                MySQL.insertEvent(10, 0)
                 if SMS_NOTIFICATION:
                     phone.SendSMS(MY_NUMBER1, txt)
                 KeyboardRefresh()
@@ -635,16 +680,25 @@ def IncomingData(data):
 
                 txt = "Home system: PIR sensor - MOVEMENT ALARM !!"
                 Log(txt)
+                MySQL.insertEvent(10, 1)
 
                 if SMS_NOTIFICATION:
                     phone.SendSMS(MY_NUMBER1, txt)
                 KeyboardRefresh()
                 PIRSensorRefresh()
     elif data[0]==106:# data from powerwall ESP
-        powerwallVolt = (data[1]*256+data[2])/100.0
-        MySQL.insertValue('voltage','powerwallSum',powerwallVolt,periodicity =30*MINUTE, writeNowDiff = 1)
-        soc = calculatePowerwallSOC(powerwallVolt)
-        MySQL.insertValue('status','powerwallSoc',soc,periodicity =30*MINUTE, writeNowDiff = 1)
+
+        batteryStatus = data[9] * 256 + data[10]
+        MySQL.insertValue('status', 'powerwallEpeverBatteryStatus', batteryStatus, periodicity=30 * MINUTE,
+                          writeNowDiff=1)
+        MySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[11] * 256 + data[12], periodicity=30 * MINUTE,
+                          writeNowDiff=1)
+
+        if batteryStatus == 0 and (powerwall_stateMachineStatus==10 or powerwall_stateMachineStatus==20): # valid only if epever reports battery ok and battery is really connected
+            powerwallVolt = (data[1]*256+data[2])/100.0
+            MySQL.insertValue('voltage','powerwallSum',powerwallVolt,periodicity =30*MINUTE, writeNowDiff = 1)
+            soc = calculatePowerwallSOC(powerwallVolt)
+            MySQL.insertValue('status','powerwallSoc',soc,periodicity =30*MINUTE, writeNowDiff = 1)
 
         temperature = (data[3]*256+data[4])
         if temperature > 32767:
@@ -653,13 +707,27 @@ def IncomingData(data):
         solarPower = (data[5]*256+data[6])/100.0
         MySQL.insertValue('power','solar',solarPower)
         
-        if time.time() - tmrConsPowerwall > 3600: # each hour
+        if batteryStatus==0 and time.time() - tmrConsPowerwall > 3600: # each hour
             tmrConsPowerwall = time.time()
             MySQL.insertDailySolarCons((data[7]*256+data[8])*10.0) # in 0.01 kWh
 
-        MySQL.insertValue('status', 'powerwallEpeverBatteryStatus', data[9]*256+data[10], periodicity=30 * MINUTE, writeNowDiff = 1)
-        MySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[11]*256+data[12], periodicity=30 * MINUTE, writeNowDiff = 1)
-        
+
+    elif data[0]==107: # data from brewhouse
+        MySQL.insertValue('temperature', 'brewhouse_horkaVoda', (data[1]*256+data[2])/100.0 + 6.0, periodicity=5 * MINUTE, #with correction
+                          writeNowDiff=0.1)
+        MySQL.insertValue('temperature', 'brewhouse_horkaVoda_setpoint', (data[3]*256+data[4])/100.0, periodicity=5 * MINUTE,
+                          writeNowDiff=0.1)
+        MySQL.insertValue('temperature', 'brewhouse_rmut', (data[5] * 256 + data[6]) / 100.0,
+                          periodicity=5 * MINUTE,
+                          writeNowDiff=0.1)
+    elif data[0] == 108:  # data from chiller
+        temperature = (data[1] * 256 + data[2])
+        if temperature > 32767:
+            temperature = temperature - 65536  # negative temperatures
+        MySQL.insertValue('temperature', 'brewhouse_chiller', temperature / 100.0 ,
+                          periodicity=5 * MINUTE,  # with correction
+                          writeNowDiff=0.1)
+
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
     elif(data[0]<4 and len(data)>=2):#events for keyboard
@@ -683,8 +751,9 @@ def IncomingEvent(data):
     if data[0]==3:
         if data[1]==2:#lock
             locked=True
+            Log("LOCKED by keyboard")
         if data[1]==4:#doors opened and locked
-            if not alarm:
+            if alarm==0 and locked:
                 alarmCounting=True
             Log("LOCKED and DOORS opened event")
     if data[0]==1:

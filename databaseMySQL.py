@@ -14,9 +14,9 @@ thisScriptPath = str(pathlib.Path(__file__).parent.absolute())
 
 def ThreadingLockDecorator(func):
     def wrapper(*args, **kwargs):
-        #cMySQL.mySQLLock.acquire()
+        cMySQL.mySQLLock.acquire()
         ret = func(*args, **kwargs)
-        #cMySQL.mySQLLock.release()
+        cMySQL.mySQLLock.release()
         return ret
 
     return wrapper
@@ -85,10 +85,10 @@ class cMySQL:
 
         return True
 
-    @ThreadingLockDecorator
     def RemoveOnlineDevices(self):
         self.RemoveOnlineDevice(ip=None)
 
+    @ThreadingLockDecorator
     def RemoveOnlineDevice(self, ip):
         try:
             db, cursor = self.getConnection()
@@ -319,6 +319,28 @@ class cMySQL:
 
         return True
 
+    @ThreadingLockDecorator
+    def getGlobalFlags(self):
+        try:
+            db, cursor = self.getConnection()
+
+            sql = "SELECT name, value FROM globalFlags"
+            cursor.execute(sql)
+
+            data = cursor.fetchall()
+
+            result = {}
+            for d in data:
+                result[d[0]] = d[1]
+
+
+        except Exception as e:
+            Log("Error while writing to database for getGlobalFlags:, exception:")
+            LogException(e)
+            return None
+        return result
+
+    @ThreadingLockDecorator
     def getCurrentValues(self):
         try:
             db, cursor = self.getConnection()
@@ -339,6 +361,7 @@ class cMySQL:
             return None
         return result
 
+    @ThreadingLockDecorator
     def getStateValues(self):
         try:
             db, cursor = self.getConnection()
@@ -362,6 +385,7 @@ class cMySQL:
             return None
         return result
 
+    @ThreadingLockDecorator
     def getOnlineDevices(self):
         try:
             db, cursor = self.getConnection()

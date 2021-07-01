@@ -5,6 +5,7 @@ import struct
 
 IP_RACKUNO = "192.168.0.5"
 IP_POWERWALL = "192.168.0.12"
+IP_SERVER = "192.168.0.3"
 MySQL = cMySQL()
 
 def SendData(data, address=None):
@@ -82,6 +83,11 @@ def buttonHeatInhibitCallback():
 def buttonStopHeatInhibitCallback():
     SendData("1,0", address=IP_RACKUNO)
 
+def buttonStopHeatControlCallback():
+    SendData("1", address=IP_SERVER)
+def buttonStartHeatControlCallback():
+    SendData("2", address=IP_SERVER)
+
       
 def buttonVentilationCallback():
     SendData("2,"+str(E_VENT.get()), address=IP_RACKUNO)
@@ -93,7 +99,7 @@ def buttonSwitchToSolarCallback():
     
 top = Tk()
 top.title('Terminal')
-top.geometry("500x500")
+top.geometry("500x600")
 
 B = Button(top,text="Send raw",command = sendRawCallback)
 B.place(x=50,y=45)
@@ -211,8 +217,18 @@ B.place(x=0,y=y+20)
 B = Button(top,text="Stop inhibit",command = buttonStopHeatInhibitCallback)
 B.place(x=100,y=y+20)
 
-#VENTILATION
+#HEATING CONTROL
 y=360
+l = Label(top, text="Heating control:")
+l.place(x=0, y=y)
+B = Button(top,text="Start",command = buttonStartHeatControlCallback)
+B.place(x=0,y=y+20)
+B = Button(top,text="Stop",command = buttonStopHeatControlCallback)
+B.place(x=100,y=y+20)
+
+
+#VENTILATION
+y=420
 l = Label(top, text="Ventilation control:")
 l.place(x=0, y=y)
 B = Button(top,text="OK",command = buttonVentilationCallback)
@@ -222,7 +238,7 @@ E_VENT.place(x=30,y=y+20,width=30)
 E_VENT.insert(0,"0")
 
 #VENTILATION
-y=420
+y=480
 l = Label(top, text="Switching source of power:")
 l.place(x=0, y=y)
 B = Button(top,text="GRID",command = buttonSwitchToGridCallback)
