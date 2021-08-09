@@ -137,7 +137,7 @@ def run():
     
     lastDay_low_Wh,lastDay_std_Wh = getConsSumLastDay();
     
-    Log("Spotřeba za včerejší den:"+str(lastDay_low_Wh)+" Wh "+str(lastDay_std_Wh)+" Wh")
+    Log("Spotřeba za včerejší den:"+str(int(lastDay_low_Wh))+" Wh "+str(int(lastDay_std_Wh))+" Wh")
 
     totalSum_low,totalSum_std = MySQL.getTotalSum()
     
@@ -147,7 +147,7 @@ def run():
     totalSum_low = totalSum_low - priceData['totalSumBias_low']#abychom ziskali roční spotřebu - od posledního vyúčtování
     totalSum_std = totalSum_std - priceData['totalSumBias_std']
     
-    Log("Roční suma nízký tarif: "+str(totalSum_low)+" Wh ; Vysoký tarif:"+str(totalSum_std)+" Wh")
+    Log("Roční suma nízký tarif: "+str(int(totalSum_low))+" Wh ; Vysoký tarif:"+str(int(totalSum_std))+" Wh")
 
     yearPerc = percent(totalSum_std, totalSum_low, monthlyCashAdvance)
     Log("Roční plnění:"+str(yearPerc)+"%")
