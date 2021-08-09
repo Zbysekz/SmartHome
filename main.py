@@ -236,18 +236,33 @@ def ControlVentilation():# called each 5 mins
 
     if globalFlags['autoVentilation'] == 1:
         datetimeNow = datetime.now()
-        dayTime = 8 < datetimeNow.hour < 20
+        dayTime = 7 < datetimeNow.hour < 21
+        summerTime = 5 < datetimeNow.month < 9
 
         if roomHumidity is None:
             ventilationCommand = 99 # do not control
-        elif roomHumidity >= 60.0 and dayTime:
-            ventilationCommand = 3
-        elif roomHumidity > 59.0:
-            ventilationCommand = 2
-        elif not dayTime:
-            ventilationCommand = 1
         else:
-            ventilationCommand = 99
+            if not summerTime: # COLD OUTSIDE
+                if roomHumidity >= 60.0 and dayTime:
+                    ventilationCommand = 3
+                elif roomHumidity > 59.0:
+                    ventilationCommand = 2
+                elif not dayTime:
+                    ventilationCommand = 1
+                else:
+                    ventilationCommand = 99
+            else: # WARM OUTSIDE
+                if roomHumidity >= 60.0 and dayTime:
+                    ventilationCommand = 3
+                elif roomHumidity > 59.0 and dayTime:
+                    ventilationCommand = 2
+                elif roomHumidity >= 60.0 and not dayTime:
+                    ventilationCommand = -2
+                elif roomHumidity > 59.0 and not dayTime:
+                    ventilationCommand = -1
+                else:
+                    ventilationCommand = 99
+
     else:
         ventilationCommand = 99
 
@@ -285,8 +300,8 @@ def CheckGasSensor():
             MySQL.updateState("alarm", int(alarm))
             if alarm_last & GAS_ALARM_RPI == 0 and SMS_NOTIFICATION:
                 phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
-            KeyboardRefresh()
-            PIRSensorRefresh()
+            KeyboardRefresh(MySQL)
+            PIRSensorRefresh(MySQL)
 
     else:
         if time.time() - tmrPrepareGasSensor > 120:  # after 2 mins
@@ -301,8 +316,8 @@ def timerGeneral():#it is calling itself periodically
 
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt=0
-        KeyboardRefresh()
-        PIRSensorRefresh()
+        KeyboardRefresh(MySQL_GeneralThread)
+        PIRSensorRefresh(MySQL_GeneralThread)
     else:
         keyboardRefreshCnt+=1
 
@@ -326,8 +341,8 @@ def timerGeneral():#it is calling itself periodically
 
     if time.time() - tmrVentHeatControl > 300: # each 5 mins
         tmrVentHeatControl = time.time()
-        globalFlags = MySQL.getGlobalFlags() # update global flags
-        currentValues = MySQL.getCurrentValues()
+        globalFlags = MySQL_GeneralThread.getGlobalFlags() # update global flags
+        currentValues = MySQL_GeneralThread.getCurrentValues()
 
         if globalFlags is not None and currentValues is not None: # we get both values from DTB
             ControlPowerwall()
@@ -369,8 +384,8 @@ def timerGeneral():#it is calling itself periodically
                 phone.SendSMS(MY_NUMBER1,"Home system: door ALARM !!")
 
             MySQL_GeneralThread.updateState("alarm", int(alarm))
-            KeyboardRefresh()
-            PIRSensorRefresh()
+            KeyboardRefresh(MySQL_GeneralThread)
+            PIRSensorRefresh(MySQL_GeneralThread)
          
     
     
@@ -405,8 +420,8 @@ def ExecuteTxCommand(mySQLinstance, data):
         Log("Alarm deactivated by Tx interface.")
         alarm = 0
         mySQLinstance.updateState("alarm", int(alarm))
-        KeyboardRefresh()
-        PIRSensorRefresh()
+        KeyboardRefresh(mySQLinstance)
+        PIRSensorRefresh(mySQLinstance)
     elif data[0] == 1:
         heatingControlInhibit = False
         Log("Stop heating control by Tx command")
@@ -431,18 +446,18 @@ def timerPhone():
     if not comm.isTerminated(): # do not continue if app terminated
         threading.Timer(20,timerPhone).start()
   
-def PIRSensorRefresh():
+def PIRSensorRefresh(sqlInst):
     global locked, alarm
     Log("PIR sensor refresh!",FULL)
     
-    comm.Send(MySQL, bytes([0,int(alarm != 0),int(locked)]),IP_PIR_SENSOR)  #id, alarm(0/1),locked(0/1)
+    comm.Send(sqlInst, bytes([0,int(alarm != 0),int(locked)]),IP_PIR_SENSOR)  #id, alarm(0/1),locked(0/1)
   
-def KeyboardRefresh():
+def KeyboardRefresh(sqlInst):
     global locked, alarm
     Log("Keyboard refresh!",FULL)
     val = (int(alarm != 0)) + 2*(int(locked))
     
-    comm.Send(MySQL, bytes([10,val]),IP_KEYBOARD)  #id, alarm(0/1),locked(0/1)
+    comm.Send(sqlInst, bytes([10,val]),IP_KEYBOARD)  #id, alarm(0/1),locked(0/1)
   
 
 def IncomingSMS(data):
@@ -671,8 +686,8 @@ def IncomingData(data):
                 MySQL.insertEvent(10, 0)
                 if SMS_NOTIFICATION:
                     phone.SendSMS(MY_NUMBER1, txt)
-                KeyboardRefresh()
-                PIRSensorRefresh()
+                KeyboardRefresh(MySQL)
+                PIRSensorRefresh(MySQL)
         elif PIRalarm and locked:
             alarm |= PIR_ALARM
             if (alarm_last & PIR_ALARM == 0):
@@ -684,8 +699,8 @@ def IncomingData(data):
 
                 if SMS_NOTIFICATION:
                     phone.SendSMS(MY_NUMBER1, txt)
-                KeyboardRefresh()
-                PIRSensorRefresh()
+                KeyboardRefresh(MySQL)
+                PIRSensorRefresh(MySQL)
     elif data[0]==106:# data from powerwall ESP
 
         batteryStatus = data[9] * 256 + data[10]
@@ -773,8 +788,8 @@ def IncomingEvent(data):
             Log("UNLOCKED by keyboard RFID")
     
     if(lockLast!=locked or alarmLast != alarm):# change in locked state or alarm state
-        KeyboardRefresh()
-        PIRSensorRefresh()
+        KeyboardRefresh(MySQL)
+        PIRSensorRefresh(MySQL)
         
         MySQL.updateState("locked", int(locked))
         MySQL.updateState("alarm", int(alarm))

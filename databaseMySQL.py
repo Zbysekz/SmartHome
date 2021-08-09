@@ -14,9 +14,9 @@ thisScriptPath = str(pathlib.Path(__file__).parent.absolute())
 
 def ThreadingLockDecorator(func):
     def wrapper(*args, **kwargs):
-        cMySQL.mySQLLock.acquire()
+        #cMySQL.mySQLLock.acquire()
         ret = func(*args, **kwargs)
-        cMySQL.mySQLLock.release()
+        #cMySQL.mySQLLock.release()
         return ret
 
     return wrapper
