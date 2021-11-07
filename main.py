@@ -742,6 +742,13 @@ def IncomingData(data):
         MySQL.insertValue('temperature', 'brewhouse_chiller', temperature / 100.0 ,
                           periodicity=5 * MINUTE,  # with correction
                           writeNowDiff=0.1)
+    elif data[0] == 109:  # data from cellar
+        temperature = (data[1] * 256 + data[2])
+        if temperature > 32767:
+            temperature = temperature - 65536  # negative temperatures
+        MySQL.insertValue('temperature', 'brewhouse_cellar', temperature / 100.0 ,
+                          periodicity=5 * MINUTE,  # with correction
+                          writeNowDiff=0.1)
 
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)

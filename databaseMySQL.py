@@ -49,7 +49,8 @@ class cMySQL:
             host="localhost",
             user="mainScript",
             password="mainScript",
-            database="db1"
+            database="db1",
+            connection_timeout=10
         )
 
     def closeDBIfNeeded(self, conn):
