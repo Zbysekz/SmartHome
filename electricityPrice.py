@@ -37,29 +37,29 @@ MySQL = cMySQL()
 def yearPrice(consHighTariff_wh = 0,consLowTariff_wh = 0, numPhases = 3, amperage = 25):
 
 
-# zelený tarif D57d
-#https://www.cez.cz/edee/content/file/produkty-a-sluzby/obcane-a-domacnosti/elektrina-2020/moo/web-cenik_ele-zelena_elektrina_moo_202001_cezdi.pdf
+    # zelený tarif D57d
+    #https://www.cez.cz/edee/content/file/produkty-a-sluzby/obcane-a-domacnosti/elektrina-2021/moo/web_new-cenik_ele-zelena_elektrina_moo_102021_cezdi.pdf
+    # účinnost od 31. 12. 2021
     A = [0] * 40
 
-    A[1] = 2152.59
-    A[2] = 2152.59
-    A[3] = 95.59
-    A[4] = 265.66
-    A[5] = 227.33
+    A[1] = 3513.84
+    A[2] = 3513.84
+    A[3] = 107.69
+    A[4] = 254.06
+    A[5] = 156.66
 
-    A[9] = 356.95  # 3x25A
+    A[9] = 377.52  # 3x25A
 
     A[21] = 34.24
-    A[22] = 93.32
-    A[23] = 6.15
-    A[24] = 16.06
+    A[22] = 112.89
+    A[23] = 4.73
+    A[24] = 18.23
     A[25] = 598.95
-    A[26] = 2545.80
-    A[27] = 2507.48
+    A[26] = 3915.04
+    A[27] = 3817.63
     A[28] = A[3] + A[9] + A[23]
     A[29] = A[24] * numPhases * amperage
     A[30] = 598.95
-
 
     year_sum = (consHighTariff_wh/1000000)*A[26]+\
                (consLowTariff_wh/1000000)*A[27]+\
