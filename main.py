@@ -222,7 +222,7 @@ def ControlPowerwall():# called each # 5 mins
 
     if globalFlags['autoPowerwallRun'] == 1:
         # if enough SoC to run UPS
-        if currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues['status_powerwallSoc'] > 50: # more than 50% SoC
+        if currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues['status_powerwallSoc'] > 70: # more than 50% SoC
             Log("Auto powerwall control - going to RUN")
             MySQL.insertTxCommand(IP_POWERWALL, "10") # RUN command
         # if UPS is running but we are grid powered
@@ -578,13 +578,16 @@ def IncomingData(data):
         errorStatus_cause = data[3]
         solarConnected = (data[4] & 0x01)!=0
         heating = (data[4] & 0x02)!=0
+        err_module_no = data[5]
         
         MySQL.insertValue('status','powerwall_stateMachineStatus',powerwall_stateMachineStatus, periodicity =30*MINUTE, writeNowDiff=1)
-        MySQL.insertValue('status','powerwall_errorStatus',errorStatus, periodicity =30*MINUTE, writeNowDiff=1)
-        MySQL.insertValue('status','powerwall_errorStatus_cause',errorStatus_cause, periodicity =30*MINUTE, writeNowDiff=1)
-        MySQL.insertValue('status', 'powerwall_solarConnected', solarConnected, periodicity=30 * MINUTE,
+        MySQL.insertValue('status','powerwall_errorStatus',errorStatus, periodicity =60*MINUTE, writeNowDiff=1)
+        MySQL.insertValue('status','powerwall_errorStatus_cause',errorStatus_cause, periodicity =60*MINUTE, writeNowDiff=1)
+        MySQL.insertValue('status', 'powerwall_solarConnected', solarConnected, periodicity=60 * MINUTE,
                           writeNowDiff=1)
-        MySQL.insertValue('status', 'powerwall_heating', heating, periodicity=30 * MINUTE,
+        MySQL.insertValue('status', 'powerwall_heating', heating, periodicity=60 * MINUTE,
+                          writeNowDiff=1)
+        MySQL.insertValue('status', 'powerwall_err_module_no', err_module_no, periodicity=60 * MINUTE,
                           writeNowDiff=1)
                      
     elif data[0]==69:# general statistics from powerwall
@@ -749,6 +752,28 @@ def IncomingData(data):
         MySQL.insertValue('temperature', 'brewhouse_cellar', temperature / 100.0 ,
                           periodicity=5 * MINUTE,  # with correction
                           writeNowDiff=0.1)
+    elif data[0] == 110:  # data from iSpindel
+        temperature = data[2] * 256 + data[3]
+        gravity = data[4] * 256 + data[5]
+        voltage = data[6] * 256 + data[7]
+
+        if temperature > 32767:
+            temperature = temperature - 65536  # negative temperatures
+
+        if gravity > 32767:
+            gravity = gravity - 65536  # negative inclinations
+
+        name = 'iSpindel_'+str(data[1])
+
+        MySQL.insertValue('temperature', name, temperature / 100.0 ,
+                          periodicity=60 * MINUTE,  # with correction
+                          writeNowDiff=0.1)
+        MySQL.insertValue('gravity', name, gravity / 1000.0,
+                          periodicity=30 * MINUTE,  # with correction
+                          writeNowDiff=0.1)
+        MySQL.insertValue('voltage', name, voltage / 1000.0,
+                          periodicity=60 * MINUTE,  # with correction
+                          writeNowDiff=0.1)
 
     elif data[0]==0 and data[1]==1:#live event
         Log("Live event!",FULL)
@@ -763,7 +788,7 @@ def IncomingData(data):
             MySQL.insertEvent(data[0],data[1])
         
     else:
-        Log("Unknown event, data:"+str(data));
+        Log("Unknown event, data:"+str(data))
     
 def IncomingEvent(data):
     global locked,alarm,alarmCounting,alarmCnt

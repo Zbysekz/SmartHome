@@ -2,3 +2,4 @@
 **.pyc
 consumptionData/electricityPriceData.txt
 consumptionData/totalSumBias.txt
+.idea/*
