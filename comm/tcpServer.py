@@ -129,8 +129,14 @@ def ReceiveThread(conn, ip):
                 st+= str(d)+", "
             
             Log("Received data:"+str(st), FULL)
-                    
-    except:
+
+    except ConnectionResetError:
+        if ip != "192.168.0.11":# ignore keyboard reset errors
+           exc_type, exc_value, exc_traceback = sys.exc_info()
+           lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+           Log("Exception in rcv thread, IP:" + str(ip))
+           Log(''.join('!! ' + line for line in lines))
+    except Exception :
         exc_type, exc_value, exc_traceback = sys.exc_info()
         lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
         Log("Exception in rcv thread, IP:"+str(ip))

@@ -417,7 +417,7 @@ def Log(strr):
     txt=str(strr)
     print("LOG:"+txt)
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open(thisScriptPath+"/logs/databaseMySQL.log","a") as file:
+    with open("/var/log/screenVis/databaseMySQL.log","a") as file:
         file.write(dateStr+" >> "+txt+"\n")
         
                 
