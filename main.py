@@ -70,11 +70,6 @@ GAS_ALARM_PIR = 0x04  # GAS alarm of the PIR sensor module
 PIR_ALARM = 0x08  # PIR sensor detected motion when system was locked
 alarm = 0
 
-roomTemperature = None  # for controlling lower temperature while heating inhibition
-roomHumidity = None  # for controlling ventilation - currently taken from PIR sensor
-
-rackUno_heatingInhibition = False
-heatingControlInhibit = False
 actualHeatingInhibition = False
 INHIBITED_ROOM_TEMPERATURE = 20.0  # °C
 
@@ -97,9 +92,6 @@ tmrConsPowerwall = 0
 tmrVentHeatControl = 0
 
 bufferedCellModVoltage = 24 * [0]
-solarPower = 0
-powerwall_stateMachineStatus = 0
-rackUno_stateMachineStatus = 0
 
 # cycle time
 tmrCycleTime = 0
@@ -244,13 +236,14 @@ def ControlPowerwall():  # called each # 5 mins
 
 
 def ControlVentilation():  # called each 5 mins
-    global roomHumidity, globalFlags
+    global currentValues, globalFlags
 
     if globalFlags['autoVentilation'] == 1:
         datetimeNow = datetime.now()
         dayTime = 7 < datetimeNow.hour < 21
         summerTime = 5 < datetimeNow.month < 9
 
+        roomHumidity = currentValues.get("humidity_PIR sensor")
         if roomHumidity is None:
             ventilationCommand = 99  # do not control
         else:
@@ -281,9 +274,11 @@ def ControlVentilation():  # called each 5 mins
     MySQL_GeneralThread.updateState("ventilationCommand", ventilationCommand)
 
 def ControlHeating():  # called each 5 mins
-    global heatingControlInhibit, actualHeatingInhibition, INHIBITED_ROOM_TEMPERATURE
+    global currentValues, actualHeatingInhibition, INHIBITED_ROOM_TEMPERATURE
 
     HYSTERESIS = 0.5  # +- °C
+    roomTemperature = currentValues.get("temperature_PIR sensor")
+    heatingControlInhibit = currentValues.get("status_heatingControlInhibit")
 
     if heatingControlInhibit:
         if roomTemperature is not None:
@@ -424,7 +419,7 @@ def timerGeneral():  # it is calling itself periodically
 
 ####################################################################################################################
 def ExecuteTxCommand(mySQLinstance, data):
-    global alarm, heatingControlInhibit
+    global alarm
     if data[0] == 0:  # resetAlarm
         Log("Alarm deactivated by Tx interface.")
         alarm = 0
@@ -432,10 +427,10 @@ def ExecuteTxCommand(mySQLinstance, data):
         KeyboardRefresh(mySQLinstance)
         PIRSensorRefresh(mySQLinstance)
     elif data[0] == 1:
-        heatingControlInhibit = False
+        MySQL.insertValue('status', 'heatingControlInhibit', False)
         Log("Stop heating control by Tx command")
     elif data[0] == 2:
-        heatingControlInhibit = True
+        MySQL.insertValue('status', 'heatingControlInhibit', True)
         Log("Start heating control by Tx command")
 
 
@@ -471,7 +466,7 @@ def KeyboardRefresh(sqlInst):
 
 
 def IncomingSMS(data):
-    global alarm, locked, heatingControlInhibit, roomTemperature, roomHumidity
+    global alarm, locked, heatingControlInhibit
     if data[1] == MY_NUMBER1:
         if (data[0].startswith("get status")):
 
@@ -486,10 +481,10 @@ def IncomingSMS(data):
                 txt = "PIR movement alarm"
             elif locked:
                 txt = "Locked"
-            txt += ", powerwall status:" + str(powerwall_stateMachineStatus)
-            txt += ", solar power:" + str(int(solarPower)) + " W"
-            txt += ", room temp:{:.1f} C".format(roomTemperature)
-            txt += ", room humid:{:.1f} %".format(roomHumidity)
+            txt += ", powerwall status:" + str(currentValues.get('status_powerwall_stateMachineStatus'))
+            txt += ", solar power:" + str(int(currentValues.get('power_solar'))) + " W"
+            txt += ", room temp:{:.1f} C".format(currentValues.get("temperature_PIR sensor"))
+            txt += ", room humid:{:.1f} %".format(currentValues.get("humidity_PIR sensor"))
 
             phone.SendSMS(data[1], txt)
             Log("Get status by SMS command.")
@@ -546,8 +541,8 @@ def correctNegative(val):
     return val
 
 def IncomingData(data):
-    global alarm, locked, bufferedCellModVoltage, solarPower, powerwall_stateMachineStatus, tmrConsPowerwall
-    global alarmCounting, roomHumidity, rackUno_heatingInhibition, roomTemperature, rackUno_stateMachineStatus
+    global alarm, locked, bufferedCellModVoltage, tmrConsPowerwall
+    global alarmCounting
     global tmrTimeouts
 
     Log("Incoming data:" + str(data), FULL)
@@ -673,6 +668,9 @@ def IncomingData(data):
         MySQL.insertValue('status', 'rackUno_detectSolarPower', int(detectSolarPower), periodicity=60 * MINUTE,
                           writeNowDiff=1)
 
+        MySQL.insertValue('status', 'rackUno_heatingInhibition', int(rackUno_heatingInhibition), periodicity=60 * MINUTE,
+                          writeNowDiff=1)
+
         if not stdTariff:  # T1 - low tariff
             MySQL.insertValue('consumption', 'lowTariff',
                               (data[3] * 256 + data[4]) / 60)  # from power to consumption - 1puls=1Wh
@@ -696,15 +694,9 @@ def IncomingData(data):
         # check validity and store values
         if tempPIR > -30.0 and tempPIR < 80.0:
             MySQL.insertValue('temperature', 'PIR sensor', tempPIR, periodicity=60 * MINUTE, writeNowDiff=1)
-            roomTemperature = tempPIR
-        else:
-            roomTemperature = None
 
         if humidPIR >= 0.0 and tempPIR <= 100.0:
             MySQL.insertValue('humidity', 'PIR sensor', humidPIR, periodicity=60 * MINUTE, writeNowDiff=1)
-            roomHumidity = humidPIR
-        else:
-            roomHumidity = None
 
         MySQL.insertValue('gas', 'PIR sensor', (data[5] * 256 + data[6]), periodicity=60 * MINUTE, writeNowDiff=50)
     elif data[0] == 105:  # data from PIR sensor
@@ -746,7 +738,7 @@ def IncomingData(data):
                           writeNowDiff=1)
 
         if batteryStatus == 0 and (
-                powerwall_stateMachineStatus == 10 or powerwall_stateMachineStatus == 20):  # valid only if epever reports battery ok and battery is really connected
+                currentValues.get('status_powerwall_stateMachineStatus') == 10 or currentValues.get('status_powerwall_stateMachineStatus') == 20):  # valid only if epever reports battery ok and battery is really connected
             powerwallVolt = (data[1] * 256 + data[2]) / 100.0
             MySQL.insertValue('voltage', 'powerwallSum', powerwallVolt, periodicity=30 * MINUTE, writeNowDiff=1)
             soc = calculatePowerwallSOC(powerwallVolt)
