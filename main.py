@@ -38,6 +38,8 @@ IP_RACKUNO = '192.168.0.5'
 IP_PIR_SENSOR = '192.168.0.14'
 IP_SERVER = '192.168.0.3'  # it is localhost
 IP_POWERWALL = '192.168.0.12'
+IP_KEGERATOR = "192.168.0.32"
+IP_CELLAR = "192.168.0.33"
 
 NORMAL = 0
 RICH = 1
@@ -47,6 +49,15 @@ verbosity = RICH
 # for periodicity mysql inserts
 HOUR = 3600
 MINUTE = 60
+
+tmrTimeouts = {IP_RACKUNO: [time.time(), 200],
+               IP_POWERWALL: [time.time(), 100],
+               IP_METEO: [time.time(), HOUR * 3],
+               IP_CELLAR: [time.time(), MINUTE * 10],
+               IP_KEGERATOR: [time.time(), MINUTE * 10],
+               IP_PIR_SENSOR: [time.time(), MINUTE * 10]}
+
+
 # -----------------------------------------------
 
 # -------------STATE VARIABLES-------------------
@@ -82,11 +93,8 @@ gasSensorPrepared = False
 tmrPrepareGasSensor = time.time()
 alarm_last = 0
 
-tmrRackComm = 0
-tmrPowerwallComm = 0
 tmrConsPowerwall = 0
 tmrVentHeatControl = 0
-tmrMeteoComm = 0
 
 bufferedCellModVoltage = 24 * [0]
 solarPower = 0
@@ -272,7 +280,6 @@ def ControlVentilation():  # called each 5 mins
 
     MySQL_GeneralThread.updateState("ventilationCommand", ventilationCommand)
 
-
 def ControlHeating():  # called each 5 mins
     global heatingControlInhibit, actualHeatingInhibition, INHIBITED_ROOM_TEMPERATURE
 
@@ -317,7 +324,7 @@ def CheckGasSensor():
 
 def timerGeneral():  # it is calling itself periodically
     global alarmCounting, alarmCnt, alarm, watchDogAlarmThread, MY_NUMBER1, keyboardRefreshCnt, wifiCheckCnt, tmrPriceCalc
-    global tmrPowerwallComm, tmrRackComm, tmrVentHeatControl, globalFlags, currentValues, tmrMeteoComm
+    global tmrVentHeatControl, globalFlags, currentValues, tmrTimeouts
 
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt = 0
@@ -333,22 +340,14 @@ def timerGeneral():  # it is calling itself periodically
     else:
         wifiCheckCnt = wifiCheckCnt + 1
 
-    if tmrRackComm != 0 and time.time() - tmrRackComm > 200:  # 200s - nothing came from rackUno for this time
-        Log("Comm timeout for RackUNO!")
-        tmrRackComm = 0
-        comm.RemoveOnlineDevice(MySQL_GeneralThread, IP_RACKUNO)
 
-    if tmrPowerwallComm != 0 and time.time() - tmrPowerwallComm > 100:  # 100s - nothing came from powerwall for this time
-        Log("Comm timeout for Powerwall!")
-        tmrPowerwallComm = 0
+    # timeouts handling
+    for IP, tmr in tmrTimeouts.items():
+        if tmr[0] != 0 and time.time() - tmr[0] > tmr[1]:
+            Log("Comm timeout for IP:"+str(IP))
+            tmr[0]=0
+            comm.RemoveOnlineDevice(MySQL_GeneralThread, IP)
 
-        comm.RemoveOnlineDevice(MySQL_GeneralThread, IP_POWERWALL)
-
-    if tmrMeteoComm != 0 and time.time() - tmrMeteoComm > 10800:  # 3h - nothing came from meteostation for this time
-        Log("Comm timeout for Meteostation!")
-        tmrMeteoComm = 0
-
-        comm.RemoveOnlineDevice(MySQL_GeneralThread, IP_METEO)
 
     if time.time() - tmrVentHeatControl > 300:  # each 5 mins
         tmrVentHeatControl = time.time()
@@ -547,8 +546,10 @@ def correctNegative(val):
     return val
 
 def IncomingData(data):
-    global alarm, locked, tmrRackComm, tmrMeteoComm, bufferedCellModVoltage, solarPower, powerwall_stateMachineStatus, tmrConsPowerwall
+    global alarm, locked, bufferedCellModVoltage, solarPower, powerwall_stateMachineStatus, tmrConsPowerwall
     global alarmCounting, roomHumidity, rackUno_heatingInhibition, roomTemperature, rackUno_stateMachineStatus
+    global tmrTimeouts
+
     Log("Incoming data:" + str(data), FULL)
     # [100, 3, 0, 0, 1, 21, 2, 119]
     # ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
@@ -569,7 +570,7 @@ def IncomingData(data):
             alarmCounting = True
             Log("LOCKED and DOORS opened")
     elif data[0] == 101:  # data from meteostations
-        tmrMeteoComm = time.time()
+        tmrTimeouts[IP_METEO][0] = time.time()
         meteoTemp = correctNegative((data[1] * 256 + data[2]))
 
         MySQL.insertValue('temperature', 'meteostation 1', meteoTemp / 100, periodicity=60 * MINUTE, writeNowDiff=0.5)
@@ -660,7 +661,7 @@ def IncomingData(data):
         MySQL.insertValue('voltage', 'roomba cell 3', (data[5] * 256 + data[6]) / 1000, periodicity=60 * MINUTE,
                           writeNowDiff=0.2)
     elif data[0] == 103:  # data from rackUno
-        tmrRackComm = time.time()
+        tmrTimeouts[IP_RACKUNO][0] = time.time()
         # store power
         MySQL.insertValue('power', 'grid', (data[1] * 256 + data[2]), periodicity=30 * MINUTE, writeNowDiff=50)
 
@@ -682,8 +683,11 @@ def IncomingData(data):
         rackUno_stateMachineStatus = data[6]
         MySQL.insertValue('status', 'rackUno_stateMachineStatus', rackUno_stateMachineStatus, periodicity=60 * MINUTE,
                           writeNowDiff=1)
+        MySQL.insertValue('status', 'waterTank_level', (data[7] * 256 + data[8]), periodicity=1 * MINUTE,
+                          writeNowDiff=0)
 
     elif data[0] == 104:  # data from PIR sensor
+        tmrTimeouts[IP_PIR_SENSOR][0] = time.time()
         tempPIR = (data[1] * 256 + data[2]) / 10.0
         tempPIR = tempPIR - 0.0  # calibration - SHT20 is precalibrated from factory
 
@@ -771,12 +775,14 @@ def IncomingData(data):
                           periodicity=5 * MINUTE,
                           writeNowDiff=0.1)
     elif data[0] == 108:  # data from chiller
+        tmrTimeouts[IP_KEGERATOR][0] = time.time()
         temperature = correctNegative(data[1] * 256 + data[2])
 
         MySQL.insertValue('temperature', 'brewhouse_chiller', temperature / 100.0,
                           periodicity=5 * MINUTE,  # with correction
                           writeNowDiff=0.1)
     elif data[0] == 109:  # data from cellar
+        tmrTimeouts[IP_CELLAR][0] = time.time()
         temperature1 = correctNegative(data[1] * 256 + data[2])
         temperature2 = correctNegative(data[3] * 256 + data[4])
         temperature_sht = correctNegative(data[5] * 256 + data[6])
