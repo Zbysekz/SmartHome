@@ -11,7 +11,7 @@ os.sys.path.append(os.path.dirname(os.path.realpath(__file__)) + '/comm')
 
 import comm
 from databaseMySQL import cMySQL
-import time, threading
+import threading
 import phone
 from datetime import datetime
 import RPi.GPIO as GPIO

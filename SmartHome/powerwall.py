@@ -4,8 +4,8 @@
 
 # now just simple method, then upgrade by approximation curve probably
 def calculatePowerwallSOC(voltage):
-    MAX = 25.2
-    MIN = 18
+    MAX = 49.2
+    MIN = 37.2
     
     voltage = min(max(MIN, voltage),MAX)
     
