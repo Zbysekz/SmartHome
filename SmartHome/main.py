@@ -667,10 +667,10 @@ def IncomingData(data):
         detectSolarPower = (data[5] & 0x02) == 0
         rackUno_heatingInhibition = (data[5] & 0x04) == 0
 
-        MySQL.insertValue('status', 'rackUno_detectSolarPower', int(detectSolarPower), periodicity=60 * MINUTE,
+        MySQL.insertValue('status', 'rackUno_detectSolarPower', int(detectSolarPower), periodicity=6 * HOUR,
                           writeNowDiff=1)
 
-        MySQL.insertValue('status', 'rackUno_heatingInhibition', int(rackUno_heatingInhibition), periodicity=60 * MINUTE,
+        MySQL.insertValue('status', 'rackUno_heatingInhibition', int(rackUno_heatingInhibition), periodicity=6 * HOUR,
                           writeNowDiff=1)
 
         if not stdTariff:  # T1 - low tariff
@@ -681,10 +681,10 @@ def IncomingData(data):
                               (data[3] * 256 + data[4]) / 60)  # from power to consumption - 1puls=1Wh
 
         rackUno_stateMachineStatus = data[6]
-        MySQL.insertValue('status', 'rackUno_stateMachineStatus', rackUno_stateMachineStatus, periodicity=60 * MINUTE,
+        MySQL.insertValue('status', 'rackUno_stateMachineStatus', rackUno_stateMachineStatus, periodicity=6 * HOUR,
                           writeNowDiff=1)
-        MySQL.insertValue('status', 'waterTank_level', (data[7] * 256 + data[8]), periodicity=1 * MINUTE,
-                          writeNowDiff=0)
+        MySQL.insertValue('status', 'waterTank_level', (data[7] * 256 + data[8]), periodicity=6 * HOUR,
+                          writeNowDiff=0.5)
 
     elif data[0] == 104:  # data from PIR sensor
         tmrTimeouts[IP_PIR_SENSOR][0] = time.time()
@@ -734,17 +734,17 @@ def IncomingData(data):
     elif data[0] == 106:  # data from powerwall ESP
 
         batteryStatus = data[9] * 256 + data[10]
-        MySQL.insertValue('status', 'powerwallEpeverBatteryStatus', batteryStatus, periodicity=30 * MINUTE,
+        MySQL.insertValue('status', 'powerwallEpeverBatteryStatus', batteryStatus, periodicity=6 * HOUR,
                           writeNowDiff=1)
-        MySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[11] * 256 + data[12], periodicity=30 * MINUTE,
+        MySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[11] * 256 + data[12], periodicity=6 * HOUR,
                           writeNowDiff=1)
 
         if batteryStatus == 0 and (
                 currentValues.get('status_powerwall_stateMachineStatus') == 10 or currentValues.get('status_powerwall_stateMachineStatus') == 20):  # valid only if epever reports battery ok and battery is really connected
             powerwallVolt = (data[1] * 256 + data[2]) / 100.0
-            MySQL.insertValue('voltage', 'powerwallSum', powerwallVolt, periodicity=30 * MINUTE, writeNowDiff=1)
+            MySQL.insertValue('voltage', 'powerwallSum', powerwallVolt, periodicity=60 * MINUTE, writeNowDiff=0.5)
             soc = calculatePowerwallSOC(powerwallVolt)
-            MySQL.insertValue('status', 'powerwallSoc', soc, periodicity=30 * MINUTE, writeNowDiff=1)
+            MySQL.insertValue('status', 'powerwallSoc', soc, periodicity=2 * HOUR, writeNowDiff=1)
 
         temperature = correctNegative(data[3] * 256 + data[4])
 
