@@ -216,12 +216,30 @@ class cMySQL:
         return True
 
     @ThreadingLockDecorator
+    def insertCalculatedValue(self, kind, name, value):
+        try:
+            db, cursor = self.getConnection()
+
+            args = (name, kind, value)
+            res = cursor.callproc('insertCalculatedValue', args)
+
+            db.commit()
+            cursor.close()
+            self.closeDBIfNeeded(db)
+
+        except Exception as e:
+            Log("Error while writing to database for insertCalculatedValue:" + name + " exception:")
+            LogException(e)
+            return False
+
+        return True
+    @ThreadingLockDecorator
     def insertDailySolarCons(self,value):
         try:
             db, cursor = self.getConnection()
 
             args = (value,)
-            res = cursor.callproc('DailySolarCons',args)
+            res = cursor.callproc('DailySolarCons', args)
 
             db.commit()
             cursor.close()
@@ -354,7 +372,6 @@ class cMySQL:
             result = {}
             for d in data:
                 result[d[0]] = d[1]
-
 
         except Exception as e:
             Log("Error while writing to database for getCurrentValues:, exception:")

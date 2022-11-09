@@ -22,6 +22,7 @@ import electricityPrice
 import time
 from powerwall import calculatePowerwallSOC
 from measureTime import MeasureTime
+import updateStats
 
 # -------------DEFINITIONS-----------------------
 SMS_NOTIFICATION = True
@@ -404,6 +405,7 @@ def timerGeneral():  # it is calling itself periodically
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             Log(str(e))
             Log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
+        updateStats.execute_4hour(MySQL_GeneralThread)
 
     if comm.isTerminated():  # do not continue if app terminated
         Log("Ending General thread, because comm is terminated.")
