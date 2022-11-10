@@ -42,6 +42,7 @@ IP_POWERWALL = '192.168.0.12'
 IP_KEGERATOR = "192.168.0.35"
 IP_CELLAR = "192.168.0.33"
 IP_POWERWALL_THERMOSTAT = "192.168.0.32"
+IP_ESP_POWERWALL = '192.168.0.15'
 
 NORMAL = 0
 RICH = 1
@@ -52,13 +53,17 @@ verbosity = RICH
 HOUR = 3600
 MINUTE = 60
 
-tmrTimeouts = {IP_RACKUNO: [time.time(), 200],
-               IP_POWERWALL: [time.time(), 100],
-               IP_METEO: [time.time(), HOUR * 3],
-               IP_CELLAR: [time.time(), MINUTE * 10],
-               IP_KEGERATOR: [time.time(), MINUTE * 10],
-               IP_PIR_SENSOR: [time.time(), MINUTE * 10],
-               IP_POWERWALL_THERMOSTAT: [time.time(), MINUTE * 10]}
+tmrTimeouts = {
+                IP_KEYBOARD: [time.time(), 120],
+                IP_RACKUNO: [time.time(), 200],
+                IP_POWERWALL: [time.time(), 100],
+                IP_ESP_POWERWALL: [time.time(), 100],
+                IP_POWERWALL_THERMOSTAT: [time.time(), MINUTE * 10],
+                IP_METEO: [time.time(), HOUR * 3],
+                IP_CELLAR: [time.time(), MINUTE * 10],
+                IP_KEGERATOR: [time.time(), MINUTE * 10],
+                IP_PIR_SENSOR: [time.time(), MINUTE * 10]
+}
 
 
 # -----------------------------------------------
@@ -343,7 +348,7 @@ def timerGeneral():  # it is calling itself periodically
     for IP, tmr in tmrTimeouts.items():
         if tmr[0] != 0 and time.time() - tmr[0] > tmr[1]:
             Log("Comm timeout for IP:"+str(IP))
-            tmr[0]=0
+            tmrTimeouts[IP][0] = 0
             comm.RemoveOnlineDevice(MySQL_GeneralThread, IP)
 
 
@@ -544,6 +549,11 @@ def correctNegative(val):
         return val - 65536
     return val
 
+def RefreshTimeout(IP: str):
+    global tmrTimeouts
+    tmrTimeouts[IP][0] = time.time()
+
+
 def IncomingData(data):
     global alarm, locked, bufferedCellModVoltage, tmrConsPowerwall
     global alarmCounting
@@ -553,6 +563,7 @@ def IncomingData(data):
     # [100, 3, 0, 0, 1, 21, 2, 119]
     # ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
     if data[0] == 100:  # data from keyboard
+        RefreshTimeout(IP_KEYBOARD)
         doorSW = False if (data[1] & 0x01) == 0 else True
         gasAlarm = True if (data[1] & 0x02) == 0 else False
         gas = data[2] * 256 + data[3]
@@ -569,7 +580,7 @@ def IncomingData(data):
             alarmCounting = True
             Log("LOCKED and DOORS opened")
     elif data[0] == 101:  # data from meteostations
-        tmrTimeouts[IP_METEO][0] = time.time()
+        RefreshTimeout(IP_METEO)
         meteoTemp = correctNegative((data[1] * 256 + data[2]))
 
         MySQL.insertValue('temperature', 'meteostation 1', meteoTemp / 100, periodicity=60 * MINUTE, writeNowDiff=0.5)
@@ -592,6 +603,7 @@ def IncomingData(data):
             MySQL.insertValue('temperature', 'powerwall cell ' + str(data[1]), temp, periodicity=30 * MINUTE,
                               writeNowDiff=0.5);
     elif data[0] == 10:  # POWERWALL STATUS
+        RefreshTimeout(IP_POWERWALL)
         powerwall_stateMachineStatus = data[1]
         errorStatus = data[2]
         errorStatus_cause = data[3]
@@ -660,7 +672,7 @@ def IncomingData(data):
         MySQL.insertValue('voltage', 'roomba cell 3', (data[5] * 256 + data[6]) / 1000, periodicity=60 * MINUTE,
                           writeNowDiff=0.2)
     elif data[0] == 103:  # data from rackUno
-        tmrTimeouts[IP_RACKUNO][0] = time.time()
+        RefreshTimeout(IP_RACKUNO)
         # store power
         MySQL.insertValue('power', 'grid', (data[1] * 256 + data[2]), periodicity=30 * MINUTE, writeNowDiff=50)
 
@@ -689,7 +701,7 @@ def IncomingData(data):
                           writeNowDiff=0.5)
 
     elif data[0] == 104:  # data from PIR sensor
-        tmrTimeouts[IP_PIR_SENSOR][0] = time.time()
+        RefreshTimeout(IP_PIR_SENSOR)
         tempPIR = (data[1] * 256 + data[2]) / 10.0
         tempPIR = tempPIR - 0.0  # calibration - SHT20 is precalibrated from factory
 
@@ -734,7 +746,7 @@ def IncomingData(data):
                 KeyboardRefresh(MySQL)
                 PIRSensorRefresh(MySQL)
     elif data[0] == 106:  # data from powerwall ESP
-
+        RefreshTimeout(IP_ESP_POWERWALL)
         batteryStatus = data[9] * 256 + data[10]
         MySQL.insertValue('status', 'powerwallEpeverBatteryStatus', batteryStatus, periodicity=6 * HOUR,
                           writeNowDiff=1)
@@ -771,14 +783,14 @@ def IncomingData(data):
                           periodicity=5 * MINUTE,
                           writeNowDiff=0.1)
     elif data[0] == 108:  # data from chiller
-        tmrTimeouts[IP_POWERWALL_THERMOSTAT][0] = time.time()
+        RefreshTimeout(IP_KEGERATOR)
         temperature = correctNegative(data[1] * 256 + data[2])
 
         MySQL.insertValue('temperature', 'powerwall_thermostat', temperature / 100.0,
                           periodicity=5 * MINUTE,
                           writeNowDiff=0.1)
     elif data[0] == 109:  # data from cellar
-        tmrTimeouts[IP_CELLAR][0] = time.time()
+        RefreshTimeout(IP_CELLAR)
         temperature1 = correctNegative(data[1] * 256 + data[2])
         temperature2 = correctNegative(data[3] * 256 + data[4])
         temperature_sht = correctNegative(data[5] * 256 + data[6])
@@ -834,6 +846,17 @@ def IncomingData(data):
 
         MySQL.insertValue('temperature', 'brewhouse_chiller', temperature / 100.0,
                           periodicity=5 * MINUTE,  # with correction
+                          writeNowDiff=0.1)
+    elif data[0] == 112:  # data from old freezer
+        temperature = data[1] * 256 + data[2]
+
+        if temperature > 32767:
+            temperature = temperature - 65536  # negative temperatures
+
+        name = 'old_freezer_thermostat'
+
+        MySQL.insertValue('temperature', name, temperature / 100.0,
+                          periodicity=60 * MINUTE,  # with correction
                           writeNowDiff=0.1)
     elif data[0] == 0 and data[1] == 1:  # live event
         Log("Live event!", FULL)
