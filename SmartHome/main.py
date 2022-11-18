@@ -697,7 +697,25 @@ def IncomingData(data):
         rackUno_stateMachineStatus = data[6]
         MySQL.insertValue('status', 'rackUno_stateMachineStatus', rackUno_stateMachineStatus, periodicity=6 * HOUR,
                           writeNowDiff=1)
-        MySQL.insertValue('status', 'waterTank_level', (data[7] * 256 + data[8]), periodicity=6 * HOUR,
+
+        raw = data[7] * 256 + data[8]
+        if raw < 360:
+            lin = (raw+16.72222222222 )/38.766666666
+            dist_cm = lin * 24.698118 - 108.597222 # see spreadsheet
+        else:
+            lin = (raw + 382.3461538) / 51.785714
+            dist_cm = lin * 32.992511 - 108.597222 # see spreadsheet
+
+        if dist_cm < 11:
+            waterTank_level = 100.0
+        elif dist_cm > 191:
+            waterTank_level = 0.0
+        else:
+            waterTank_level = (191.0 - dist_cm)/180.0 * 100
+
+        MySQL.insertValue('status', 'waterTank_level', waterTank_level, periodicity=6 * HOUR,
+                          writeNowDiff=0.5)
+        MySQL.insertValue('status', 'waterTank_level_raw', raw, periodicity=6 * HOUR,
                           writeNowDiff=0.5)
 
     elif data[0] == 104:  # data from PIR sensor
@@ -747,10 +765,10 @@ def IncomingData(data):
                 PIRSensorRefresh(MySQL)
     elif data[0] == 106:  # data from powerwall ESP
         RefreshTimeout(IP_ESP_POWERWALL)
-        batteryStatus = data[9] * 256 + data[10]
+        batteryStatus = data[13] * 256 + data[14]
         MySQL.insertValue('status', 'powerwallEpeverBatteryStatus', batteryStatus, periodicity=6 * HOUR,
                           writeNowDiff=1)
-        MySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[11] * 256 + data[12], periodicity=6 * HOUR,
+        MySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[15] * 256 + data[16], periodicity=6 * HOUR,
                           writeNowDiff=1)
 
         if batteryStatus == 0 and (
@@ -764,12 +782,12 @@ def IncomingData(data):
 
         MySQL.insertValue('temperature', 'powerwallOutside', temperature / 100.0, periodicity=30 * MINUTE,
                           writeNowDiff=2)
-        solarPower = (data[5] * 256 + data[6]) / 100.0
+        solarPower = (data[5] * 16777216 + data[6] * 65536 +data[7] * 256 + data[8]) / 100.0
         MySQL.insertValue('power', 'solar', solarPower)
 
         if batteryStatus == 0 and time.time() - tmrConsPowerwall > 3600:  # each hour
             tmrConsPowerwall = time.time()
-            MySQL.insertDailySolarCons((data[7] * 256 + data[8]) * 10.0)  # in 0.01 kWh
+            MySQL.insertDailySolarCons((data[9] * 16777216 + data[10] * 65536 + data[11] * 256 + data[12]) * 10.0)  # in 0.01 kWh
 
 
     elif data[0] == 107:  # data from brewhouse
