@@ -256,7 +256,9 @@ def ControlVentilation():  # called each 5 mins
             ventilationCommand = 99  # do not control
         else:
             if not summerTime:  # COLD OUTSIDE
-                if roomHumidity >= 60.0 and dayTime:
+                if roomHumidity >= 61.5 and dayTime:
+                    ventilationCommand = 4
+                elif roomHumidity >= 59.0 and dayTime:
                     ventilationCommand = 3
                 elif roomHumidity > 59.0:
                     ventilationCommand = 2
@@ -940,7 +942,7 @@ def Log(s, _verbosity=NORMAL):
     print(str(s))
 
     dateStr = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("logs/main.log", "a") as file:
+    with open("/var/log/SmartHome/main.log", "a") as file:
         file.write(dateStr + " >> " + str(s) + "\n")
 
 

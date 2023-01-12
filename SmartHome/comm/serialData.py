@@ -122,7 +122,7 @@ def Log(s,_verbosity=NORMAL):
     print(str(s))
     from datetime import datetime
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("logs/serialData.log","a") as file:
+    with open("/var/log/SmartHome/serialData.log", "a") as file:
         file.write(dateStr+" >> "+str(s)+"\n")
         
 # legacy, should be substituted with CRC16
