@@ -18,12 +18,22 @@ RICH = 1
 FULL = 2
 verbosity = RICH
 
+queue_large = False
+
 def getRcvdData():#get last data and remove from queue
+    global queue_large
+    if queue_large and len(rcvdData) < 3:
+        logger.log("Rcv queue is ok! Len:" + str(len(rcvdData)), NORMAL)
+        queue_large = False
+
     if(len(rcvdData)>0):
         temp = rcvdData[0]
         del rcvdData[0]
         return temp
     return []
+
+def getRcvdDataLen():
+    return len(rcvdData)
 
 class Receiver:
 
@@ -34,7 +44,6 @@ class Receiver:
         self.crcH=0
         self.crcL=0
         self.rxLen=0
-        self.queue_large = False
 
     def ResetReceiver(self):
         self.rxPtr=0
@@ -42,6 +51,7 @@ class Receiver:
         
     # returns false if some error occurs
     def Receive(self, rcv, noCRC=False):
+        global queue_large
         result = True
         #prijimame zpravu
         if(self.readState==0):
@@ -95,11 +105,8 @@ class Receiver:
                 logger.log("New data received!",FULL)
                 if len(rcvdData)>10:
                     logger.log("Rcv queue is large! Len:"+str(len(rcvdData)),NORMAL)
-                    self.queue_large = True
+                    queue_large = True
                     logger.log(rcvdData, RICH)
-                elif len(rcvdData) < 2:
-                    logger.log("Rcv queue is ok! Len:" + str(len(rcvdData)), NORMAL)
-                    self.queue_large = False
             else:
                 self.readState=0
                 result = False

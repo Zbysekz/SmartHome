@@ -201,6 +201,7 @@ def main():
                 try:
                     processedData += [data]
                     IncomingData(data)
+                    logger.log(f"Processed data. Remaining cnt: {comm.DataRemaining()}", RICH)
                 except IndexError:
                     logger.log("IndexError while processing incoming data! data:" + str(data))
                 data = comm.DataReceived()

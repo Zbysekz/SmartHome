@@ -11,14 +11,14 @@ class Logger:
     def __init__(self, filename="main"):
         self.filename = filename
 
-    def log(self, txt, _verbosity=Parameters.NORMAL, filename="main"):
+    def log(self, txt, _verbosity=Parameters.NORMAL):
         if _verbosity > Parameters.verbosity:
             return
         print(str(txt))
 
         dateStr = datetime.now().strftime('%Y-%m-%d')
         datetimeStr = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        with open(f"/var/log/SmartHome/{dateStr}_{filename}.log", "a") as file:
+        with open(f"/var/log/SmartHome/{dateStr}_{self.filename}.log", "a") as file:
             file.write(datetimeStr + " >> " + str(txt) + "\n")
 
     def log_exception(self, e):

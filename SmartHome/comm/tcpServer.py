@@ -215,8 +215,10 @@ def PrintBufferStatistics():
 
 
 def DataReceived():
-
     return serialData.getRcvdData()
+
+def DataRemaining():
+    return serialData.getRcvdDataLen()
 
 def Ping(host):
     ping_response = subprocess.Popen(["/bin/ping", "-c1", "-w100", host], stdout=subprocess.PIPE).stdout.read()
