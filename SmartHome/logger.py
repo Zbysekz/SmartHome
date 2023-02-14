@@ -1,7 +1,5 @@
 from datetime import datetime
 import pathlib
-import sys
-import os
 import traceback
 from parameters import Parameters
 
@@ -12,9 +10,10 @@ def Log(s, _verbosity=Parameters.NORMAL, filename="main"):
         return
     print(str(s))
 
-    dateStr = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open(f"/var/log/SmartHome/{filename}.log", "a") as file:
-        file.write(dateStr + " >> " + str(s) + "\n")
+    dateStr = datetime.now().strftime('%Y-%m-%d')
+    datetimeStr = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open(f"/var/log/SmartHome/{dateStr}_{filename}.log", "a") as file:
+        file.write(datetimeStr + " >> " + str(s) + "\n")
 
 def LogException(e):
 
