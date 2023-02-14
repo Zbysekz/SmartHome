@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+import sys
+import os
 import socket
 from serialData import Receiver
 import serialData
 import time
 import select
-import sys
 import traceback
 import subprocess
 from datetime import datetime
 from threading import Thread
 
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+
+from logger import Logger
+
+logger = Logger("tcpServer")
 conn=''
 s=''
 BUFFER_SIZE = 256  # Normally 1024, but we want fast response
@@ -34,7 +41,7 @@ def Init():
     TCP_IP = '192.168.0.3'
     TCP_PORT = 23
 
-    Log ('tcp server init')
+    logger.log ('tcp server init')
     #socket.setdefaulttimeout(5)
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setblocking(0)
@@ -58,10 +65,10 @@ def Handle(MySQL):
         s.settimeout(4.0)
         conn, addr = s.accept()
         ip = addr[0]
-        Log('Device with address '+str(ip)+' was connected',RICH)
+        logger.log('Device with address '+str(ip)+' was connected',RICH)
         if addr[0] not in onlineDevices:
             onlineDevices.append(ip)
-            Log('New device with address ' + str(ip) + ' was connected')
+            logger.log('New device with address ' + str(ip) + ' was connected')
             MySQL.AddOnlineDevice(str(ip))
 
         conn.settimeout(4.0)
@@ -69,7 +76,7 @@ def Handle(MySQL):
         Thread(target=ReceiveThread, args=(conn, ip)).start()
 
     except KeyboardInterrupt:
-        Log("Interrupted by user keyboard -----")
+        logger.log("Interrupted by user keyboard -----")
         terminate = True
 
     except:
@@ -77,10 +84,10 @@ def Handle(MySQL):
         lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
         
         if(exc_type == socket.timeout):
-            Log("Socket timeout!", FULL)
+            logger.log("Socket timeout!", FULL)
         else:
-            Log("Exception:")
-            Log(''.join('!! ' + line for line in lines))
+            logger.log("Exception:")
+            logger.log(''.join('!! ' + line for line in lines))
 
 def ReceiveThread(conn, ip):
     global sendQueue
@@ -99,7 +106,7 @@ def ReceiveThread(conn, ip):
         sendQueue = queueNotForThisIp # replace items with the items that we haven't sent
 
         if not sendWasPerformed:
-            Log("Nothing to be send to this connected device '"+str(ip)+"'", FULL)
+            logger.log("Nothing to be send to this connected device '"+str(ip)+"'", FULL)
         
         conn.send(serialData.CreatePacket(bytes([199]))) # ending packet - signalizing that we don't have anything to sent no more
 
@@ -113,7 +120,7 @@ def ReceiveThread(conn, ip):
             if r:
                 data = conn.recv(BUFFER_SIZE)
             else:
-                Log("Device '"+str(ip)+"' was connected, but haven't send any data.")
+                logger.log("Device '"+str(ip)+"' was connected, but haven't send any data.")
                 break
 
             if not data:
@@ -125,22 +132,22 @@ def ReceiveThread(conn, ip):
                  # client can send multiple complete packets
                 isMeteostation = str(ip)=="192.168.0.10"#extra exception for meteostation
                 if not receiverInstance.Receive(d, noCRC=isMeteostation):
-                    Log("Error above for ip:"+str(ip))
+                    logger.log("Error above for ip:"+str(ip))
                 st+= str(d)+", "
             
-            Log("Received data:"+str(st), FULL)
+            logger.log("Received data:"+str(st), FULL)
 
     except ConnectionResetError:
         if ip != "192.168.0.11":# ignore keyboard reset errors
            exc_type, exc_value, exc_traceback = sys.exc_info()
            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-           Log("Exception in rcv thread, IP:" + str(ip))
-           Log(''.join('!! ' + line for line in lines))
+           logger.log("Exception in rcv thread, IP:" + str(ip))
+           logger.log(''.join('!! ' + line for line in lines))
     except Exception :
         exc_type, exc_value, exc_traceback = sys.exc_info()
         lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-        Log("Exception in rcv thread, IP:"+str(ip))
-        Log(''.join('!! ' + line for line in lines))
+        logger.log("Exception in rcv thread, IP:"+str(ip))
+        logger.log(''.join('!! ' + line for line in lines))
             
     conn.close()
         
@@ -161,14 +168,14 @@ def Send(MySQL, data, destination, crc16=True):#put in send queue
     if len(sendQueue)<TXQUEUELIMIT:
         sendQueue.append((serialData.CreatePacket(data, crc16),destination))
     else:
-        Log("MAXIMUM TX QUEUE LIMIT REACHED!!")
+        logger.log("MAXIMUM TX QUEUE LIMIT REACHED!!")
 
 def RemoveOnlineDevice(MySQL, destination):
     global onlineDevices
     
     if destination in onlineDevices:
         onlineDevices.remove(destination)
-        Log("Device with address:'"+destination+"' became OFFLINE!")
+        logger.log("Device with address:'"+destination+"' became OFFLINE!")
         MySQL.RemoveOnlineDevice(destination)
                 
 def SendACK(data,destination):
@@ -179,9 +186,9 @@ def SendACK(data,destination):
     
     if len(sendQueue)<TXQUEUELIMIT:
         sendQueue.append((serialData.CreatePacket(bytes([99,int(CRC)%256,int(CRC/256)])),destination))
-        Log("sending BACK"+str(CRC)+" to destination:"+destination)
+        logger.log("sending BACK"+str(CRC)+" to destination:"+destination)
     else:
-        Log("MAXIMUM TX QUEUE LIMIT REACHED")
+        logger.log("MAXIMUM TX QUEUE LIMIT REACHED")
 
 
 def PrintBufferStatistics():
@@ -189,8 +196,8 @@ def PrintBufferStatistics():
 
     if time.time() - tmrPrintBufferStat > 600 and len(sendQueue) >= TXQUEUELIMIT_PER_DEVICE: # periodically and only if there are some messages waiting
         tmrPrintBufferStat = time.time()
-        Log("------ Buffer statistics:")
-        Log("Msgs in send buffer:" + str(len(sendQueue)))
+        logger.log("------ Buffer statistics:")
+        logger.log("Msgs in send buffer:" + str(len(sendQueue)))
         # find different devices in queue
         uniqDev = []
         for dev in sendQueue:
@@ -202,9 +209,9 @@ def PrintBufferStatistics():
             else:
                 item[1] = item[1] + 1 # increase occurence
 
-            Log("Occurences:")
-            Log(uniqDev)
-        Log("------ ")
+            logger.log("Occurences:")
+            logger.log(uniqDev)
+        logger.log("------ ")
 
 
 def DataReceived():
@@ -216,14 +223,5 @@ def Ping(host):
 
     return True if "1 received" in ping_response.decode("utf-8") else False
 
-def Log(s,_verbosity=NORMAL):
-    if _verbosity > verbosity:
-        return
-    s = "TCP: " + str(s)
-    print(str(s))
-
-    dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("/var/log/SmartHome/tcpServer.log","a") as file:
-        file.write(dateStr+" >> "+str(s)+"\n")
 
 

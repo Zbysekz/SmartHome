@@ -1,4 +1,6 @@
-from logger import Log, LogException
+from logger import Logger
+
+logger = Logger("udpateStats")
 
 def execute_4hour(mySQL):
     try:
@@ -17,8 +19,8 @@ def execute_4hour(mySQL):
             mySQL.insertCalculatedValue("production", "solar_last_day", last_day)
 
     except Exception as e:
-        Log("Error while writing to database for execute_4hour, exception:")
-        LogException(e)
+        logger.log("Error while writing to database for execute_4hour, exception:")
+        logger.log_exception(e)
         return None
 
     return

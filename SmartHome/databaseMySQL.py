@@ -8,6 +8,9 @@ import os
 from datetime import datetime,timezone
 import threading
 import pathlib
+from logger import Logger
+
+logger = Logger("databaseMySQL")
 
 thisScriptPath = str(pathlib.Path(__file__).parent.absolute())
 
@@ -80,8 +83,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for AddOnlineDevice:"+ip+" exception:")
-            LogException(e)
+            logger.log("Error while writing to database for AddOnlineDevice:"+ip+" exception:")
+            logger.log_exception(e)
             return False
 
         return True
@@ -107,8 +110,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for RemoveOnlineDevice, exception:")
-            LogException(e)
+            logger.log("Error while writing to database for RemoveOnlineDevice, exception:")
+            logger.log_exception(e)
             return False
 
         return True
@@ -129,8 +132,8 @@ class cMySQL:
 
 
         except Exception as e:
-            Log("Error while writing to database for updatePriceData name:"+str(name)+", exception:")
-            LogException(e)
+            logger.log("Error while writing to database for updatePriceData name:"+str(name)+", exception:")
+            logger.log_exception(e)
             return False
 
         return True
@@ -153,8 +156,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for getPriceData, exception:")
-            LogException(e)
+            logger.log("Error while writing to database for getPriceData, exception:")
+            logger.log_exception(e)
             return None
 
         return values
@@ -186,8 +189,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for measurement:"+sensorName+" exception:")
-            LogException(e)
+            logger.log("Error while writing to database for measurement:"+sensorName+" exception:")
+            logger.log_exception(e)
             return None
 
 
@@ -209,8 +212,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for measurement:"+name+" exception:")
-            LogException(e)
+            logger.log("Error while writing to database for measurement:"+name+" exception:")
+            logger.log_exception(e)
             return False
 
         return True
@@ -228,8 +231,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for insertCalculatedValue:" + name + " exception:")
-            LogException(e)
+            logger.log("Error while writing to database for insertCalculatedValue:" + name + " exception:")
+            logger.log_exception(e)
             return False
 
         return True
@@ -246,8 +249,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for insertDailyCons, exception:")
-            LogException(e)
+            logger.log("Error while writing to database for insertDailyCons, exception:")
+            logger.log_exception(e)
             return False
 
         return True
@@ -267,8 +270,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for state:"+name+" exception:")
-            LogException(e)
+            logger.log("Error while writing to database for state:"+name+" exception:")
+            logger.log_exception(e)
             return False
 
     @ThreadingLockDecorator
@@ -288,8 +291,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for events:"+desc1+" exception:")
-            LogException(e)
+            logger.log("Error while writing to database for events:"+desc1+" exception:")
+            logger.log_exception(e)
             return False
 
         if cursor.rowcount>0:
@@ -311,8 +314,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for getTXbuffer, exception:")
-            LogException(e)
+            logger.log("Error while writing to database for getTXbuffer, exception:")
+            logger.log_exception(e)
             return []
 
 
@@ -332,8 +335,8 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            Log("Error while writing to database for insertTxCommand:"+destination+" exception:")
-            LogException(e)
+            logger.log("Error while writing to database for insertTxCommand:"+destination+" exception:")
+            logger.log_exception(e)
             return False
 
         return True
@@ -354,8 +357,8 @@ class cMySQL:
 
 
         except Exception as e:
-            Log("Error while writing to database for getGlobalFlags:, exception:")
-            LogException(e)
+            logger.log("Error while writing to database for getGlobalFlags:, exception:")
+            logger.log_exception(e)
             return None
         return result
 
@@ -374,8 +377,8 @@ class cMySQL:
                 result[d[0]] = d[1]
 
         except Exception as e:
-            Log("Error while writing to database for getCurrentValues:, exception:")
-            LogException(e)
+            logger.log("Error while writing to database for getCurrentValues:, exception:")
+            logger.log_exception(e)
             return None
         return result
 
@@ -398,8 +401,8 @@ class cMySQL:
             result['ventilationCommand'] = data[4]
 
         except Exception as e:
-            Log("Error while writing to database for getStateValues:, exception:")
-            LogException(e)
+            logger.log("Error while writing to database for getStateValues:, exception:")
+            logger.log_exception(e)
             return None
         return result
 
@@ -418,25 +421,11 @@ class cMySQL:
                 values[d[0]] = d[1]
 
         except Exception as e:
-            Log("Error while writing to database for getOnlineDevices, exception:")
-            LogException(e)
+            logger.log("Error while writing to database for getOnlineDevices, exception:")
+            logger.log_exception(e)
             return None
 
-        return values
-
-def LogException(e):
-    exc_type, exc_obj, exc_tb = sys.exc_info()
-    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-    Log(str(e))
-    Log(str(exc_type) +" : "+ str(fname) + " : " +str(exc_tb.tb_lineno))
-
-def Log(strr):
-    txt=str(strr)
-    print("LOG:"+txt)
-    dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("/var/log/SmartHome/databaseMySQL.log","a") as file:
-        file.write(dateStr+" >> "+txt+"\n")
-        
+        return values       
                 
 if __name__=="__main__":
     print("run")

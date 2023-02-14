@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import sys
+import os
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+
+from logger import Logger
+logger = Logger("serialData")
 
 rcvdData=[]#list of lists of rcvd data
 
@@ -26,6 +34,7 @@ class Receiver:
         self.crcH=0
         self.crcL=0
         self.rxLen=0
+        self.queue_large = False
 
     def ResetReceiver(self):
         self.rxPtr=0
@@ -43,14 +52,14 @@ class Receiver:
                 self.readState=2
             else:
                 self.readState=0#second start token
-                Log("ERR1",RICH)
+                logger.log("ERR1",RICH)
                 result = False
         elif(self.readState==2):
             self.rxLen = rcv#length
             
             if(self.rxLen>20):
                 self.readState=0
-                Log("ERR2",RICH)
+                logger.log("ERR2",RICH)
                 result = False
             else:
                 self.readState=3
@@ -59,7 +68,7 @@ class Receiver:
             self.rxBuffer[self.rxPtr] = rcv#data
             self.rxPtr+=1
             if self.rxPtr>=RXBUFFSIZE:
-               Log("ERR5 (Buff FULL)",RICH)
+               logger.log("ERR5 (Buff FULL)",RICH)
                self.readState=0
                result = False
             elif self.rxPtr>=self.rxLen:
@@ -75,22 +84,26 @@ class Receiver:
             else:
                 self.readState=0
                 result = False
-                Log("ERR3 (CRC mismatch)",RICH)
-                Log("calc:"+str(calcCRC),RICH)
-                Log("real:"+str(self.crcL+self.crcH*256))
-                Log([self.rxLen,*self.rxBuffer[0:self.rxPtr]],RICH)
+                logger.log("ERR3 (CRC mismatch)",RICH)
+                logger.log("calc:"+str(calcCRC),RICH)
+                logger.log("real:"+str(self.crcL+self.crcH*256))
+                logger.log([self.rxLen,*self.rxBuffer[0:self.rxPtr]],RICH)
         elif(self.readState==6):
             if(rcv==222):#end token
                 rcvdData.append(self.rxBuffer[0:self.rxLen])
                 self.readState=0
-                Log("New data received!",FULL)
+                logger.log("New data received!",FULL)
                 if len(rcvdData)>10:
-                    Log("Rcv queue is large! Len:"+str(len(rcvdData)),NORMAL)
-                    Log(rcvdData, RICH)
+                    logger.log("Rcv queue is large! Len:"+str(len(rcvdData)),NORMAL)
+                    self.queue_large = True
+                    logger.log(rcvdData, RICH)
+                elif len(rcvdData) < 2:
+                    logger.log("Rcv queue is ok! Len:" + str(len(rcvdData)), NORMAL)
+                    self.queue_large = False
             else:
                 self.readState=0
                 result = False
-                Log("ERR4",RICH)
+                logger.log("ERR4",RICH)
         
         return result
             
@@ -115,15 +128,6 @@ def CreatePacket(d,crc16=True):
     data.append(222)#end byte
     
     return data
-
-def Log(s,_verbosity=NORMAL):
-    if _verbosity > verbosity:
-        return
-    print(str(s))
-    from datetime import datetime
-    dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("/var/log/SmartHome/serialData.log", "a") as file:
-        file.write(dateStr+" >> "+str(s)+"\n")
         
 # legacy, should be substituted with CRC16
 def calculateCRC(data):

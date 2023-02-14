@@ -23,6 +23,7 @@ import time
 from powerwall import calculatePowerwallSOC
 from measureTime import MeasureTime
 import updateStats
+from logger import Logger
 
 # -------------DEFINITIONS-----------------------
 SMS_NOTIFICATION = True
@@ -65,7 +66,7 @@ tmrTimeouts = {
                 IP_PIR_SENSOR: [time.time(), MINUTE * 10]
 }
 
-
+logger = Logger("main")
 # -----------------------------------------------
 
 # -------------STATE VARIABLES-------------------
@@ -120,10 +121,10 @@ def main():
     global watchDogAlarmThread, alarm, alarm_last, locked
     global tmrCycleTime, cycleTime_avg, cycleTime_cnt, cycleTime_tmp, cycleTime, cycleTime_max
 
-    Log("Entry point main.py")
+    logger.log("Entry point main.py")
     try:
         # os.system("sudo service motion stop")
-        Log("Initializing TCP port...")
+        logger.log("Initializing TCP port...")
         initTCP = True
         nOfTries = 0
         while (initTCP):
@@ -137,11 +138,11 @@ def main():
                 print("Trying to create TCP port again..")
                 time.sleep(10)
 
-        Log("Ok")
+        logger.log("Ok")
 
-        Log("Initializing serial port...")
+        logger.log("Initializing serial port...")
         phone.Connect()
-        Log("Ok")
+        logger.log("Ok")
 
         MySQL.RemoveOnlineDevices()  # clean up online device table
 
@@ -149,12 +150,12 @@ def main():
 
         timerPhone()  # it will call itself periodically - new thread
 
-        Log("Initializing pin for PC button...")
+        logger.log("Initializing pin for PC button...")
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(PIN_BTN_PC, GPIO.OUT)
         GPIO.setup(PIN_GAS_ALARM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        Log("Ok")
+        logger.log("Ok")
 
         MySQL.updateState("locked", int(locked))
         MySQL.updateState("alarm", int(alarm))
@@ -162,10 +163,10 @@ def main():
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        Log(str(e))
-        Log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
+        logger.log(str(e))
+        logger.log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
         if RESTART_ON_EXCEPTION:
-            Log("Rebooting Raspberry PI in one minute")
+            logger.log("Rebooting Raspberry PI in one minute")
 
             os.system("shutdown -r 1")  # reboot after one minute
             input("Reboot in one minute. Press Enter to continue...")
@@ -201,14 +202,14 @@ def main():
                     processedData += [data]
                     IncomingData(data)
                 except IndexError:
-                    Log("IndexError while processing incoming data! data:" + str(data))
+                    logger.log("IndexError while processing incoming data! data:" + str(data))
                 data = comm.DataReceived()
             MySQL.PersistentDisconnect()
 
         measureTimeDataRcv.Measure()
         if measureTimeDataRcv.getLastPeriod() > 4:
-            Log("Data RCV took " + "{:.1f}".format(measureTimeDataRcv.getMaxPeriod()) + " s")
-            Log(processedData)
+            logger.log("Data RCV took " + "{:.1f}".format(measureTimeDataRcv.getMaxPeriod()) + " s")
+            logger.log(processedData)
         # -------------------------------------------------
 
         watchDogAlarmThread = 0  # to be able to detect lag in this loop
@@ -220,10 +221,10 @@ def main():
         measureTimeMainLoop.Measure()
 
         if measureTimeMainLoop.getMaxPeriod() > 6:
-            measureTimeMainLoop.PrintOncePer(30, Log, "MainLoop")
-            measureTimeDataRcv.PrintOncePer(30, Log, "Data rcv")
-            measureTimeComm.PrintOncePer(30, Log, "Comm")
-            measureTimePhone.PrintOncePer(30, Log, "Phone")
+            measureTimeMainLoop.PrintOncePer(30, logger.log, "MainLoop")
+            measureTimeDataRcv.PrintOncePer(30, logger.log, "Data rcv")
+            measureTimeComm.PrintOncePer(30, logger.log, "Comm")
+            measureTimePhone.PrintOncePer(30, logger.log, "Phone")
         measureTimeMainLoop.Start()
 
 
@@ -234,12 +235,12 @@ def ControlPowerwall():  # called each # 5 mins
         # if enough SoC to run UPS
         if currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues[
             'status_powerwallSoc'] > 70:  # more than 50% SoC
-            Log("Auto powerwall control - going to RUN")
+            logger.log("Auto powerwall control - going to RUN")
             MySQL.insertTxCommand(IP_POWERWALL, "10")  # RUN command
         # if UPS is running but we are grid powered
         if currentValues['status_powerwall_stateMachineStatus'] == 10 and currentValues[
             'status_rackUno_stateMachineStatus'] == 0 and currentValues['status_rackUno_detectSolarPower'] == 1:
-            Log("Auto powerwall control - switching to SOLAR power")
+            logger.log("Auto powerwall control - switching to SOLAR power")
             MySQL.insertTxCommand(IP_RACKUNO, "4")  # Switch to SOLAR command
 
 
@@ -312,7 +313,7 @@ def CheckGasSensor():
 
     if gasSensorPrepared:
         if not GPIO.input(PIN_GAS_ALARM):
-            Log("RPI GAS ALARM!!");
+            logger.log("RPI GAS ALARM!!");
             alarm |= GAS_ALARM_RPI
             MySQL.updateState("alarm", int(alarm))
             if alarm_last & GAS_ALARM_RPI == 0 and SMS_NOTIFICATION:
@@ -341,7 +342,7 @@ def timerGeneral():  # it is calling itself periodically
     if wifiCheckCnt >= 30:
         wifiCheckCnt = 0
         if not comm.Ping("192.168.0.4"):
-            Log("UNABLE TO REACH ROUTER!")
+            logger.log("UNABLE TO REACH ROUTER!")
     else:
         wifiCheckCnt = wifiCheckCnt + 1
 
@@ -349,7 +350,7 @@ def timerGeneral():  # it is calling itself periodically
     # timeouts handling
     for IP, tmr in tmrTimeouts.items():
         if tmr[0] != 0 and time.time() - tmr[0] > tmr[1]:
-            Log("Comm timeout for IP:"+str(IP))
+            logger.log("Comm timeout for IP:"+str(IP))
             tmrTimeouts[IP][0] = 0
             comm.RemoveOnlineDevice(MySQL_GeneralThread, IP)
 
@@ -372,26 +373,26 @@ def timerGeneral():  # it is calling itself periodically
         try:
             for packet in data:
                 byteArray = bytes([int(x) for x in packet[0].split(',')])
-                Log("Sending data from MYSQL database to:")
+                logger.log("Sending data from MYSQL database to:")
 
                 if packet[1] == IP_SERVER:
-                    Log("LOCALHOST")
-                    Log(byteArray)
+                    logger.log("LOCALHOST")
+                    logger.log(byteArray)
                     ExecuteTxCommand(MySQL_GeneralThread, byteArray)
                 else:
-                    Log(packet[1])
-                    Log(byteArray)
+                    logger.log(packet[1])
+                    logger.log(byteArray)
                     comm.Send(MySQL_GeneralThread, byteArray, packet[1], crc16=True)
         except ValueError:
-            Log("MySQL - getTXbuffer - Value Error:" + str(packet[0]))
+            logger.log("MySQL - getTXbuffer - Value Error:" + str(packet[0]))
 
     if alarmCounting:  # user must make unlock until counter expires
-        Log("Alarm check", FULL)
+        logger.log("Alarm check", FULL)
         alarmCnt += 1
         if alarmCnt >= 10:
             alarmCnt = 0
 
-            Log("DOOR ALARM!!!!")
+            logger.log("DOOR ALARM!!!!")
             alarm |= DOOR_ALARM
             alarmCounting = False
 
@@ -407,19 +408,19 @@ def timerGeneral():  # it is calling itself periodically
         try:
             electricityPrice.run()
         except Exception as e:
-            Log("Exception for electricityPrice.run()")
+            logger.log("Exception for electricityPrice.run()")
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            Log(str(e))
-            Log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
+            logger.log(str(e))
+            logger.log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
         updateStats.execute_4hour(MySQL_GeneralThread)
 
     if comm.isTerminated():  # do not continue if app terminated
-        Log("Ending General thread, because comm is terminated.")
+        logger.log("Ending General thread, because comm is terminated.")
         return
     elif watchDogAlarmThread > 8:
 
-        Log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
+        logger.log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
         if RESTART_ON_EXCEPTION:
             os.system("shutdown -r 1")  # reboot after one minute
 
@@ -432,17 +433,17 @@ def timerGeneral():  # it is calling itself periodically
 def ExecuteTxCommand(mySQLinstance, data):
     global alarm
     if data[0] == 0:  # resetAlarm
-        Log("Alarm deactivated by Tx interface.")
+        logger.log("Alarm deactivated by Tx interface.")
         alarm = 0
         mySQLinstance.updateState("alarm", int(alarm))
         KeyboardRefresh(mySQLinstance)
         PIRSensorRefresh(mySQLinstance)
     elif data[0] == 1:
         MySQL.insertValue('status', 'heatingControlInhibit', False)
-        Log("Stop heating control by Tx command")
+        logger.log("Stop heating control by Tx command")
     elif data[0] == 2:
         MySQL.insertValue('status', 'heatingControlInhibit', True)
-        Log("Start heating control by Tx command")
+        logger.log("Start heating control by Tx command")
 
 
 def timerPhone():
@@ -463,14 +464,14 @@ def timerPhone():
 
 def PIRSensorRefresh(sqlInst):
     global locked, alarm
-    Log("PIR sensor refresh!", FULL)
+    logger.log("PIR sensor refresh!", FULL)
 
     comm.Send(sqlInst, bytes([0, int(alarm != 0), int(locked)]), IP_PIR_SENSOR)  # id, alarm(0/1),locked(0/1)
 
 
 def KeyboardRefresh(sqlInst):
     global locked, alarm
-    Log("Keyboard refresh!", FULL)
+    logger.log("Keyboard refresh!", FULL)
     val = (int(alarm != 0)) + 2 * (int(locked))
 
     comm.Send(sqlInst, bytes([10, val]), IP_KEYBOARD)  # id, alarm(0/1),locked(0/1)
@@ -498,45 +499,45 @@ def IncomingSMS(data):
             txt += ", room humid:{:.1f} %".format(currentValues.get("humidity_PIR sensor"))
 
             phone.SendSMS(data[1], txt)
-            Log("Get status by SMS command.")
+            logger.log("Get status by SMS command.")
         elif (data[0].startswith("lock")):
             locked = True
 
             MySQL_phoneThread.updateState("locked", int(locked))
-            Log("Locked by SMS command.")
+            logger.log("Locked by SMS command.")
         elif (data[0].startswith("unlock")):
             locked = False
 
             MySQL_phoneThread.updateState("locked", int(locked))
-            Log("Unlocked by SMS command.")
+            logger.log("Unlocked by SMS command.")
         elif (data[0].startswith("deactivate alarm")):
             alarm = 0
             locked = False
 
             MySQL_phoneThread.updateState("alarm", int(alarm))
             MySQL_phoneThread.updateState("locked", int(locked))
-            Log("Alarm deactivated by SMS command.")
+            logger.log("Alarm deactivated by SMS command.")
         elif data[0].startswith("toggle PC"):
-            Log("Toggle PC button by SMS command.")
+            logger.log("Toggle PC button by SMS command.")
             TogglePCbutton()
         elif data[0].startswith("heating on"):
-            Log("Heating on by SMS command.")
+            logger.log("Heating on by SMS command.")
             heatingControlInhibit = False
             phone.SendSMS(data[1], "Ok. Heating was set ON.")
         elif data[0].startswith("heating off"):
-            Log("Heating off by SMS command.")
+            logger.log("Heating off by SMS command.")
             heatingControlInhibit = True
             phone.SendSMS(data[1], "Ok. Heating was set OFF.")
         elif data[0].startswith("help"):
-            Log("Sending help hints back")
+            logger.log("Sending help hints back")
             phone.SendSMS(data[1], "get status;lock;unlock;deactivate alarm;toggle PC;heating on; heating off;")
         else:
-            Log("Not recognized command, text:")
-            Log(data)
+            logger.log("Not recognized command, text:")
+            logger.log(data)
     else:
-        Log("Received SMS from not authorized phone number!")
-        Log("Text:")
-        Log(data)
+        logger.log("Received SMS from not authorized phone number!")
+        logger.log("Text:")
+        logger.log(data)
 
 
 def TogglePCbutton():
@@ -561,7 +562,7 @@ def IncomingData(data):
     global alarmCounting
     global tmrTimeouts
 
-    Log("Incoming data:" + str(data), FULL)
+    logger.log("Incoming data:" + str(data), FULL)
     # [100, 3, 0, 0, 1, 21, 2, 119]
     # ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
     if data[0] == 100:  # data from keyboard
@@ -580,7 +581,7 @@ def IncomingData(data):
 
         if doorSW and locked and (alarm & DOOR_ALARM) == 0 and not alarmCounting:
             alarmCounting = True
-            Log("LOCKED and DOORS opened")
+            logger.log("LOCKED and DOORS opened")
     elif data[0] == 101:  # data from meteostations
         RefreshTimeout(IP_METEO)
         meteoTemp = correctNegative((data[1] * 256 + data[2]))
@@ -631,7 +632,7 @@ def IncomingData(data):
         if WhValue > 0:
             MySQL.insertValue('consumption', 'powerwall_heating', WhValue)
         if data[3] > 0:
-            Log("CRC mismatch counter of BMS_controller not zero! Value:" + str(data[3]))
+            logger.log("CRC mismatch counter of BMS_controller not zero! Value:" + str(data[3]))
     elif data[0] > 40 and data[0] <= 69:  # POWERWALL - calibrations
         volCal = struct.unpack('f', bytes([data[2], data[3], data[4], data[5]]))[0]
         tempCal = struct.unpack('f', bytes([data[6], data[7], data[8], data[9]]))[0]
@@ -740,13 +741,13 @@ def IncomingData(data):
         PIRalarm = data[2]
 
         if gasAlarm2:
-            Log("PIR GAS ALARM!!")
+            logger.log("PIR GAS ALARM!!")
             alarm |= GAS_ALARM_PIR
             if (alarm_last & GAS_ALARM_PIR == 0):
                 MySQL.updateState("alarm", int(alarm))
 
                 txt = "Home system: PIR sensor - FIRE/GAS ALARM !!"
-                Log(txt)
+                logger.log(txt)
                 MySQL.insertEvent(10, 0)
                 if SMS_NOTIFICATION:
                     phone.SendSMS(MY_NUMBER1, txt)
@@ -758,7 +759,7 @@ def IncomingData(data):
                 MySQL.updateState("alarm", int(alarm))
 
                 txt = "Home system: PIR sensor - MOVEMENT ALARM !!"
-                Log(txt)
+                logger.log(txt)
                 MySQL.insertEvent(10, 1)
 
                 if SMS_NOTIFICATION:
@@ -879,19 +880,19 @@ def IncomingData(data):
                           periodicity=60 * MINUTE,  # with correction
                           writeNowDiff=0.1)
     elif data[0] == 0 and data[1] == 1:  # live event
-        Log("Live event!", FULL)
+        logger.log("Live event!", FULL)
     elif (data[0] < 4 and len(data) >= 2):  # events for keyboard
-        Log("Incoming keyboard event!" + str(data))
+        logger.log("Incoming keyboard event!" + str(data))
         comm.SendACK(data, IP_KEYBOARD)
         MySQL.insertEvent(data[0], data[1])
         IncomingEvent(data)
 
     elif (data[0] < 10 and len(data) >= 2):  # other events
-        Log("Incoming event!" + str(data))
+        logger.log("Incoming event!" + str(data))
         MySQL.insertEvent(data[0], data[1])
 
     else:
-        Log("Unknown event, data:" + str(data))
+        logger.log("Unknown event, data:" + str(data))
 
 
 def IncomingEvent(data):
@@ -902,18 +903,18 @@ def IncomingEvent(data):
     if data[0] == 3:
         if data[1] == 2:  # lock
             locked = True
-            Log("LOCKED by keyboard")
+            logger.log("LOCKED by keyboard")
         if data[1] == 4:  # doors opened and locked
             if alarm == 0 and locked:
                 alarmCounting = True
-            Log("LOCKED and DOORS opened event")
+            logger.log("LOCKED and DOORS opened event")
     if data[0] == 1:
         if data[1] == 1:  # unlock PIN
             locked = False
             alarm = 0
             alarmCounting = False
             alarmCnt = 0
-            Log("UNLOCKED by keyboard PIN")
+            logger.log("UNLOCKED by keyboard PIN")
 
     if data[0] == 2:
         if data[1] == 0:  # unlock RFID
@@ -921,7 +922,7 @@ def IncomingEvent(data):
             alarm = 0
             alarmCounting = False
             alarmCnt = 0
-            Log("UNLOCKED by keyboard RFID")
+            logger.log("UNLOCKED by keyboard RFID")
 
     if (lockLast != locked or alarmLast != alarm):  # change in locked state or alarm state
         KeyboardRefresh(MySQL)
@@ -936,21 +937,11 @@ def IncomingEvent(data):
         #    os.system("sudo service motion stop")
 
 
-def Log(s, _verbosity=NORMAL):
-    if _verbosity > verbosity:
-        return
-    print(str(s))
-
-    dateStr = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("/var/log/SmartHome/main.log", "a") as file:
-        file.write(dateStr + " >> " + str(s) + "\n")
-
-
 if __name__ == "__main__":
 
     if (len(sys.argv) > 1):
         if ('delayStart' in sys.argv[1]):
-            Log("Delayed start...")
+            logger.log("Delayed start...")
             sleep(20)
     # execute only if run as a script
     main()
