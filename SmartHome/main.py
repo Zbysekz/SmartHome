@@ -44,6 +44,7 @@ IP_KEGERATOR = "192.168.0.35"
 IP_CELLAR = "192.168.0.33"
 IP_POWERWALL_THERMOSTAT = "192.168.0.32"
 IP_ESP_POWERWALL = '192.168.0.15'
+IP_VICTRON_INVERTER = "192.168.0.16"
 
 NORMAL = 0
 RICH = 1
@@ -63,7 +64,8 @@ tmrTimeouts = {
                 IP_METEO: [time.time(), HOUR * 3],
                 IP_CELLAR: [time.time(), MINUTE * 10],
                 IP_KEGERATOR: [time.time(), MINUTE * 10],
-                IP_PIR_SENSOR: [time.time(), MINUTE * 10]
+                IP_PIR_SENSOR: [time.time(), MINUTE * 10],
+                IP_VICTRON_INVERTER: [time.time(), MINUTE * 10]
 }
 
 logger = Logger("main")
@@ -99,6 +101,7 @@ alarm_last = 0
 
 tmrConsPowerwall = 0
 tmrVentHeatControl = 0
+tmrFastPowerwallControl = 0
 
 bufferedCellModVoltage = 24 * [0]
 
@@ -229,20 +232,34 @@ def main():
         measureTimeMainLoop.Start()
 
 
-def ControlPowerwall():  # called each # 5 mins
+def ControlPowerwall():  # called each 5 mins
     global globalFlags, currentValues
 
     if globalFlags['autoPowerwallRun'] == 1:
-        # if enough SoC to run UPS
-        if currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues[
-            'status_powerwallSoc'] > 70:  # more than 50% SoC
-            logger.log("Auto powerwall control - going to RUN")
-            MySQL.insertTxCommand(IP_POWERWALL, "10")  # RUN command
-        # if UPS is running but we are grid powered
-        if currentValues['status_powerwall_stateMachineStatus'] == 10 and currentValues[
-            'status_rackUno_stateMachineStatus'] == 0 and currentValues['status_rackUno_detectSolarPower'] == 1:
-            logger.log("Auto powerwall control - switching to SOLAR power")
+        solarPowered = currentValues[
+            'status_rackUno_stateMachineStatus'] == 3
+       # if enough SoC to run
+        if not solarPowered and currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues[
+            'status_powerwallSoc'] > 75:  # more than 75% SoC
+            Log("Auto powerwall control - Switching to solar")
+            #MySQL.insertTxCommand(IP_POWERWALL, "10")  # RUN command
             MySQL.insertTxCommand(IP_RACKUNO, "4")  # Switch to SOLAR command
+        # if below SoC
+        elif solarPowered and currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues[
+                'status_powerwallSoc'] <= 20:  # less than 20% SoC
+            Log("Auto powerwall control - Switching to grid")
+            MySQL.insertTxCommand(IP_RACKUNO, "3")  # Switch to GRID command
+
+def ControlPowerwall_fast():  # called each 30 s
+    global globalFlags, currentValues
+    if globalFlags['autoPowerwallRun'] == 1:
+
+        solarPowered = currentValues[
+            'status_rackUno_stateMachineStatus'] == 3
+        # if we are running from solar power
+        if solarPowered and currentValues['status_powerwall_stateMachineStatus'] != 20:
+            Log(f"Auto powerwall control - powerwall not in proper state - shutdown. status {currentValues['status_powerwall_stateMachineStatus']}")
+            MySQL.insertTxCommand(IP_RACKUNO, "3")  # Switch to GRID command
 
 
 def ControlVentilation():  # called each 5 mins
@@ -252,13 +269,15 @@ def ControlVentilation():  # called each 5 mins
         datetimeNow = datetime.now()
         dayTime = 7 < datetimeNow.hour < 21
         summerTime = 5 < datetimeNow.month < 9
+        afterSchool = datetimeNow.weekday()<5 and datetimeNow.hour > 8 and\
+            datetimeNow.hour < 10
 
         roomHumidity = currentValues.get("humidity_PIR sensor")
         if roomHumidity is None:
             ventilationCommand = 99  # do not control
         else:
             if not summerTime:  # COLD OUTSIDE
-                if roomHumidity >= 61.5 and dayTime:
+                if (roomHumidity >= 63.0 and dayTime) or (afterSchool and roomHumidity >= 61.0):
                     ventilationCommand = 4
                 elif roomHumidity >= 59.0 and dayTime:
                     ventilationCommand = 3
@@ -269,7 +288,9 @@ def ControlVentilation():  # called each 5 mins
                 else:
                     ventilationCommand = 99
             else:  # WARM OUTSIDE
-                if roomHumidity >= 60.0 and dayTime:
+                if (afterSchool and roomHumidity >= 61.0):
+                    ventilationCommand = 4
+                elif roomHumidity >= 60.0 and dayTime:
                     ventilationCommand = 3
                 elif roomHumidity > 59.0 and dayTime:
                     ventilationCommand = 2
@@ -331,7 +352,7 @@ def CheckGasSensor():
 
 def timerGeneral():  # it is calling itself periodically
     global alarmCounting, alarmCnt, alarm, watchDogAlarmThread, MY_NUMBER1, keyboardRefreshCnt, wifiCheckCnt, tmrPriceCalc
-    global tmrVentHeatControl, globalFlags, currentValues, tmrTimeouts
+    global tmrVentHeatControl, globalFlags, currentValues, tmrTimeouts, tmrFastPowerwallControl
 
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt = 0
@@ -358,15 +379,20 @@ def timerGeneral():  # it is calling itself periodically
 
     if time.time() - tmrVentHeatControl > 300:  # each 5 mins
         tmrVentHeatControl = time.time()
-        globalFlags = MySQL_GeneralThread.getGlobalFlags()  # update global flags
-        currentValues = MySQL_GeneralThread.getCurrentValues()
 
-        if globalFlags is not None and currentValues is not None:  # we get both values from DTB
+        if len(globalFlags) > 0 and len(currentValues) > 0:  # we get both values from DTB
             ControlPowerwall()
             ControlVentilation()
             ControlHeating()
         else:
             tmrVentHeatControl = time.time() - 200  # try it sooner
+
+    if time.time() - tmrFastPowerwallControl > 30:  # each 30secs
+        tmrFastPowerwallControl = time.time()
+        globalFlags = MySQL_GeneralThread.getGlobalFlags()  # update global flags
+        currentValues = MySQL_GeneralThread.getCurrentValues()
+
+        ControlPowerwall_fast()
 
     # check if there are data in mysql that we want to send
     data = MySQL_GeneralThread.getTxBuffer()
@@ -880,6 +906,13 @@ def IncomingData(data):
         MySQL.insertValue('temperature', name, temperature / 100.0,
                           periodicity=60 * MINUTE,  # with correction
                           writeNowDiff=0.1)
+    elif data[0] == 113:  # data from victron inverter
+        tmrTimeouts[IP_VICTRON_INVERTER][0] = time.time()
+
+        MySQL.insertValue('power', 'inverter', (data[1] * 256 + data[2]) / 100.0,
+                          periodicity=5 * MINUTE,  # with correction
+                          writeNowDiff=50)
+
     elif data[0] == 0 and data[1] == 1:  # live event
         logger.log("Live event!", FULL)
     elif (data[0] < 4 and len(data) >= 2):  # events for keyboard
