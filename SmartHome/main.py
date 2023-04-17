@@ -94,6 +94,7 @@ gasSensorPrepared = False
 tmrPrepareGasSensor = time.time()
 alarm_last = 0
 powerwall_last_fail = False
+powerwall_last_full = False
 
 tmrConsPowerwall = 0
 tmrVentHeatControl = 0
@@ -229,7 +230,7 @@ def main():
 
 
 def ControlPowerwall():  # called each # 5 mins
-    global globalFlags, currentValues, powerwall_last_fail
+    global globalFlags, currentValues, powerwall_last_fail, powerwall_last_full
 
     if globalFlags['autoPowerwallRun'] == 1:
         solarPowered = currentValues[
@@ -237,13 +238,13 @@ def ControlPowerwall():  # called each # 5 mins
        # if enough SoC to run
         if not solarPowered and currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues[
             'status_powerwallSoc'] > 75:  # more than 75% SoC
-            Log("Auto powerwall control - Switching to solar")
+            logger.log("Auto powerwall control - Switching to solar")
             #MySQL.insertTxCommand(IP_POWERWALL, "10")  # RUN command
             MySQL.insertTxCommand(IP_RACKUNO, "4")  # Switch to SOLAR command
         # if below SoC
         elif solarPowered and currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues[
                 'status_powerwallSoc'] <= 20:  # less than 20% SoC
-            Log("Auto powerwall control - Switching to grid")
+            logger.log("Auto powerwall control - Switching to grid")
             MySQL.insertTxCommand(IP_RACKUNO, "3")  # Switch to GRID command
         if currentValues['status_powerwall_stateMachineStatus'] == 99:
             if not powerwall_last_fail:
@@ -251,6 +252,14 @@ def ControlPowerwall():  # called each # 5 mins
             powerwall_last_fail = True
         else:
             powerwall_last_fail = False
+
+        if currentValues[
+                'status_powerwallSoc'] > 95:
+            if not powerwall_last_full:
+                logger.log("Baterie powerwall je skoro plná! PAL TO!!!", critical=True, all_members = True)
+            powerwall_last_full = True
+        else:
+            powerwall_last_full = False
 
 def ControlPowerwall_fast():  # called each 30 s
     global globalFlags, currentValues

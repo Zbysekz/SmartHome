@@ -16,7 +16,7 @@ class Logger:
         self.queue = []
         self.verbosity = verbosity
 
-    def log(self, txt, _verbosity=Parameters.NORMAL, critical=False):
+    def log(self, txt, _verbosity=Parameters.NORMAL, critical=False, all_members=False):
         if _verbosity > self.verbosity and not critical:
             return
         print(str(txt))
@@ -28,13 +28,20 @@ class Logger:
 
         if critical:
             if len(self.queue) == 0:
+                all_ok = True
                 if not self.phone.SendSMS(Parameters.MY_NUMBER1, txt):  #  no success
-                    self.queue += [[txt]]
+                    self.queue += [[Parameters.MY_NUMBER1, txt]]
+                    all_ok = False
+                if not self.phone.SendSMS(Parameters.PETA_NUMBER, txt):  #  no success
+                    self.queue += [[Parameters.MY_NUMBER1, txt]]
+                    all_ok = False
+
+                if not all_ok:
                     self.sendQueue()
             else:
-                if len(self.queue) < 3:
-                    self.queue += [[txt]]
-
+                if len(self.queue) < 4:
+                    self.queue += [[Parameters.MY_NUMBER1, txt]]
+                    self.queue += [[Parameters.PETA_NUMBER, txt]]
 
     def log_exception(self, e):
         exc_type, exc_obj, exc_tb = sys.exc_info()
