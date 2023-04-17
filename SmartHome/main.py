@@ -63,7 +63,7 @@ tmrTimeouts = {
 
 criticalDevice = [IP_POWERWALL, IP_POWERWALL_THERMOSTAT]
 
-logger = Logger("main", verbosity=Parameters.RICH, phone=phone)
+logger = Logger("main", verbosity=Parameters.NORMAL, phone=phone)
 # -----------------------------------------------
 
 # -------------STATE VARIABLES-------------------
