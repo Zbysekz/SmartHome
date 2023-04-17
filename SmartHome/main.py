@@ -24,14 +24,12 @@ from powerwall import calculatePowerwallSOC
 from measureTime import MeasureTime
 import updateStats
 from logger import Logger
+from parameters import Parameters
 
 # -------------DEFINITIONS-----------------------
-SMS_NOTIFICATION = True
 RESTART_ON_EXCEPTION = True
 PIN_BTN_PC = 26
 PIN_GAS_ALARM = 23
-
-MY_NUMBER1 = "+420602187490"
 
 IP_METEO = '192.168.0.10'
 IP_KEYBOARD = '192.168.0.11'
@@ -45,11 +43,6 @@ IP_CELLAR = "192.168.0.33"
 IP_POWERWALL_THERMOSTAT = "192.168.0.32"
 IP_ESP_POWERWALL = '192.168.0.15'
 IP_VICTRON_INVERTER = "192.168.0.16"
-
-NORMAL = 0
-RICH = 1
-FULL = 2
-verbosity = RICH
 
 # for periodicity mysql inserts
 HOUR = 3600
@@ -68,7 +61,9 @@ tmrTimeouts = {
                 IP_VICTRON_INVERTER: [time.time(), MINUTE * 10]
 }
 
-logger = Logger("main")
+criticalDevice = [IP_POWERWALL, IP_POWERWALL_THERMOSTAT]
+
+logger = Logger("main", verbosity=Parameters.RICH, phone=phone)
 # -----------------------------------------------
 
 # -------------STATE VARIABLES-------------------
@@ -98,6 +93,7 @@ tmrPriceCalc = time.time()
 gasSensorPrepared = False
 tmrPrepareGasSensor = time.time()
 alarm_last = 0
+powerwall_last_fail = False
 
 tmrConsPowerwall = 0
 tmrVentHeatControl = 0
@@ -204,7 +200,7 @@ def main():
                 try:
                     processedData += [data]
                     IncomingData(data)
-                    logger.log(f"Processed data. Remaining cnt: {comm.DataRemaining()}", RICH)
+                    logger.log(f"Processed data. Remaining cnt: {comm.DataRemaining()}", Parameters.RICH)
                 except IndexError:
                     logger.log("IndexError while processing incoming data! data:" + str(data))
                 data = comm.DataReceived()
@@ -232,8 +228,8 @@ def main():
         measureTimeMainLoop.Start()
 
 
-def ControlPowerwall():  # called each 5 mins
-    global globalFlags, currentValues
+def ControlPowerwall():  # called each # 5 mins
+    global globalFlags, currentValues, powerwall_last_fail
 
     if globalFlags['autoPowerwallRun'] == 1:
         solarPowered = currentValues[
@@ -249,6 +245,12 @@ def ControlPowerwall():  # called each 5 mins
                 'status_powerwallSoc'] <= 20:  # less than 20% SoC
             Log("Auto powerwall control - Switching to grid")
             MySQL.insertTxCommand(IP_RACKUNO, "3")  # Switch to GRID command
+        if currentValues['status_powerwall_stateMachineStatus'] == 99:
+            if not powerwall_last_fail:
+                logger.log("Powerwall in error state!", critical=True)
+            powerwall_last_fail = True
+        else:
+            powerwall_last_fail = False
 
 def ControlPowerwall_fast():  # called each 30 s
     global globalFlags, currentValues
@@ -338,7 +340,7 @@ def CheckGasSensor():
             logger.log("RPI GAS ALARM!!");
             alarm |= GAS_ALARM_RPI
             MySQL.updateState("alarm", int(alarm))
-            if alarm_last & GAS_ALARM_RPI == 0 and SMS_NOTIFICATION:
+            if alarm_last & GAS_ALARM_RPI == 0:
                 phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
             KeyboardRefresh(MySQL)
             PIRSensorRefresh(MySQL)
@@ -351,8 +353,8 @@ def CheckGasSensor():
 ######################## General timer thread ##########################################################################
 
 def timerGeneral():  # it is calling itself periodically
-    global alarmCounting, alarmCnt, alarm, watchDogAlarmThread, MY_NUMBER1, keyboardRefreshCnt, wifiCheckCnt, tmrPriceCalc
-    global tmrVentHeatControl, globalFlags, currentValues, tmrTimeouts, tmrFastPowerwallControl
+    global alarmCounting, alarmCnt, alarm, watchDogAlarmThread, keyboardRefreshCnt, wifiCheckCnt, tmrPriceCalc
+    global tmrVentHeatControl, globalFlags, currentValues, tmrTimeouts,tmrFastPowerwallControl, criticalDevices
 
     if keyboardRefreshCnt >= 4:
         keyboardRefreshCnt = 0
@@ -375,6 +377,9 @@ def timerGeneral():  # it is calling itself periodically
             logger.log("Comm timeout for IP:"+str(IP))
             tmrTimeouts[IP][0] = 0
             comm.RemoveOnlineDevice(MySQL_GeneralThread, IP)
+
+            if IP in criticalDevices:
+                logger.log(f"Lost critical device! IP:{IP}", critical=True)
 
 
     if time.time() - tmrVentHeatControl > 300:  # each 5 mins
@@ -414,7 +419,7 @@ def timerGeneral():  # it is calling itself periodically
             logger.log("MySQL - getTXbuffer - Value Error:" + str(packet[0]))
 
     if alarmCounting:  # user must make unlock until counter expires
-        logger.log("Alarm check", FULL)
+        logger.log("Alarm check", Parameters.FULL)
         alarmCnt += 1
         if alarmCnt >= 10:
             alarmCnt = 0
@@ -423,8 +428,7 @@ def timerGeneral():  # it is calling itself periodically
             alarm |= DOOR_ALARM
             alarmCounting = False
 
-            if SMS_NOTIFICATION:
-                phone.SendSMS(MY_NUMBER1, "Home system: door ALARM !!")
+            phone.SendSMS(MY_NUMBER1, "Home system: door ALARM !!")
 
             MySQL_GeneralThread.updateState("alarm", int(alarm))
             KeyboardRefresh(MySQL_GeneralThread)
@@ -487,18 +491,21 @@ def timerPhone():
 
     if not comm.isTerminated():  # do not continue if app terminated
         threading.Timer(20, timerPhone).start()
+    else:
+        # end logger thread too
+        logger.terminate()
 
 
 def PIRSensorRefresh(sqlInst):
     global locked, alarm
-    logger.log("PIR sensor refresh!", FULL)
+    logger.log("PIR sensor refresh!", Parameters.FULL)
 
     comm.Send(sqlInst, bytes([0, int(alarm != 0), int(locked)]), IP_PIR_SENSOR)  # id, alarm(0/1),locked(0/1)
 
 
 def KeyboardRefresh(sqlInst):
     global locked, alarm
-    logger.log("Keyboard refresh!", FULL)
+    logger.log("Keyboard refresh!", Parameters.FULL)
     val = (int(alarm != 0)) + 2 * (int(locked))
 
     comm.Send(sqlInst, bytes([10, val]), IP_KEYBOARD)  # id, alarm(0/1),locked(0/1)
@@ -589,7 +596,7 @@ def IncomingData(data):
     global alarmCounting
     global tmrTimeouts
 
-    logger.log("Incoming data:" + str(data), FULL)
+    logger.log("Incoming data:" + str(data), Parameters.FULL)
     # [100, 3, 0, 0, 1, 21, 2, 119]
     # ID,(bit0-door,bit1-gasAlarm),gas/256,gas%256,T/256,T%256,RH/256,RH%256)
     if data[0] == 100:  # data from keyboard
@@ -776,8 +783,7 @@ def IncomingData(data):
                 txt = "Home system: PIR sensor - FIRE/GAS ALARM !!"
                 logger.log(txt)
                 MySQL.insertEvent(10, 0)
-                if SMS_NOTIFICATION:
-                    phone.SendSMS(MY_NUMBER1, txt)
+                phone.SendSMS(MY_NUMBER1, txt)
                 KeyboardRefresh(MySQL)
                 PIRSensorRefresh(MySQL)
         elif PIRalarm and locked:
@@ -789,8 +795,7 @@ def IncomingData(data):
                 logger.log(txt)
                 MySQL.insertEvent(10, 1)
 
-                if SMS_NOTIFICATION:
-                    phone.SendSMS(MY_NUMBER1, txt)
+                phone.SendSMS(MY_NUMBER1, txt)
                 KeyboardRefresh(MySQL)
                 PIRSensorRefresh(MySQL)
     elif data[0] == 106:  # data from powerwall ESP
@@ -914,7 +919,7 @@ def IncomingData(data):
                           writeNowDiff=50)
 
     elif data[0] == 0 and data[1] == 1:  # live event
-        logger.log("Live event!", FULL)
+        logger.log("Live event!", Parameters.FULL)
     elif (data[0] < 4 and len(data) >= 2):  # events for keyboard
         logger.log("Incoming keyboard event!" + str(data))
         comm.SendACK(data, IP_KEYBOARD)

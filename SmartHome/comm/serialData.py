@@ -5,25 +5,21 @@ import os
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-
+from parameters import Parameters
 from logger import Logger
-logger = Logger("serialData")
+logger = Logger("serialData", verbosity=Parameters.NORMAL)
+
 
 rcvdData=[]#list of lists of rcvd data
 
 RXBUFFSIZE=100
-
-NORMAL = 0
-RICH = 1
-FULL = 2
-verbosity = RICH
 
 queue_large = False
 
 def getRcvdData():#get last data and remove from queue
     global queue_large
     if queue_large and len(rcvdData) < 3:
-        logger.log("Rcv queue is ok! Len:" + str(len(rcvdData)), NORMAL)
+        logger.log("Rcv queue is ok! Len:" + str(len(rcvdData)), Parameters.NORMAL)
         queue_large = False
 
     if(len(rcvdData)>0):
@@ -62,14 +58,14 @@ class Receiver:
                 self.readState=2
             else:
                 self.readState=0#second start token
-                logger.log("ERR1",RICH)
+                logger.log("ERR1",Parameters.RICH)
                 result = False
         elif(self.readState==2):
             self.rxLen = rcv#length
             
             if(self.rxLen>20):
                 self.readState=0
-                logger.log("ERR2",RICH)
+                logger.log("ERR2",Parameters.RICH)
                 result = False
             else:
                 self.readState=3
@@ -78,7 +74,7 @@ class Receiver:
             self.rxBuffer[self.rxPtr] = rcv#data
             self.rxPtr+=1
             if self.rxPtr>=RXBUFFSIZE:
-               logger.log("ERR5 (Buff FULL)",RICH)
+               logger.log("ERR5 (Buff FULL)",Parameters.RICH)
                self.readState=0
                result = False
             elif self.rxPtr>=self.rxLen:
@@ -94,23 +90,23 @@ class Receiver:
             else:
                 self.readState=0
                 result = False
-                logger.log("ERR3 (CRC mismatch)",RICH)
-                logger.log("calc:"+str(calcCRC),RICH)
+                logger.log("ERR3 (CRC mismatch)",Parameters.RICH)
+                logger.log("calc:"+str(calcCRC),Parameters.RICH)
                 logger.log("real:"+str(self.crcL+self.crcH*256))
-                logger.log([self.rxLen,*self.rxBuffer[0:self.rxPtr]],RICH)
+                logger.log([self.rxLen,*self.rxBuffer[0:self.rxPtr]],Parameters.RICH)
         elif(self.readState==6):
             if(rcv==222):#end token
                 rcvdData.append(self.rxBuffer[0:self.rxLen])
                 self.readState=0
-                logger.log("New data received!",FULL)
+                logger.log("New data received!",Parameters.FULL)
                 if len(rcvdData)>10:
-                    logger.log("Rcv queue is large! Len:"+str(len(rcvdData)),NORMAL)
+                    logger.log("Rcv queue is large! Len:"+str(len(rcvdData)),Parameters.NORMAL)
                     queue_large = True
-                    logger.log(rcvdData, RICH)
+                    logger.log(rcvdData, Parameters.RICH)
             else:
                 self.readState=0
                 result = False
-                logger.log("ERR4",RICH)
+                logger.log("ERR4",Parameters.RICH)
         
         return result
             

@@ -7,13 +7,9 @@ from datetime import datetime
 from enum import Enum
 from logger import Logger
 import time
+from parameters import Parameters
 
 DISABLE_SMS = False
-
-NORMAL = 0
-RICH = 1
-FULL = 2
-verbosity = NORMAL
 
 serPort = 0
 incomeSMSList=[]
@@ -38,7 +34,7 @@ clearBufferWhenPhoneOffline=0
 commState = False
 signalStrength = 0
 
-logger = Logger("phone")
+logger = Logger("phone", verbosity = Parameters.NORMAL)
 
 #---------------------------------------------------------------------------------------
 def STATE_idle():
@@ -137,7 +133,7 @@ def STATE_SMS_read2():
     rcvLines = ReceiveLinesFromSerial()
     
     for rcvLine in rcvLines:
-        logger.log("Phone RCV:"+str(rcvLine),FULL)
+        logger.log("Phone RCV:"+str(rcvLine),Parameters.FULL)
         if b"OK" in rcvLine:
             serPort.write(bytes("AT+CMGL=\x22ALL\x22\x0D",'UTF-8'));
             
@@ -173,12 +169,12 @@ def STATE_SMS_read3():
                 
                 nOfReceivedSMS = nOfReceivedSMS + 1
 
-                logger.log("Received SMS text:'" + str(readSMStext) + "' From:"+str(readSMSsender), NORMAL)
+                logger.log("Received SMS text:'" + str(readSMStext) + "' From:"+str(readSMSsender), Parameters.NORMAL)
                 incomeSMSList.append((readSMStext,readSMSsender))
                 readSMSsender = ""
                 continue
             elif b"+CMGL:" in rcvLine or configLine!="":#waits for sms sender, but wait for complete line
-                logger.log("Phone RCV2:"+str(rcvLine),FULL)
+                logger.log("Phone RCV2:"+str(rcvLine),Parameters.FULL)
                 configLine += rcvLine.decode("utf-8")
 
                 if('\r' in configLine):#we have it complete
@@ -192,8 +188,8 @@ def STATE_SMS_read3():
                 else:
                     NextState(STATE_idle)
                 
-                logger.log("Check completed, received "+str(nOfReceivedSMS) + " SMS",FULL)
-                logger.log(incomeSMSList,FULL)
+                logger.log("Check completed, received "+str(nOfReceivedSMS) + " SMS",Parameters.FULL)
+                logger.log(incomeSMSList,Parameters.FULL)
 
                 commState=True
                 break
@@ -264,7 +260,7 @@ def STATE_SIGNAL_response():
                 signalStrength = int(rcvLine[rcvLine.find(b"+CSQ:")+5:].split(b',')[0])
                 qualityIndicator = "Excellent" if signalStrength>19 else "Good" if signalStrength>14 else "Average" if signalStrength>9 else "Poor"
             
-                logger.log("Quality "+qualityIndicator+" -> "+str(signalStrength),FULL)
+                logger.log("Quality "+qualityIndicator+" -> "+str(signalStrength),Parameters.FULL)
             
                 NextState(STATE_idle)
                 commState=True
@@ -313,7 +309,7 @@ def Process():
     global currState,nextState,tmrTimeout
 
     if currState != "" and nextState != "" and currState != nextState:
-        logger.log("Phone - transition to:"+nextState.__name__,FULL)
+        logger.log("Phone - transition to:"+nextState.__name__,Parameters.FULL)
         currState = nextState
         tmrTimeout = time.time()
     
@@ -362,15 +358,17 @@ def SendSMS(receiver,text):
 
     if DISABLE_SMS:
         logger.log("SMS feature manually disabled! SMS:'"+str(text)+"' will not be send!")
-        return
+        return True
 
     if reqSendSMS:
         logger.log("Already sending SMS! Text:"+str(sendSMStext))
+        return False
     else:
         logger.log("Sending SMS:" + sendSMStext)
         reqSendSMS = True
         receiverNumber = receiver
         sendSMStext = text
+        return True
 
 def getCommState():#status of communication with SIM800L module
     return commState
