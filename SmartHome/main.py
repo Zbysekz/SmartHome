@@ -248,7 +248,7 @@ def ControlPowerwall():  # called each # 5 mins
             MySQL.insertTxCommand(IP_RACKUNO, "3")  # Switch to GRID command
         if currentValues['status_powerwall_stateMachineStatus'] == 99:
             if not powerwall_last_fail:
-                logger.log("Powerwall in error state!", critical=True)
+                logger.log("Powerwall in error state!", Parameters.CRITICAL)
             powerwall_last_fail = True
         else:
             powerwall_last_fail = False
@@ -256,7 +256,7 @@ def ControlPowerwall():  # called each # 5 mins
         if currentValues[
                 'status_powerwallSoc'] > 95:
             if not powerwall_last_full:
-                logger.log("Baterie powerwall je skoro plná! PAL TO!!!", critical=True, all_members = True)
+                logger.log("Baterie powerwall je skoro plná! PAL TO!!!", Parameters.CRITICAL, all_members = True)
             powerwall_last_full = True
         else:
             powerwall_last_full = False
@@ -350,7 +350,7 @@ def CheckGasSensor():
             alarm |= GAS_ALARM_RPI
             MySQL.updateState("alarm", int(alarm))
             if alarm_last & GAS_ALARM_RPI == 0:
-                phone.SendSMS(MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
+                phone.SendSMS(Parameters.MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
             KeyboardRefresh(MySQL)
             PIRSensorRefresh(MySQL)
 
@@ -365,109 +365,111 @@ def timerGeneral():  # it is calling itself periodically
     global alarmCounting, alarmCnt, alarm, watchDogAlarmThread, keyboardRefreshCnt, wifiCheckCnt, tmrPriceCalc
     global tmrVentHeatControl, globalFlags, currentValues, tmrTimeouts,tmrFastPowerwallControl, criticalDevices
 
-    if keyboardRefreshCnt >= 4:
-        keyboardRefreshCnt = 0
-        KeyboardRefresh(MySQL_GeneralThread)
-        PIRSensorRefresh(MySQL_GeneralThread)
-    else:
-        keyboardRefreshCnt += 1
-
-    if wifiCheckCnt >= 30:
-        wifiCheckCnt = 0
-        if not comm.Ping("192.168.0.4"):
-            logger.log("UNABLE TO REACH ROUTER!")
-    else:
-        wifiCheckCnt = wifiCheckCnt + 1
-
-
-    # timeouts handling
-    for IP, tmr in tmrTimeouts.items():
-        if tmr[0] != 0 and time.time() - tmr[0] > tmr[1]:
-            logger.log("Comm timeout for IP:"+str(IP))
-            tmrTimeouts[IP][0] = 0
-            comm.RemoveOnlineDevice(MySQL_GeneralThread, IP)
-
-            if IP in criticalDevices:
-                logger.log(f"Lost critical device! IP:{IP}", critical=True)
-
-
-    if time.time() - tmrVentHeatControl > 300:  # each 5 mins
-        tmrVentHeatControl = time.time()
-
-        if len(globalFlags) > 0 and len(currentValues) > 0:  # we get both values from DTB
-            ControlPowerwall()
-            ControlVentilation()
-            ControlHeating()
-        else:
-            tmrVentHeatControl = time.time() - 200  # try it sooner
-
-    if time.time() - tmrFastPowerwallControl > 30:  # each 30secs
-        tmrFastPowerwallControl = time.time()
-        globalFlags = MySQL_GeneralThread.getGlobalFlags()  # update global flags
-        currentValues = MySQL_GeneralThread.getCurrentValues()
-
-        ControlPowerwall_fast()
-
-    # check if there are data in mysql that we want to send
-    data = MySQL_GeneralThread.getTxBuffer()
-    if (len(data)):
-        try:
-            for packet in data:
-                byteArray = bytes([int(x) for x in packet[0].split(',')])
-                logger.log("Sending data from MYSQL database to:")
-
-                if packet[1] == IP_SERVER:
-                    logger.log("LOCALHOST")
-                    logger.log(byteArray)
-                    ExecuteTxCommand(MySQL_GeneralThread, byteArray)
-                else:
-                    logger.log(packet[1])
-                    logger.log(byteArray)
-                    comm.Send(MySQL_GeneralThread, byteArray, packet[1], crc16=True)
-        except ValueError:
-            logger.log("MySQL - getTXbuffer - Value Error:" + str(packet[0]))
-
-    if alarmCounting:  # user must make unlock until counter expires
-        logger.log("Alarm check", Parameters.FULL)
-        alarmCnt += 1
-        if alarmCnt >= 10:
-            alarmCnt = 0
-
-            logger.log("DOOR ALARM!!!!")
-            alarm |= DOOR_ALARM
-            alarmCounting = False
-
-            phone.SendSMS(MY_NUMBER1, "Home system: door ALARM !!")
-
-            MySQL_GeneralThread.updateState("alarm", int(alarm))
+    try:
+        if keyboardRefreshCnt >= 4:
+            keyboardRefreshCnt = 0
             KeyboardRefresh(MySQL_GeneralThread)
             PIRSensorRefresh(MySQL_GeneralThread)
+        else:
+            keyboardRefreshCnt += 1
 
-    if time.time() - tmrPriceCalc > 3600 * 4:  # each 4 hour
-        tmrPriceCalc = time.time()
-        try:
-            electricityPrice.run()
-        except Exception as e:
-            logger.log("Exception for electricityPrice.run()")
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            logger.log(str(e))
-            logger.log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
-        updateStats.execute_4hour(MySQL_GeneralThread)
+        if wifiCheckCnt >= 30:
+            wifiCheckCnt = 0
+            if not comm.Ping("192.168.0.4"):
+                logger.log("UNABLE TO REACH ROUTER!")
+        else:
+            wifiCheckCnt = wifiCheckCnt + 1
 
-    if comm.isTerminated():  # do not continue if app terminated
-        logger.log("Ending General thread, because comm is terminated.")
-        return
-    elif watchDogAlarmThread > 8:
 
-        logger.log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
-        if RESTART_ON_EXCEPTION:
-            os.system("shutdown -r 1")  # reboot after one minute
+        # timeouts handling
+        for IP, tmr in tmrTimeouts.items():
+            if tmr[0] != 0 and time.time() - tmr[0] > tmr[1]:
+                logger.log("Comm timeout for IP:"+str(IP))
+                tmrTimeouts[IP][0] = 0
+                comm.RemoveOnlineDevice(MySQL_GeneralThread, IP)
 
-    else:
-        threading.Timer(8, timerGeneral).start()
-        watchDogAlarmThread += 1
+                if IP in criticalDevices:
+                    logger.log(f"Lost critical device! IP:{IP}", Parameters.CRITICAL)
 
+
+        if time.time() - tmrVentHeatControl > 300:  # each 5 mins
+            tmrVentHeatControl = time.time()
+
+            if len(globalFlags) > 0 and len(currentValues) > 0:  # we get both values from DTB
+                ControlPowerwall()
+                ControlVentilation()
+                ControlHeating()
+            else:
+                tmrVentHeatControl = time.time() - 200  # try it sooner
+
+        if time.time() - tmrFastPowerwallControl > 30:  # each 30secs
+            tmrFastPowerwallControl = time.time()
+            globalFlags = MySQL_GeneralThread.getGlobalFlags()  # update global flags
+            currentValues = MySQL_GeneralThread.getCurrentValues()
+
+            ControlPowerwall_fast()
+
+        # check if there are data in mysql that we want to send
+        data = MySQL_GeneralThread.getTxBuffer()
+        if (len(data)):
+            try:
+                for packet in data:
+                    byteArray = bytes([int(x) for x in packet[0].split(',')])
+                    logger.log("Sending data from MYSQL database to:")
+
+                    if packet[1] == IP_SERVER:
+                        logger.log("LOCALHOST")
+                        logger.log(byteArray)
+                        ExecuteTxCommand(MySQL_GeneralThread, byteArray)
+                    else:
+                        logger.log(packet[1])
+                        logger.log(byteArray)
+                        comm.Send(MySQL_GeneralThread, byteArray, packet[1], crc16=True)
+            except ValueError:
+                logger.log("MySQL - getTXbuffer - Value Error:" + str(packet[0]))
+
+        if alarmCounting:  # user must make unlock until counter expires
+            logger.log("Alarm check", Parameters.FULL)
+            alarmCnt += 1
+            if alarmCnt >= 10:
+                alarmCnt = 0
+
+                logger.log("DOOR ALARM!!!!")
+                alarm |= DOOR_ALARM
+                alarmCounting = False
+
+                phone.SendSMS(Parameters.MY_NUMBER1, "Home system: door ALARM !!")
+
+                MySQL_GeneralThread.updateState("alarm", int(alarm))
+                KeyboardRefresh(MySQL_GeneralThread)
+                PIRSensorRefresh(MySQL_GeneralThread)
+
+        if time.time() - tmrPriceCalc > 3600 * 4:  # each 4 hour
+            tmrPriceCalc = time.time()
+            try:
+                electricityPrice.run()
+            except Exception as e:
+                logger.log("Exception for electricityPrice.run()")
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                logger.log(str(e))
+                logger.log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
+            updateStats.execute_4hour(MySQL_GeneralThread)
+
+        if comm.isTerminated():  # do not continue if app terminated
+            logger.log("Ending General thread, because comm is terminated.")
+            return
+        elif watchDogAlarmThread > 8:
+
+            logger.log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
+            if RESTART_ON_EXCEPTION:
+                os.system("shutdown -r 1")  # reboot after one minute
+
+        else:
+            threading.Timer(8, timerGeneral).start()
+            watchDogAlarmThread += 1
+    except Exception as e:
+        logger.log(f"Exception in timerGeneral thread! {repr(e)}", Parameters.CRITICAL)
 
 ####################################################################################################################
 def ExecuteTxCommand(mySQLinstance, data):
@@ -522,7 +524,7 @@ def KeyboardRefresh(sqlInst):
 
 def IncomingSMS(data):
     global alarm, locked, heatingControlInhibit
-    if data[1] == MY_NUMBER1:
+    if data[1] == Parameters.MY_NUMBER1:
         if (data[0].startswith("get status")):
 
             txt = "Stand-by"
@@ -792,7 +794,7 @@ def IncomingData(data):
                 txt = "Home system: PIR sensor - FIRE/GAS ALARM !!"
                 logger.log(txt)
                 MySQL.insertEvent(10, 0)
-                phone.SendSMS(MY_NUMBER1, txt)
+                phone.SendSMS(Parameters.MY_NUMBER1, txt)
                 KeyboardRefresh(MySQL)
                 PIRSensorRefresh(MySQL)
         elif PIRalarm and locked:
@@ -804,7 +806,7 @@ def IncomingData(data):
                 logger.log(txt)
                 MySQL.insertEvent(10, 1)
 
-                phone.SendSMS(MY_NUMBER1, txt)
+                phone.SendSMS(Parameters.MY_NUMBER1, txt)
                 KeyboardRefresh(MySQL)
                 PIRSensorRefresh(MySQL)
     elif data[0] == 106:  # data from powerwall ESP
@@ -923,7 +925,7 @@ def IncomingData(data):
     elif data[0] == 113:  # data from victron inverter
         tmrTimeouts[IP_VICTRON_INVERTER][0] = time.time()
 
-        MySQL.insertValue('power', 'inverter', (data[1] * 256 + data[2]) / 100.0,
+        MySQL.insertValue('power', 'inverter', (data[1] * 256 + data[2]),
                           periodicity=5 * MINUTE,  # with correction
                           writeNowDiff=50)
 
