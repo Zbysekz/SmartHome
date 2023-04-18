@@ -269,7 +269,7 @@ def ControlPowerwall_fast():  # called each 30 s
             'status_rackUno_stateMachineStatus'] == 3
         # if we are running from solar power
         if solarPowered and currentValues['status_powerwall_stateMachineStatus'] != 20:
-            Log(f"Auto powerwall control - powerwall not in proper state - shutdown. status {currentValues['status_powerwall_stateMachineStatus']}")
+            logger.log(f"Auto powerwall control - powerwall not in proper state - shutdown. status {currentValues['status_powerwall_stateMachineStatus']}")
             MySQL.insertTxCommand(IP_RACKUNO, "3")  # Switch to GRID command
 
 
