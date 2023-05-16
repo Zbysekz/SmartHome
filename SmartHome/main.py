@@ -855,26 +855,66 @@ def IncomingData(data):
                           writeNowDiff=0.1)
     elif data[0] == 109:  # data from cellar
         RefreshTimeout(IP_CELLAR)
-        temperature1 = correctNegative(data[1] * 256 + data[2])
-        temperature2 = correctNegative(data[3] * 256 + data[4])
-        temperature_sht = correctNegative(data[5] * 256 + data[6])
-        humidity = (data[7] * 256 + data[8])
-        dew_point = correctNegative(data[9] * 256 + data[10])
-        fan_active = data[11] & 0x01
+        bits = data[1]
 
-        MySQL.insertValue('temperature', 'brewhouse_cellar', temperature1 / 100.0,
+        temperature_sht = correctNegative(data[2] * 256 + data[3])
+        humidity = (data[4] * 256 + data[5])
+        dew_point = correctNegative(data[6] * 256 + data[7])
+        temp_setpoint = correctNegative(data[8] * 256 + data[9])
+        temperature1 = correctNegative(data[10] * 256 + data[11])
+        temperature2 = correctNegative(data[12] * 256 + data[13])
+
+        params_valid = bits & 0x01
+        errorFlags = bits & 0x02
+        water_pump_alarm = bits & 0x04
+        fanControl_autMan = bits & 0x08
+        tempControl_autMan = bits & 0x10
+        tempPump_onOff = bits & 0x20
+        reserve = bits & 0x40
+        MySQL.insertValue('status', 'cellar_params_valid', params_valid,
+                          periodicity=240 * MINUTE,  # with correction
+                          writeNowDiff=0.1,
+                          onlyCurrent=True)
+        MySQL.insertValue('temperature', 'cellar_errorFlags', errorFlags,
+                          periodicity=240 * MINUTE,  # with correction
+                          writeNowDiff=0.1,
+                          onlyCurrent=True)
+        MySQL.insertValue('temperature', 'cellar_water_pump_alarm', water_pump_alarm,
+                          periodicity=240 * MINUTE,  # with correction
+                          writeNowDiff=0.1,
+                          onlyCurrent=True)
+        MySQL.insertValue('temperature', 'cellar_fanControl_autMan', fanControl_autMan,
+                          periodicity=240 * MINUTE,  # with correction
+                          writeNowDiff=0.1,
+                          onlyCurrent=True)
+        MySQL.insertValue('temperature', 'cellar_tempControl_autMan', tempControl_autMan,
+                          periodicity=240 * MINUTE,  # with correction
+                          writeNowDiff=0.1,
+                          onlyCurrent=True)
+        MySQL.insertValue('temperature', 'cellar_tempPump_onOff', tempPump_onOff,
+                          periodicity=240 * MINUTE,  # with correction
+                          writeNowDiff=0.1,
+                          onlyCurrent=True)
+        MySQL.insertValue('temperature', 'cellar_temp_setpoint', temp_setpoint,
+                          periodicity=240 * MINUTE,  # with correction
+                          writeNowDiff=0.5,
+                          onlyCurrent=True)
+
+
+
+        MySQL.insertValue('temperature', 'brewhouse_cellar', temperature1 / 10.0,
                           periodicity=5 * MINUTE,  # with correction
                           writeNowDiff=0.1)
-        MySQL.insertValue('temperature', 'brewhouse_cellarbox', temperature2 / 100.0,
+        MySQL.insertValue('temperature', 'brewhouse_cellarbox', temperature2 / 10.0,
                           periodicity=5 * MINUTE,  # with correction
                           writeNowDiff=0.1)
-        MySQL.insertValue('temperature', 'brewhouse_room', temperature_sht / 100.0,
+        MySQL.insertValue('temperature', 'brewhouse_room', temperature_sht / 10.0,
                           periodicity=5 * MINUTE,  # with correction
                           writeNowDiff=0.1)
-        MySQL.insertValue('humidity', 'brewhouse_room', humidity / 100.0,
+        MySQL.insertValue('humidity', 'brewhouse_room', humidity / 10.0,
                           periodicity=5 * MINUTE,  # with correction
                           writeNowDiff=0.5)
-        MySQL.insertValue('temperature', 'brewhouse_dew_point', dew_point / 100.0,
+        MySQL.insertValue('temperature', 'brewhouse_dew_point', dew_point / 10.0,
                           periodicity=5 * MINUTE,  # with correction
                           writeNowDiff=0.1)
         MySQL.insertValue('bools', 'brewhouse_fan', fan_active,
