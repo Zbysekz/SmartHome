@@ -63,7 +63,7 @@ tmrTimeouts = {
 
 criticalDevice = [IP_POWERWALL, IP_POWERWALL_THERMOSTAT]
 
-logger = Logger("main", verbosity=Parameters.NORMAL, phone=phone)
+logger = Logger("main", verbosity=Parameters.FULL, phone=phone)
 # -----------------------------------------------
 
 # -------------STATE VARIABLES-------------------
@@ -96,6 +96,8 @@ alarm_last = 0
 powerwall_last_fail = False
 powerwall_last_full = False
 
+terminate = False
+
 tmrConsPowerwall = 0
 tmrVentHeatControl = 0
 tmrFastPowerwallControl = 0
@@ -118,7 +120,7 @@ MySQL_phoneThread = cMySQL()
 
 ###############################################################################################################
 def main():
-    global watchDogAlarmThread, alarm, alarm_last, locked
+    global watchDogAlarmThread, alarm, alarm_last, locked, terminate
     global tmrCycleTime, cycleTime_avg, cycleTime_cnt, cycleTime_tmp, cycleTime, cycleTime_max
 
     logger.log("Entry point main.py")
@@ -127,7 +129,7 @@ def main():
         logger.log("Initializing TCP port...")
         initTCP = True
         nOfTries = 0
-        while (initTCP):
+        while initTCP:
             try:
                 comm.Init()
                 initTCP = False  # succeeded
@@ -166,24 +168,25 @@ def main():
         logger.log(str(e))
         logger.log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
         if RESTART_ON_EXCEPTION:
-            logger.log("Rebooting Raspberry PI in one minute")
-
-            os.system("shutdown -r 1")  # reboot after one minute
-            input("Reboot in one minute. Press Enter to continue...")
-        return
+            logger.log("-- RESTART SCRIPT --")
+            terminate = True
+            return
+            #os.system("shutdown -r 1")  # reboot after one minute
+            #input("Reboot in one minute. Press Enter to continue...")
 
     measureTimeMainLoop = MeasureTime()
     measureTimeComm = MeasureTime()
     measureTimePhone = MeasureTime()
     measureTimeDataRcv = MeasureTime()
     ######################## MAIN LOOP ####################################################################################
-    while 1:
+    while True:
         measureTimeComm.Start()
         # TCP server communication - remote devices--------
         comm.Handle(MySQL)
         measureTimeComm.Measure()
 
         if comm.isTerminated():
+            terminate = True
             return  # user interrupt termination
 
         measureTimePhone.Start()
@@ -204,6 +207,8 @@ def main():
                     logger.log(f"Processed data. Remaining cnt: {comm.DataRemaining()}", Parameters.RICH)
                 except IndexError:
                     logger.log("IndexError while processing incoming data! data:" + str(data))
+                except Exception as e:
+                    logger.log(f"General exception while processing incoming data! data:"+ str(data))
                 data = comm.DataReceived()
             MySQL.PersistentDisconnect()
 
@@ -268,7 +273,7 @@ def ControlPowerwall_fast():  # called each 30 s
         solarPowered = currentValues[
             'status_rackUno_stateMachineStatus'] == 3
         # if we are running from solar power
-        if solarPowered and currentValues['status_powerwall_stateMachineStatus'] != 20:
+        if solarPowered and currentValues['status_powerwall_stateMachineStatus'] not in (10, 20):
             logger.log(f"Auto powerwall control - powerwall not in proper state - shutdown. status {currentValues['status_powerwall_stateMachineStatus']}")
             MySQL.insertTxCommand(IP_RACKUNO, "3")  # Switch to GRID command
 
@@ -362,7 +367,7 @@ def CheckGasSensor():
 ######################## General timer thread ##########################################################################
 
 def timerGeneral():  # it is calling itself periodically
-    global alarmCounting, alarmCnt, alarm, watchDogAlarmThread, keyboardRefreshCnt, wifiCheckCnt, tmrPriceCalc
+    global alarmCounting, alarmCnt, alarm, watchDogAlarmThread, keyboardRefreshCnt, wifiCheckCnt, tmrPriceCalc, terminate
     global tmrVentHeatControl, globalFlags, currentValues, tmrTimeouts,tmrFastPowerwallControl, criticalDevices
 
     try:
@@ -456,15 +461,16 @@ def timerGeneral():  # it is calling itself periodically
                 logger.log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
             updateStats.execute_4hour(MySQL_GeneralThread)
 
+        if watchDogAlarmThread > 8:
+            if RESTART_ON_EXCEPTION:
+                logger.log("Watchdog in alarm thread! Restarting script")
+                terminate = True
+                # os.system("shutdown -r 1")  # reboot after one minute
         if comm.isTerminated():  # do not continue if app terminated
+            terminate = True
+        if terminate:
             logger.log("Ending General thread, because comm is terminated.")
             return
-        elif watchDogAlarmThread > 8:
-
-            logger.log("Watchdog in alarm thread! Rebooting Raspberry PI in one minute")
-            if RESTART_ON_EXCEPTION:
-                os.system("shutdown -r 1")  # reboot after one minute
-
         else:
             threading.Timer(8, timerGeneral).start()
             watchDogAlarmThread += 1
@@ -500,7 +506,7 @@ def timerPhone():
     MySQL_phoneThread.updateState('phoneSignalInfo', str(phone.getSignalInfo()));
     MySQL_phoneThread.updateState('phoneCommState', int(phone.getCommState()));
 
-    if not comm.isTerminated():  # do not continue if app terminated
+    if not terminate:  # do not continue if app terminated
         threading.Timer(20, timerPhone).start()
     else:
         # end logger thread too
@@ -816,7 +822,7 @@ def IncomingData(data):
                           writeNowDiff=1)
         MySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[15] * 256 + data[16], periodicity=6 * HOUR,
                           writeNowDiff=1)
-
+        logger.log("status inserted", _verbosity=Parameters.FULL)
         if batteryStatus == 0 and (
                 currentValues.get('status_powerwall_stateMachineStatus') == 10 or currentValues.get('status_powerwall_stateMachineStatus') == 20):  # valid only if epever reports battery ok and battery is really connected
             powerwallVolt = (data[1] * 256 + data[2]) / 100.0
@@ -832,9 +838,10 @@ def IncomingData(data):
         MySQL.insertValue('power', 'solar', solarPower)
 
         if batteryStatus == 0 and time.time() - tmrConsPowerwall > 3600:  # each hour
+            logger.log("Daily solar cons", _verbosity=Parameters.FULL)
             tmrConsPowerwall = time.time()
-            MySQL.insertDailySolarCons((data[9] * 16777216 + data[10] * 65536 + data[11] * 256 + data[12]) * 10.0)  # in 0.01 kWh
-
+            #MySQL.insertDailySolarCons((data[9] * 16777216 + data[10] * 65536 + data[11] * 256 + data[12]) * 10.0)  # in 0.01 kWh
+        logger.log("process completed", _verbosity=Parameters.FULL)
 
     elif data[0] == 107:  # data from brewhouse
         MySQL.insertValue('temperature', 'brewhouse_horkaVoda', (data[1] * 256 + data[2]) / 100.0 + 6.0,  # with correction

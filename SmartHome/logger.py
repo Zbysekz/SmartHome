@@ -26,6 +26,7 @@ class Logger:
         with open(f"/var/log/SmartHome/{dateStr}_{self.filename}.log", "a") as file:
             file.write(datetimeStr + " >> " + str(txt) + "\n")
 
+        all_ok = False
         if _verbosity == Parameters.CRITICAL:
             if len(self.queue) == 0:
                 if not self.phone.SendSMS(Parameters.PETA_NUMBER, txt):  #  no success
