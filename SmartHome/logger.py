@@ -6,6 +6,7 @@ import os
 import sys
 from parameters import Parameters
 
+send_SMS = False
 rootPath = str(pathlib.Path(__file__).parent.absolute())
 
 class Logger:
@@ -27,25 +28,26 @@ class Logger:
             file.write(datetimeStr + " >> " + str(txt) + "\n")
 
         all_ok = False
-        if _verbosity == Parameters.CRITICAL:
-            if len(self.queue) == 0:
-                all_ok = True
-                if all_members:
-                    if not self.phone.SendSMS(Parameters.PETA_NUMBER, txt):  # no success
-                        self.queue += [[Parameters.PETA_NUMBER, txt]]
-                        all_ok = False
-                if not self.phone.SendSMS(Parameters.MY_NUMBER1, txt):  # no success
-                    self.queue += [[Parameters.MY_NUMBER1, txt]]
-                    all_ok = False
-
-                if not all_ok:
-                    self.sendQueue()
-            else:
-                if len(self.queue) < 4:
+        if send_SMS:
+            if _verbosity == Parameters.CRITICAL:
+                if len(self.queue) == 0:
+                    all_ok = True
                     if all_members:
-                        self.queue += [[Parameters.PETA_NUMBER, txt]]
-                    self.queue += [[Parameters.MY_NUMBER1, txt]]
-                    #self.queue += [[Parameters.PETA_NUMBER, txt]]
+                        if not self.phone.SendSMS(Parameters.PETA_NUMBER, txt):  # no success
+                            self.queue += [[Parameters.PETA_NUMBER, txt]]
+                            all_ok = False
+                    if not self.phone.SendSMS(Parameters.MY_NUMBER1, txt):  # no success
+                        self.queue += [[Parameters.MY_NUMBER1, txt]]
+                        all_ok = False
+
+                    if not all_ok:
+                        self.sendQueue()
+                else:
+                    if len(self.queue) < 4:
+                        if all_members:
+                            self.queue += [[Parameters.PETA_NUMBER, txt]]
+                        self.queue += [[Parameters.MY_NUMBER1, txt]]
+                        #self.queue += [[Parameters.PETA_NUMBER, txt]]
 
     def log_exception(self, e):
         exc_type, exc_obj, exc_tb = sys.exc_info()

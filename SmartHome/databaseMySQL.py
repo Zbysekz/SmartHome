@@ -9,8 +9,9 @@ from datetime import datetime,timezone
 import threading
 import pathlib
 from logger import Logger
+from parameters import Parameters
 
-logger = Logger("databaseMySQL")
+logger = Logger("databaseMySQL", verbosity=Parameters.FULL)
 
 thisScriptPath = str(pathlib.Path(__file__).parent.absolute())
 
@@ -198,6 +199,7 @@ class cMySQL:
 
     @ThreadingLockDecorator
     def insertValue(self,name, sensorName, value, timestamp=None, periodicity=0, writeNowDiff = 1, onlyCurrent=False):
+        logger.log(f"MySQL - inserting value {name}", _verbosity=Parameters.FULL)
         try:
             db, cursor = self.getConnection()
 
@@ -218,7 +220,7 @@ class cMySQL:
             logger.log("Error while writing to database for measurement:"+name+" exception:")
             logger.log_exception(e)
             return False
-
+        logger.log(f"MySQL - done inserting value {name}", _verbosity=Parameters.FULL)
         return True
 
     @ThreadingLockDecorator

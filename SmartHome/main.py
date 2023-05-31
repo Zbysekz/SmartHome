@@ -277,7 +277,7 @@ def ControlPowerwall_fast():  # called each 30 s
         # if we are running from solar power
         if solarPowered and currentValues['status_powerwall_stateMachineStatus'] not in (10, 20):
             logger.log(f"Auto powerwall control - powerwall not in proper state - shutdown. status {currentValues['status_powerwall_stateMachineStatus']}")
-            MySQL.insertTxCommand(IP_RACKUNO, "3")  # Switch to GRID command
+            MySQL_GeneralThread.insertTxCommand(IP_RACKUNO, "3")  # Switch to GRID command
 
 
 def ControlVentilation():  # called each 5 mins

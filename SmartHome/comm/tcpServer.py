@@ -19,7 +19,7 @@ sys.path.append(parent)
 
 from logger import Logger
 
-logger = Logger("tcpServer", Parameters.NORMAL)
+logger = Logger("tcpServer", Parameters.RICH)
 conn=''
 s=''
 BUFFER_SIZE = 256  # Normally 1024, but we want fast response
@@ -98,6 +98,7 @@ def ReceiveThread(conn, ip):
                 conn.send(tx[0])
 
                 sendWasPerformed = True
+                logger.log(f"Sending tx data to '{ip}' data:{tx[0]}", Parameters.RICH)
         
         sendQueue = queueNotForThisIp # replace items with the items that we haven't sent
 
