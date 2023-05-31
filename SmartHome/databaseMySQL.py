@@ -197,7 +197,7 @@ class cMySQL:
         return values
 
     @ThreadingLockDecorator
-    def insertValue(self,name, sensorName, value, timestamp=None, periodicity=0, writeNowDiff = 1):
+    def insertValue(self,name, sensorName, value, timestamp=None, periodicity=0, writeNowDiff = 1, onlyCurrent=False):
         try:
             db, cursor = self.getConnection()
 
@@ -205,7 +205,10 @@ class cMySQL:
                 timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
             args = (timestamp, name, sensorName, value, periodicity, writeNowDiff)
-            res = cursor.callproc('insertMeasurement',args)
+            if onlyCurrent:
+                res = cursor.callproc('insertMeasurement_onlyCurrent', args)
+            else:
+                res = cursor.callproc('insertMeasurement', args)
 
             db.commit()
             cursor.close()
@@ -275,7 +278,7 @@ class cMySQL:
             return False
 
     @ThreadingLockDecorator
-    def insertEvent(self,desc1, desc2, timestamp=None):
+    def insertEvent(self, desc1, desc2, timestamp=None):
         try:
             db, cursor = self.getConnection()
 
@@ -295,7 +298,7 @@ class cMySQL:
             logger.log_exception(e)
             return False
 
-        if cursor.rowcount>0:
+        if cursor.rowcount > 0:
             return True
         else:
             return False
