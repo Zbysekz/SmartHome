@@ -61,7 +61,7 @@ tmrTimeouts = {
                 IP_VICTRON_INVERTER: [time.time(), MINUTE * 10]
 }
 
-criticalDevice = [IP_POWERWALL, IP_POWERWALL_THERMOSTAT]
+criticalDevices = [IP_POWERWALL, IP_POWERWALL_THERMOSTAT]
 
 logger = Logger("main", verbosity=Parameters.NORMAL, phone=phone)
 # -----------------------------------------------
@@ -95,6 +95,7 @@ tmrPrepareGasSensor = time.time()
 alarm_last = 0
 powerwall_last_fail = False
 powerwall_last_full = False
+powerwall_last_full_tmr = 0
 
 tmrConsPowerwall = 0
 tmrVentHeatControl = 0
@@ -230,7 +231,7 @@ def main():
 
 
 def ControlPowerwall():  # called each # 5 mins
-    global globalFlags, currentValues, powerwall_last_fail, powerwall_last_full
+    global globalFlags, currentValues, powerwall_last_fail, powerwall_last_full, powerwall_last_full_tmr
 
     if globalFlags['autoPowerwallRun'] == 1:
         solarPowered = currentValues[
@@ -255,8 +256,9 @@ def ControlPowerwall():  # called each # 5 mins
 
         if currentValues[
                 'status_powerwallSoc'] > 95:
-            if not powerwall_last_full:
-                logger.log("Baterie powerwall je skoro plná! PAL TO!!!", Parameters.CRITICAL, all_members = True)
+            if not powerwall_last_full and time.time() - powerwall_last_full_tmr > 3600*6:
+                logger.log("Baterie powerwall je skoro plna! PAL TO!!!", Parameters.CRITICAL, all_members = True)
+                powerwall_last_full_tmr = time.time()
             powerwall_last_full = True
         else:
             powerwall_last_full = False
@@ -268,7 +270,7 @@ def ControlPowerwall_fast():  # called each 30 s
         solarPowered = currentValues[
             'status_rackUno_stateMachineStatus'] == 3
         # if we are running from solar power
-        if solarPowered and currentValues['status_powerwall_stateMachineStatus'] != 20:
+        if solarPowered and currentValues['status_powerwall_stateMachineStatus'] not in (20, 10):
             logger.log(f"Auto powerwall control - powerwall not in proper state - shutdown. status {currentValues['status_powerwall_stateMachineStatus']}")
             MySQL.insertTxCommand(IP_RACKUNO, "3")  # Switch to GRID command
 
@@ -389,7 +391,7 @@ def timerGeneral():  # it is calling itself periodically
                 comm.RemoveOnlineDevice(MySQL_GeneralThread, IP)
 
                 if IP in criticalDevices:
-                    logger.log(f"Lost critical device! IP:{IP}", Parameters.CRITICAL)
+                    logger.log(f"Lost critical device! IP:{IP}", Parameters.FULL)
 
 
         if time.time() - tmrVentHeatControl > 300:  # each 5 mins

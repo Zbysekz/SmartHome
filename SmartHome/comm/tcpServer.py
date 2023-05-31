@@ -11,6 +11,7 @@ import traceback
 import subprocess
 from datetime import datetime
 from threading import Thread
+from parameters import Parameters
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -18,7 +19,7 @@ sys.path.append(parent)
 
 from logger import Logger
 
-logger = Logger("tcpServer")
+logger = Logger("tcpServer", Parameters.NORMAL)
 conn=''
 s=''
 BUFFER_SIZE = 256  # Normally 1024, but we want fast response
@@ -29,11 +30,6 @@ TXQUEUELIMIT_PER_DEVICE = 5 # how much send messages can be in queue at the same
 onlineDevices = [] # list of online devices - offline becomes when we want to send lot of data to it, but it's not connecting
 
 terminate = False # termination by user keyboard
-
-NORMAL = 0
-RICH = 1
-FULL = 2
-verbosity = NORMAL
 
 def Init():
     global conn, s, tmrPrintBufferStat
@@ -65,7 +61,7 @@ def Handle(MySQL):
         s.settimeout(4.0)
         conn, addr = s.accept()
         ip = addr[0]
-        logger.log('Device with address '+str(ip)+' was connected',RICH)
+        logger.log('Device with address '+str(ip)+' was connected', Parameters.RICH)
         if addr[0] not in onlineDevices:
             onlineDevices.append(ip)
             logger.log('New device with address ' + str(ip) + ' was connected')
@@ -84,7 +80,7 @@ def Handle(MySQL):
         lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
         
         if(exc_type == socket.timeout):
-            logger.log("Socket timeout!", FULL)
+            logger.log("Socket timeout!", Parameters.FULL)
         else:
             logger.log("Exception:")
             logger.log(''.join('!! ' + line for line in lines))
@@ -106,7 +102,7 @@ def ReceiveThread(conn, ip):
         sendQueue = queueNotForThisIp # replace items with the items that we haven't sent
 
         if not sendWasPerformed:
-            logger.log("Nothing to be send to this connected device '"+str(ip)+"'", FULL)
+            logger.log("Nothing to be send to this connected device '"+str(ip)+"'", Parameters.FULL)
         
         conn.send(serialData.CreatePacket(bytes([199]))) # ending packet - signalizing that we don't have anything to sent no more
 
@@ -135,7 +131,7 @@ def ReceiveThread(conn, ip):
                     logger.log("Error above for ip:"+str(ip))
                 st+= str(d)+", "
             
-            logger.log("Received data:"+str(st), FULL)
+            logger.log("Received data:"+str(st), Parameters.FULL)
 
     except ConnectionResetError:
         if ip != "192.168.0.11":# ignore keyboard reset errors

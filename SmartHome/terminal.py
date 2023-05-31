@@ -78,6 +78,9 @@ def buttonProvisionCallback():
     SendData("2", address=IP_POWERWALL)
 def buttonBlinkCallback():
     SendData("0,"+str(eCellID.get())+",170", address=IP_POWERWALL)
+
+def buttonResetAlarmCallback():
+    SendData("0", address=IP_SERVER)
 def buttonHeatInhibitCallback():
     SendData("1,1", address=IP_RACKUNO)
 def buttonStopHeatInhibitCallback():
@@ -216,7 +219,8 @@ B = Button(top,text="Inhibit",command = buttonHeatInhibitCallback)
 B.place(x=0,y=y+20)
 B = Button(top,text="Stop inhibit",command = buttonStopHeatInhibitCallback)
 B.place(x=100,y=y+20)
-
+B = Button(top,text="RESET ALARM",command = buttonResetAlarmCallback)
+B.place(x=150,y=y+20)
 #HEATING CONTROL
 y=360
 l = Label(top, text="Heating control:")

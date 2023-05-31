@@ -364,7 +364,7 @@ def SendSMS(receiver,text):
         logger.log("Already sending SMS! Text:"+str(sendSMStext))
         return False
     else:
-        logger.log("Sending SMS:" + sendSMStext)
+        logger.log("Sending SMS:" + text)
         reqSendSMS = True
         receiverNumber = receiver
         sendSMStext = text

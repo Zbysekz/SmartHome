@@ -28,15 +28,22 @@ class Logger:
 
         if _verbosity == Parameters.CRITICAL:
             if len(self.queue) == 0:
-                if not self.phone.SendSMS(Parameters.PETA_NUMBER, txt):  #  no success
-                    self.queue += [[txt]]
+                all_ok = True
+                if all_members:
+                    if not self.phone.SendSMS(Parameters.PETA_NUMBER, txt):  # no success
+                        self.queue += [[Parameters.PETA_NUMBER, txt]]
+                        all_ok = False
+                if not self.phone.SendSMS(Parameters.MY_NUMBER1, txt):  # no success
+                    self.queue += [[Parameters.MY_NUMBER1, txt]]
                     all_ok = False
 
                 if not all_ok:
                     self.sendQueue()
             else:
                 if len(self.queue) < 4:
-                    self.queue += [[txt]]
+                    if all_members:
+                        self.queue += [[Parameters.PETA_NUMBER, txt]]
+                    self.queue += [[Parameters.MY_NUMBER1, txt]]
                     #self.queue += [[Parameters.PETA_NUMBER, txt]]
 
     def log_exception(self, e):
@@ -55,7 +62,7 @@ class Logger:
     def sendQueue(self):
 
         if len(self.queue) > 0:
-            if self.phone.SendSMS(Parameters.MY_NUMBER1, self.queue[0]):
+            if self.phone.SendSMS(self.queue[0][0], self.queue[0][1]):
                 self.queue.pop(0) # pop only in case of success
 
         if not self._terminate:  # do not continue if app terminated
