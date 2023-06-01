@@ -10,14 +10,20 @@ send_SMS = False
 rootPath = str(pathlib.Path(__file__).parent.absolute())
 
 class Logger:
-    def __init__(self, filename="main", verbosity=Parameters.NORMAL, phone=None):
+    CRITICAL = 0
+    NORMAL = 1
+    RICH = 2
+    FULL = 3
+
+    phone = None
+
+    def __init__(self, filename="main", verbosity=NORMAL):
         self.filename = filename
-        self.phone=phone
         self._terminate = False
         self.queue = []
         self.verbosity = verbosity
 
-    def log(self, txt, _verbosity=Parameters.NORMAL, all_members=False):
+    def log(self, txt, _verbosity=NORMAL, all_members=False):
         if _verbosity > self.verbosity:
             return
         print(str(txt))
@@ -29,14 +35,14 @@ class Logger:
 
         all_ok = False
         if send_SMS:
-            if _verbosity == Parameters.CRITICAL:
+            if _verbosity == CRITICAL:
                 if len(self.queue) == 0:
                     all_ok = True
                     if all_members:
-                        if not self.phone.SendSMS(Parameters.PETA_NUMBER, txt):  # no success
+                        if not Logger.phone.SendSMS(Parameters.PETA_NUMBER, txt):  # no success
                             self.queue += [[Parameters.PETA_NUMBER, txt]]
                             all_ok = False
-                    if not self.phone.SendSMS(Parameters.MY_NUMBER1, txt):  # no success
+                    if not Logger.phone.SendSMS(Parameters.MY_NUMBER1, txt):  # no success
                         self.queue += [[Parameters.MY_NUMBER1, txt]]
                         all_ok = False
 
@@ -65,7 +71,7 @@ class Logger:
     def sendQueue(self):
 
         if len(self.queue) > 0:
-            if self.phone.SendSMS(self.queue[0][0], self.queue[0][1]):
+            if Logger.phone.SendSMS(self.queue[0][0], self.queue[0][1]):
                 self.queue.pop(0) # pop only in case of success
 
         if not self._terminate:  # do not continue if app terminated

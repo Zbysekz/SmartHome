@@ -3,7 +3,6 @@
 import sys
 import os
 import socket
-from serialData import Receiver
 import serialData
 import time
 import select
@@ -11,7 +10,7 @@ import traceback
 import subprocess
 from datetime import datetime
 from threading import Thread
-from parameters import Parameters
+from parameters import parameters
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -19,208 +18,194 @@ sys.path.append(parent)
 
 from logger import Logger
 
-logger = Logger("tcpServer", Parameters.RICH)
-conn=''
-s=''
-BUFFER_SIZE = 256  # Normally 1024, but we want fast response
-sendQueue = []
-TXQUEUELIMIT=30 # send buffer size for all messages
-TXQUEUELIMIT_PER_DEVICE = 5 # how much send messages can be in queue at the same time - if there is this count,
-                            # device is considered as offline
-onlineDevices = [] # list of online devices - offline becomes when we want to send lot of data to it, but it's not connecting
 
-terminate = False # termination by user keyboard
+class cTCPServer:
+    def __init__(self):
 
-def Init():
-    global conn, s, tmrPrintBufferStat
-    
-    TCP_IP = '192.168.0.3'
-    TCP_PORT = 23
+        self.logger = Logger("tcpServer", Logger.RICH)
+        self.conn = ''
+        self.s = ''
+        self.BUFFER_SIZE = 256  # Normally 1024, but we want fast response
+        self.sendQueue = []
+        self.TXQUEUELIMIT = 30  # send buffer size for all messages
+        self.TXQUEUELIMIT_PER_DEVICE = 5  # how much send messages can be in queue at the same time - if there is this count,
+        # device is considered as offline
+        self.onlineDevices = []  # list of online devices - offline becomes when we want to send lot of data to it, but it's not connecting
 
-    logger.log ('tcp server init')
-    #socket.setdefaulttimeout(5)
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setblocking(0)
-    s.bind((TCP_IP, TCP_PORT))
-    s.listen(10)
+        self.tmrPrintBufferStat = time.time()
 
-    tmrPrintBufferStat = time.time()
- 
-    #conn.close()
-    #print ('end')
+    def init(self):
+        self.logger.log('tcp server init')
+        # socket.setdefaulttimeout(5)
+        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.s.setblocking(0)
+        self.s.bind((parameters.SERVER_IP, int(parameters.SERVER_PORT)))
+        self.s.listen(10)
 
-def isTerminated():
-    return terminate
+        self.tmrPrintBufferStat = time.time()
 
-def Handle(MySQL):
-    global conn, BUFFER_SIZE, s, sendQueue, terminate
+        # conn.close()
+        # print ('end')
 
-    PrintBufferStatistics()
+    def isTerminated(self):
+        return self.terminate
 
-    try:
-        s.settimeout(4.0)
-        conn, addr = s.accept()
-        ip = addr[0]
-        logger.log('Device with address '+str(ip)+' was connected', Parameters.RICH)
-        if addr[0] not in onlineDevices:
-            onlineDevices.append(ip)
-            logger.log('New device with address ' + str(ip) + ' was connected')
-            MySQL.AddOnlineDevice(str(ip))
+    def _handle(self, MySQL):
+        self.PrintBufferStatistics()
 
-        conn.settimeout(4.0)
-        
-        Thread(target=ReceiveThread, args=(conn, ip)).start()
+        try:
+            self.s.settimeout(4.0)
+            conn, addr = self.s.accept()
+            ip = addr[0]
+            self.logger.log('Device with address ' + str(ip) + ' was connected', Logger.RICH)
+            if addr[0] not in self.onlineDevices:
+                self.onlineDevices.append(ip)
+                self.logger.log('New device with address ' + str(ip) + ' was connected')
+                MySQL.AddOnlineDevice(str(ip))
 
-    except KeyboardInterrupt:
-        logger.log("Interrupted by user keyboard -----")
-        terminate = True
+            conn.settimeout(4.0)
 
-    except:
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-        
-        if(exc_type == socket.timeout):
-            logger.log("Socket timeout!", Parameters.FULL)
+            Thread(target=self.ReceiveThread, args=(conn, ip)).start()
+
+        except KeyboardInterrupt:
+            self.logger.log("Interrupted by user keyboard -----")
+            self.terminate = True
+
+        except:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+
+            if exc_type == socket.timeout:
+                self.logger.log("Socket timeout!", Logger.FULL)
+            else:
+                self.logger.log("Exception:")
+                self.logger.log(''.join('!! ' + line for line in lines))
+
+    def ReceiveThread(self, conn, ip):
+        try:
+            # if you have something to send, send it
+            sendWasPerformed = False
+
+            queueNotForThisIp = [x for x in self.sendQueue if x[1] != ip]
+
+            for tx in self.sendQueue:
+                if tx[1] == ip:  # only if we have something to send to the address that has connected
+                    conn.send(tx[0])
+
+                    sendWasPerformed = True
+                    self.logger.log(f"Sending tx data to '{ip}' data:{tx[0]}", Logger.RICH)
+
+            self.sendQueue = queueNotForThisIp  # replace items with the items that we haven't sent
+
+            if not sendWasPerformed:
+                self.logger.log("Nothing to be send to this connected device '" + str(ip) + "'", Logger.FULL)
+
+            conn.send(serialData.CreatePacket(
+                bytes([199])))  # ending packet - signalizing that we don't have anything to sent no more
+
+            time.sleep(0.1)  # give client some time to send me data
+
+            receiverInstance = serialData.Receiver()
+            while True:
+                # data receive
+                r, _, _ = select.select([conn], [], [], 4)
+                if r:
+                    data = conn.recv(self.BUFFER_SIZE)
+                else:
+                    self.logger.log("Device '" + str(ip) + "' was connected, but haven't send any data.")
+                    break
+
+                if not data:
+                    break
+
+                st = ""
+                for d in data:
+                    # if last received byte was ok, finish
+                    # client can send multiple complete packets
+                    isMeteostation = str(ip) == "192.168.0.10"  # extra exception for meteostation
+                    if not receiverInstance.Receive(d, noCRC=isMeteostation):
+                        self.logger.log("Error above for ip:" + str(ip))
+                    st += str(d) + ", "
+
+                self.logger.log("Received data:" + str(st), Logger.FULL)
+
+        except ConnectionResetError:
+            if ip != "192.168.0.11":  # ignore keyboard reset errors
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+                self.logger.log("Exception in rcv thread, IP:" + str(ip))
+                self.logger.log(''.join('!! ' + line for line in lines))
+        except Exception:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+            self.logger.log("Exception in rcv thread, IP:" + str(ip))
+            self.logger.log(''.join('!! ' + line for line in lines))
+
+        conn.close()
+
+    def send(self, MySQL, data, destination, crc16=True):  # put in send queue
+
+        if len(self.sendQueue) >= self.TXQUEUELIMIT_PER_DEVICE:  # if buffer is at least that full
+            cnt = sum([msg[1] == destination for msg in self.sendQueue])  # how much are with same address
+            if cnt >= self.TXQUEUELIMIT_PER_DEVICE:  # this device will become offline
+
+                self.RemoveOnlineDevice(MySQL, destination)
+                # now remove the oldest message and further normally append newest
+                oldMsgs = [msg for msg in self.sendQueue if msg[1] == destination]
+
+                if (len(oldMsgs) > 0):
+                    self.sendQueue.remove(oldMsgs[0])
+
+        if len(self.sendQueue) < self.TXQUEUELIMIT:
+            self.sendQueue.append((serialData.CreatePacket(data, crc16), destination))
         else:
-            logger.log("Exception:")
-            logger.log(''.join('!! ' + line for line in lines))
+            self.logger.log("MAXIMUM TX QUEUE LIMIT REACHED!!")
 
-def ReceiveThread(conn, ip):
-    global sendQueue
-    try:
-        #if you have something to send, send it
-        sendWasPerformed = False
-        
-        queueNotForThisIp = [x for x in sendQueue if x[1]!=ip]
-        
-        for tx in sendQueue:
-            if(tx[1]==ip):#only if we have something to send to the address that has connected                  
-                conn.send(tx[0])
+    def RemoveOnlineDevice(self, MySQL, destination):
+        if destination in self.onlineDevices:
+            self.onlineDevices.remove(destination)
+            self.logger.log("Device with address:'" + destination + "' became OFFLINE!")
+            self.MySQL.RemoveOnlineDevice(destination)
 
-                sendWasPerformed = True
-                logger.log(f"Sending tx data to '{ip}' data:{tx[0]}", Parameters.RICH)
-        
-        sendQueue = queueNotForThisIp # replace items with the items that we haven't sent
+    def SendACK(self, data, destination):
+        # poslem CRC techto dat na danou destinaci
+        CRC = serialData.calculateCRC(data) + len(data)
 
-        if not sendWasPerformed:
-            logger.log("Nothing to be send to this connected device '"+str(ip)+"'", Parameters.FULL)
-        
-        conn.send(serialData.CreatePacket(bytes([199]))) # ending packet - signalizing that we don't have anything to sent no more
+        if len(self.sendQueue) < self.TXQUEUELIMIT:
+            self.sendQueue.append((serialData.CreatePacket(bytes([99, int(CRC) % 256, int(CRC / 256)])), destination))
+            self.logger.log("sending BACK" + str(CRC) + " to destination:" + destination)
+        else:
+            self.logger.log("MAXIMUM TX QUEUE LIMIT REACHED")
 
-        time.sleep(0.1) # give client some time to send me data
-        
-        
-        receiverInstance = Receiver()
-        while True:
-            #data receive
-            r, _, _ = select.select([conn], [], [],4)
-            if r:
-                data = conn.recv(BUFFER_SIZE)
-            else:
-                logger.log("Device '"+str(ip)+"' was connected, but haven't send any data.")
-                break
+    def PrintBufferStatistics(self):
+        if time.time() - self.tmrPrintBufferStat > 600 and len(
+                self.sendQueue) >= self.TXQUEUELIMIT_PER_DEVICE:  # periodically and only if there are some messages waiting
+            tmrPrintBufferStat = time.time()
+            self.logger.log("------ Buffer statistics:")
+            self.logger.log("Msgs in send buffer:" + str(len(self.sendQueue)))
+            # find different devices in queue
+            uniqDev = []
+            for dev in self.sendQueue:
+                # find match in uniq
+                item = next((x for x in uniqDev if x[0] == dev[1]), None)
 
-            if not data:
-                break
+                if item is None:
+                    uniqDev.append([dev[1], 1])
+                else:
+                    item[1] = item[1] + 1  # increase occurence
 
-            st = ""
-            for d in data:
-                 # if last received byte was ok, finish
-                 # client can send multiple complete packets
-                isMeteostation = str(ip)=="192.168.0.10"#extra exception for meteostation
-                if not receiverInstance.Receive(d, noCRC=isMeteostation):
-                    logger.log("Error above for ip:"+str(ip))
-                st+= str(d)+", "
-            
-            logger.log("Received data:"+str(st), Parameters.FULL)
+                self.logger.log("Occurences:")
+                self.logger.log(uniqDev)
+            self.logger.log("------ ")
 
-    except ConnectionResetError:
-        if ip != "192.168.0.11":# ignore keyboard reset errors
-           exc_type, exc_value, exc_traceback = sys.exc_info()
-           lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-           logger.log("Exception in rcv thread, IP:" + str(ip))
-           logger.log(''.join('!! ' + line for line in lines))
-    except Exception :
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-        logger.log("Exception in rcv thread, IP:"+str(ip))
-        logger.log(''.join('!! ' + line for line in lines))
-            
-    conn.close()
-        
-def Send(MySQL, data, destination, crc16=True):#put in send queue
-    global sendQueue, onlineDevices
+    def DataReceived(self):
+        return serialData.getRcvdData()
 
-    if len(sendQueue) >= TXQUEUELIMIT_PER_DEVICE: # if buffer is at least that full
-        cnt = sum([msg[1] == destination for msg in sendQueue]) # how much are with same address
-        if cnt >= TXQUEUELIMIT_PER_DEVICE:# this device will become offline
+    def DataRemaining(self):
+        return serialData.getRcvdDataLen()
 
-            RemoveOnlineDevice(MySQL, destination)
-            # now remove the oldest message and further normally append newest
-            oldMsgs = [msg for msg in sendQueue if msg[1] == destination]
+    @classmethod
+    def Ping(cls, host):
+        ping_response = subprocess.Popen(["/bin/ping", "-c1", "-w100", host], stdout=subprocess.PIPE).stdout.read()
 
-            if(len(oldMsgs)>0):
-                sendQueue.remove(oldMsgs[0])
-
-    if len(sendQueue)<TXQUEUELIMIT:
-        sendQueue.append((serialData.CreatePacket(data, crc16),destination))
-    else:
-        logger.log("MAXIMUM TX QUEUE LIMIT REACHED!!")
-
-def RemoveOnlineDevice(MySQL, destination):
-    global onlineDevices
-    
-    if destination in onlineDevices:
-        onlineDevices.remove(destination)
-        logger.log("Device with address:'"+destination+"' became OFFLINE!")
-        MySQL.RemoveOnlineDevice(destination)
-                
-def SendACK(data,destination):
-    #poslem CRC techto dat na danou destinaci
-    global sendQueue,TXQUEUELIMIT
-
-    CRC = serialData.calculateCRC(data) + len(data)
-    
-    if len(sendQueue)<TXQUEUELIMIT:
-        sendQueue.append((serialData.CreatePacket(bytes([99,int(CRC)%256,int(CRC/256)])),destination))
-        logger.log("sending BACK"+str(CRC)+" to destination:"+destination)
-    else:
-        logger.log("MAXIMUM TX QUEUE LIMIT REACHED")
-
-
-def PrintBufferStatistics():
-    global tmrPrintBufferStat, sendQueue
-
-    if time.time() - tmrPrintBufferStat > 600 and len(sendQueue) >= TXQUEUELIMIT_PER_DEVICE: # periodically and only if there are some messages waiting
-        tmrPrintBufferStat = time.time()
-        logger.log("------ Buffer statistics:")
-        logger.log("Msgs in send buffer:" + str(len(sendQueue)))
-        # find different devices in queue
-        uniqDev = []
-        for dev in sendQueue:
-            # find match in uniq
-            item = next((x for x in uniqDev if x[0] == dev[1]), None)
-
-            if item is None:
-                uniqDev.append([dev[1], 1])
-            else:
-                item[1] = item[1] + 1 # increase occurence
-
-            logger.log("Occurences:")
-            logger.log(uniqDev)
-        logger.log("------ ")
-
-
-def DataReceived():
-    return serialData.getRcvdData()
-
-def DataRemaining():
-    return serialData.getRcvdDataLen()
-
-def Ping(host):
-    ping_response = subprocess.Popen(["/bin/ping", "-c1", "-w100", host], stdout=subprocess.PIPE).stdout.read()
-
-    return True if "1 received" in ping_response.decode("utf-8") else False
-
-
-
+        return True if "1 received" in ping_response.decode("utf-8") else False

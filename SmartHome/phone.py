@@ -8,413 +8,399 @@ from enum import Enum
 from logger import Logger
 import time
 from parameters import Parameters
+from databaseMySQL import cMySQL
+from templates.threadModule import cThreadModule
+
 
 DISABLE_SMS = False
 
-serPort = 0
-incomeSMSList=[]
-reqReadSMS=False
-reqSendSMS=False
-reqSignalInfo=False
 
-signalStrength=0
-qualityIndicator="Not available"
+class cPhone(cThreadModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.logger = Logger("phone", verbosity=Logger.NORMAL)
 
-receiverNumber=""
+        self.mySQL = cMySQL()
+        self.serPort = 0
+        self.incomeSMSList = []
+        self.reqReadSMS = False
+        self.reqSendSMS = False
+        self.reqSignalInfo = False
 
-sendSMStext = ""
-sendSMSreceiver = ""
-readSMStext = ""
-readSMSsender = ""
-nOfReceivedSMS = 0
-tmrTimeout = 0
-clearBufferWhenPhoneOffline=0
+        self.signalStrength = 0
+        self.qualityIndicator = "Not available"
 
-#stats
-commState = False
-signalStrength = 0
+        self.receiverNumber = ""
 
-logger = Logger("phone", verbosity = Parameters.NORMAL)
+        self.sendSMStext = ""
+        self.sendSMSreceiver = ""
+        self.readSMStext = ""
+        self.readSMSsender = ""
+        self.nOfReceivedSMS = 0
+        self.tmrTimeout = 0
+        self.clearBufferWhenPhoneOffline = 0
+        self.timeOfReceive = 0
+        self.configLine = ""
 
-#---------------------------------------------------------------------------------------
-def STATE_idle():
-    global reqReadSMS,reqSendSMS,reqSignalInfo
-    
-    if reqSendSMS:
-        NextState(STATE_SMS_send)
-        reqSendSMS=False
-    elif reqReadSMS:
-        NextState(STATE_SMS_read)
-        reqReadSMS=False
-    elif reqSignalInfo:
-        NextState(STATE_SIGNAL_req)
-        reqSignalInfo=False
+        # stats
+        self.commState = False
+        self.signalStrength = 0
 
+        self.logger = Logger("phone", verbosity=Logger.NORMAL)
 
-    rcvLines = ReceiveLinesFromSerial()
-    
-    for rcvLine in rcvLines:#receiving of one way asynchronnous commands
-        if(b"RING" in rcvLine):
-            logger.log("Phone is ringing!!!")
+        # ---------------------------------------------------------------------------------------
+        self.stateList = [
+            self.STATE_idle,
+            self.STATE_SMS_sendFail,
+            self.STATE_SMS_send,
+            self.STATE_SMS_send2,
+            self.STATE_SMS_send3,
+            self.STATE_SMS_sendVerify,
+            self.STATE_SMS_read,
+            self.STATE_SMS_read2,
+            self.STATE_SMS_read3,
+            self.STATE_SMS_delete,
+            self.STATE_SMS_delete2,
+            self.STATE_SIGNAL_req,
+            self.STATE_SIGNAL_req2,
+            self.STATE_SIGNAL_response
+        ]
 
-def STATE_SMS_sendFail():#if sendinf SMS fail, wait for some time and try it again
-    global reqSendSMS
-    if CheckTimeout(60):
-        reqSendSMS=True
-        NextState(STATE_idle)
-         
-def STATE_SMS_send():
-    global serPort
-    
-    serPort.write(bytes("AT+CMGF=1\x0D",'UTF-8'));
-        
-    NextState()
- 
-def STATE_SMS_send2():
-    global serPort,commState
-    
-    
-    rcvLines = ReceiveLinesFromSerial()
-    
-    for rcvLine in rcvLines:
-        if b"OK" in rcvLine:
-            serPort.write(bytes("AT+CMGS=\x22"+receiverNumber+"\x22\x0D",'UTF-8'));# \x22 is "
-            NextState();
-            break
+        self.currState = self.STATE_idle
+        self.nextState = ""
 
-    if CheckTimeout(5):
-        logger.log("Timeout in state:"+str(currState))
-        NextState(STATE_SMS_sendFail)
-        commState=False
+    # ---------------------------------------------------------------------------------------
+    def STATE_idle(self):
+        if self.reqSendSMS:
+            self.NextState(self.STATE_SMS_send)
+            self.reqSendSMS = False
+        elif self.reqReadSMS:
+            self.NextState(self.STATE_SMS_read)
+            self.reqReadSMS = False
+        elif self.reqSignalInfo:
+            self.NextState(self.STATE_SIGNAL_req)
+            self.reqSignalInfo = False
 
-def STATE_SMS_send3():
-    global serPort,commState
-    
-    rcvLines = ReceiveLinesFromSerial()
-    
-    for rcvLine in rcvLines:
-        if b">" in rcvLine:
-            serPort.write(bytes(sendSMStext+"\x1A",'UTF-8'));
-            NextState();
-            break
-        
-    if CheckTimeout(5):
-        logger.log("Timeout in state:"+str(currState))
-        NextState(STATE_SMS_sendFail)
-        commState=False
+        rcvLines = self.ReceiveLinesFromSerial()
 
-def STATE_SMS_sendVerify():
-    global serPort,commState
-    
-    rcvLines = ReceiveLinesFromSerial()
-    
-    for rcvLine in rcvLines:
-        if b"OK" in rcvLine:
-            logger.log("SMS succesfully sent!")
-            NextState(STATE_idle);
-            commState=True
-            break
-        
-    if CheckTimeout(5):
-        logger.log("Timeout in state:"+str(currState))
-        NextState(STATE_SMS_sendFail)
-        commState=False
+        for rcvLine in rcvLines:  # receiving of one way asynchronnous commands
+            if b"RING" in rcvLine:
+                self.logger.log("Phone is ringing!!!")
 
-def STATE_SMS_read():
-    global serPort
-    
-    serPort.write(bytes("AT+CMGF=1\x0D",'UTF-8'));
-        
-    NextState();
-    
-def STATE_SMS_read2():
-    global serPort,readSMSsender, nOfReceivedSMS,commState,configLine
-    
-    rcvLines = ReceiveLinesFromSerial()
-    
-    for rcvLine in rcvLines:
-        logger.log("Phone RCV:"+str(rcvLine),Parameters.FULL)
-        if b"OK" in rcvLine:
-            serPort.write(bytes("AT+CMGL=\x22ALL\x22\x0D",'UTF-8'));
-            
-            readSMSsender = ""
-            nOfReceivedSMS = 0
-    
-            configLine = ""
-            NextState();
-            break
+    def STATE_SMS_sendFail(self):  # if sendinf SMS fail, wait for some time and try it again
+        if self.CheckTimeout(60):
+            self.reqSendSMS = True
+            self.NextState(self.STATE_idle)
 
-    if CheckTimeout(5):
-        logger.log("Timeout in state:"+str(currState))
-        NextState(STATE_idle)
-        commState=False
-    
-    
-# Example:
-# Phone RCV2:b'AT+CMGL="ALL"\r\r'
-# Phone RCV2:b'+CMGL: 1,"REC UNREAD","+420602187490","","20/11/1'
-# Phone RCV2:b'4,08:30:40+04"\r'
-# Phone RCV2:b'heating off\r'
-# Phone RCV2:b'\r'
-# Phone RCV2:b'OK\r'
-def STATE_SMS_read3():
-    global readSMSsender, readSMStext, incomeSMSList, nOfReceivedSMS, commState, configLine
+    def STATE_SMS_send(self):
+        self.serPort.write(bytes("AT+CMGF=1\x0D", 'UTF-8'))
 
-    rcvLines = ReceiveLinesFromSerial()
-    
-    for rcvLine in rcvLines:#receiving of one way asynchronnous commands
-        try:
-            if readSMSsender!="":
-                readSMStext = rcvLine.decode("utf-8").replace('\r','')
-                
-                nOfReceivedSMS = nOfReceivedSMS + 1
+        self.NextState()
 
-                logger.log("Received SMS text:'" + str(readSMStext) + "' From:"+str(readSMSsender), Parameters.NORMAL)
-                incomeSMSList.append((readSMStext,readSMSsender))
-                readSMSsender = ""
-                continue
-            elif b"+CMGL:" in rcvLine or configLine!="":#waits for sms sender, but wait for complete line
-                logger.log("Phone RCV2:"+str(rcvLine),Parameters.FULL)
-                configLine += rcvLine.decode("utf-8")
+    def STATE_SMS_send2(self):
+        rcvLines = self.ReceiveLinesFromSerial()
 
-                if('\r' in configLine):#we have it complete
-                    readSMSsender = configLine.split(',')[2].replace('"','')
-                    timeOfReceive = configLine.split(',')[4].replace('"','')
-                    configLine=""
-                continue
-            elif b"OK" in rcvLine:
-                if nOfReceivedSMS > 0:
-                    NextState(STATE_SMS_delete)
-                else:
-                    NextState(STATE_idle)
-                
-                logger.log("Check completed, received "+str(nOfReceivedSMS) + " SMS",Parameters.FULL)
-                logger.log(incomeSMSList,Parameters.FULL)
-
-                commState=True
-                break
-        except:
-            continue
-
-    if CheckTimeout(10):
-        logger.log("Timeout in state:"+str(currState))
-        NextState(STATE_idle)
-        commState=False
-        
-def STATE_SMS_delete():
-    global serPort
-    
-    serPort.write(bytes("AT+CMGDA=\x22DEL ALL\x22\x0D",'UTF-8'));
-    
-    NextState()
-    
-def STATE_SMS_delete2():
-    global commState
-    
-    rcvLines = ReceiveLinesFromSerial()
-    
-    for rcvLine in rcvLines:#receiving of one way asynchronnous commands
-        try:
+        for rcvLine in rcvLines:
             if b"OK" in rcvLine:
-                NextState(STATE_idle)
-        except:
-            continue
-
-    if CheckTimeout(5):
-        logger.log("Timeout in state:"+str(currState))
-        NextState(STATE_idle)
-        commState=False
-
-def STATE_SIGNAL_req():
-    global serPort
-    
-    serPort.write(bytes("AT+CMGF=1\x0D",'UTF-8'));
-        
-    NextState()
-    
-def STATE_SIGNAL_req2():
-    global serPort,commState
-    
-    rcvLines = ReceiveLinesFromSerial()
-    
-    for rcvLine in rcvLines:#receiving of one way asynchronnous commands
-        if b"OK" in rcvLine:
-             serPort.write(bytes("AT+CSQ\x0D",'UTF-8'));
-             NextState(STATE_SIGNAL_response);
-             break
-
-    if CheckTimeout(5):
-        logger.log("Timeout in state:"+str(currState))
-        NextState(STATE_idle)
-        commState=False
-    
-    
-def STATE_SIGNAL_response():
-    global signalStrength, qualityIndicator, commState
-
-    rcvLines = ReceiveLinesFromSerial()
-    
-    for rcvLine in rcvLines:#receiving of one way asynchronnous commands
-        try:
-            if b"+CSQ:" in rcvLine:
-                signalStrength = int(rcvLine[rcvLine.find(b"+CSQ:")+5:].split(b',')[0])
-                qualityIndicator = "Excellent" if signalStrength>19 else "Good" if signalStrength>14 else "Average" if signalStrength>9 else "Poor"
-            
-                logger.log("Quality "+qualityIndicator+" -> "+str(signalStrength),Parameters.FULL)
-            
-                NextState(STATE_idle)
-                commState=True
+                serPort.write(bytes("AT+CMGS=\x22" + self.receiverNumber + "\x22\x0D", 'UTF-8'))  # \x22 is "
+                self.NextState()
                 break
-        except:
-            continue
 
-    if CheckTimeout(5):
-        logger.log("Timeout in state:"+str(currState))
-        NextState(STATE_idle)
-        commState=False
+        if self.CheckTimeout(5):
+            self.logger.log("Timeout in state:" + str(self.currState))
+            self.NextState(self.STATE_SMS_sendFail)
+            self.commState = False
 
-#---------------------------------------------------------------------------------------
-stateList = [
-    STATE_idle,
-    STATE_SMS_sendFail,
-    STATE_SMS_send,
-    STATE_SMS_send2,
-    STATE_SMS_send3,
-    STATE_SMS_sendVerify,
-    STATE_SMS_read,
-    STATE_SMS_read2,
-    STATE_SMS_read3,
-    STATE_SMS_delete,
-    STATE_SMS_delete2,
-    STATE_SIGNAL_req,
-    STATE_SIGNAL_req2,
-    STATE_SIGNAL_response
-]
+    def STATE_SMS_send3(self):
+        rcvLines = self.ReceiveLinesFromSerial()
 
-currState = STATE_idle
-nextState = ""
+        for rcvLine in rcvLines:
+            if b">" in rcvLine:
+                serPort.write(bytes(self.sendSMStext + "\x1A", 'UTF-8'))
+                self.NextState()
+                break
 
-def NextState(name = ""):
-    global switcher,currState,nextState
+        if self.CheckTimeout(5):
+            self.logger.log("Timeout in state:" + str(self.currState))
+            self.NextState(self.STATE_SMS_sendFail)
+            self.commState = False
 
-    if name == "":
-        idx = stateList.index(currState)
-        idx = idx + 1
-        nextState = stateList[idx]
-    else:
-        nextState = name
-    
+    def STATE_SMS_sendVerify(self):
+        rcvLines = self.ReceiveLinesFromSerial()
 
-def Process():
-    global currState,nextState,tmrTimeout
+        for rcvLine in rcvLines:
+            if b"OK" in rcvLine:
+                self.logger.log("SMS succesfully sent!")
+                self.NextState(self.STATE_idle)
+                self.commState = True
+                break
 
-    if currState != "" and nextState != "" and currState != nextState:
-        logger.log("Phone - transition to:"+nextState.__name__,Parameters.FULL)
-        currState = nextState
-        tmrTimeout = time.time()
-    
-    # Execute the function
-    currState()
+        if self.CheckTimeout(5):
+            self.logger.log("Timeout in state:" + str(self.currState))
+            self.NextState(self.STATE_SMS_sendFail)
+            self.commState = False
 
-def CheckTimeout(timeout):#in seconds
-    global tmrTimeout
+    def STATE_SMS_read(self):
+        global serPort
 
-    if time.time() - tmrTimeout > timeout:
-        return True
-    else:
-        return False
-    
+        serPort.write(bytes("AT+CMGF=1\x0D", 'UTF-8'))
 
-def Connect():
-    global serPort
-    serPort = serial.Serial(
-  
-       port='/dev/ttyS0',
-       baudrate = 9600,
-       parity=serial.PARITY_NONE,
-       stopbits=serial.STOPBITS_ONE,
-       bytesize=serial.EIGHTBITS,
-       timeout=0.1
-    )
+        self.NextState()
 
-def getIncomeSMSList():
-    global incomeSMSList
-    return incomeSMSList
+    def STATE_SMS_read2(self):
+        rcvLines = self.ReceiveLinesFromSerial()
 
-def clearIncomeSMSList():
-    global incomeSMSList
-    incomeSMSList.clear()
+        for rcvLine in rcvLines:
+            self.logger.log("Phone RCV:" + str(rcvLine), Logger.FULL)
+            if b"OK" in rcvLine:
+                self.serPort.write(bytes("AT+CMGL=\x22ALL\x22\x0D", 'UTF-8'))
 
-def ReadSMS():
-    global reqReadSMS
-    reqReadSMS = True
-    
-def CheckSignalInfo():
-    global reqSignalInfo
-    reqSignalInfo = True
+                self.readSMSsender = ""
+                self.nOfReceivedSMS = 0
 
-def SendSMS(receiver,text):
-    global receiverNumber,sendSMStext,reqSendSMS
+                self.configLine = ""
+                self.NextState()
+                break
 
-    if DISABLE_SMS:
-        logger.log("SMS feature manually disabled! SMS:'"+str(text)+"' will not be send!")
-        return True
+        if self.CheckTimeout(5):
+            self.logger.log("Timeout in state:" + str(self.currState))
+            self.NextState(self.STATE_idle)
+            self.commState = False
 
-    if reqSendSMS:
-        logger.log("Already sending SMS! Text:"+str(sendSMStext))
-        return False
-    else:
-        logger.log("Sending SMS:" + text)
-        reqSendSMS = True
-        receiverNumber = receiver
-        sendSMStext = text
-        return True
+    # Example:
+    # Phone RCV2:b'AT+CMGL="ALL"\r\r'
+    # Phone RCV2:b'+CMGL: 1,"REC UNREAD","+420602187490","","20/11/1'
+    # Phone RCV2:b'4,08:30:40+04"\r'
+    # Phone RCV2:b'heating off\r'
+    # Phone RCV2:b'\r'
+    # Phone RCV2:b'OK\r'
+    def STATE_SMS_read3(self):
+        rcvLines = self.ReceiveLinesFromSerial()
 
-def getCommState():#status of communication with SIM800L module
-    return commState
+        for rcvLine in rcvLines:  # receiving of one way asynchronnous commands
+            try:
+                if self.readSMSsender != "":
+                    self.readSMStext = rcvLine.decode("utf-8").replace('\r', '')
 
-def getSignalInfo():
-    return qualityIndicator
+                    self.nOfReceivedSMS = self.nOfReceivedSMS + 1
 
-def ReceiveLinesFromSerial():
-    global serPort,clearBufferWhenPhoneOffline
+                    self.logger.log("Received SMS text:'" + str(self.readSMStext) + "' From:" + str(self.readSMSsender),
+                               Logger.NORMAL)
+                    self.incomeSMSList.append((self.readSMStext, self.readSMSsender))
+                    self.readSMSsender = ""
+                    continue
+                elif b"+CMGL:" in rcvLine or self.configLine != "":  # waits for sms sender, but wait for complete line
+                    self.logger.log("Phone RCV2:" + str(rcvLine), Logger.FULL)
+                    self.configLine += rcvLine.decode("utf-8")
 
-    maxChars = 200#max this count of chars can be read
-    rcvLine = bytes()
-    rcvLines = []
-    ptr=0
-    try:
-        ch = serPort.read(maxChars)
-    except Exception as inst:
-        logger.log("Exception in reading phone serial port")
-        logger.log(type(inst))    # the exception instance
-        logger.log(inst.args)     # arguments stored in .args
-        logger.log(inst)
-        
-        return rcvLines
-        
-    if len(ch)==maxChars:#if we have received maximum characters, increase var and then reset input buffer - when phone is offline, input buffer is full of zeroes
-        clearBufferWhenPhoneOffline += 1
-    
-    if (clearBufferWhenPhoneOffline>3):
-        logger.log("Serial input buffer reset!")
-        clearBufferWhenPhoneOffline=0
-        serPort.reset_input_buffer()
-        return []
-    
-    while(ptr<len(ch)):
-    
-        if(ch[ptr]==10):#b'\n'
+                    if ('\r' in self.configLine):  # we have it complete
+                        self.readSMSsender = self.configLine.split(',')[2].replace('"', '')
+                        self.timeOfReceive = self.configLine.split(',')[4].replace('"', '')
+                        self.configLine = ""
+                    continue
+                elif b"OK" in rcvLine:
+                    if self.nOfReceivedSMS > 0:
+                        self.NextState(self.STATE_SMS_delete)
+                    else:
+                        self.NextState(self.STATE_idle)
+
+                    self.logger.log("Check completed, received " + str(self.nOfReceivedSMS) + " SMS", Logger.FULL)
+                    self.logger.log(self.incomeSMSList, Logger.FULL)
+
+                    self.commState = True
+                    break
+            except:
+                continue
+
+        if self.CheckTimeout(10):
+            self.logger.log("Timeout in state:" + str(self.currState))
+            self.NextState(self.STATE_idle)
+            commState = False
+
+    def STATE_SMS_delete(self):
+        serPort.write(bytes("AT+CMGDA=\x22DEL ALL\x22\x0D", 'UTF-8'))
+        self.NextState()
+
+    def STATE_SMS_delete2(self):
+        rcvLines = self.ReceiveLinesFromSerial()
+
+        for rcvLine in rcvLines:  # receiving of one way asynchronnous commands
+            try:
+                if b"OK" in rcvLine:
+                    self.NextState(self.STATE_idle)
+            except:
+                continue
+
+        if self.CheckTimeout(5):
+            self.logger.log("Timeout in state:" + str(self.currState))
+            self.NextState(self.STATE_idle)
+            self.commState = False
+
+    def STATE_SIGNAL_req(self):
+        self.serPort.write(bytes("AT+CMGF=1\x0D", 'UTF-8'))
+
+        self.NextState()
+
+    def STATE_SIGNAL_req2(self):
+        rcvLines = self.ReceiveLinesFromSerial()
+
+        for rcvLine in rcvLines:  # receiving of one way asynchronnous commands
+            if b"OK" in rcvLine:
+                self.serPort.write(bytes("AT+CSQ\x0D", 'UTF-8'))
+                self.NextState(self.STATE_SIGNAL_response)
+                break
+
+        if self.CheckTimeout(5):
+            self.logger.log("Timeout in state:" + str(self.currState))
+            self.NextState(self.STATE_idle)
+            self.commState = False
+
+    def STATE_SIGNAL_response(self):
+        rcvLines = self.ReceiveLinesFromSerial()
+
+        for rcvLine in rcvLines:  # receiving of one way asynchronnous commands
+            try:
+                if b"+CSQ:" in rcvLine:
+                    self.signalStrength = int(rcvLine[rcvLine.find(b"+CSQ:") + 5:].split(b',')[0])
+                    self.qualityIndicator = "Excellent" if self.signalStrength > 19 else "Good" if self.signalStrength > 14 else "Average" if self.signalStrength > 9 else "Poor"
+
+                    self.logger.log("Quality " + self.qualityIndicator + " -> " + str(self.signalStrength), Logger.FULL)
+
+                    self.NextState(self.STATE_idle)
+                    self.commState = True
+                    break
+            except:
+                continue
+
+        if self.CheckTimeout(5):
+            self.logger.log("Timeout in state:" + str(self.currState))
+            self.NextState(self.STATE_idle)
+            self.commState = False
+
+    def NextState(self, name=""):
+        if name == "":
+            idx = self.stateList.index(self.currState)
+            idx = idx + 1
+            self.nextState = self.stateList[idx]
+        else:
+            self.nextState = name
+
+    def Process(self):
+        if self.currState != "" and self.nextState != "" and self.currState != self.nextState:
+            self.logger.log("Phone - transition to:" + self.nextState.__name__, Logger.FULL)
+            self.currState = self.nextState
+            self.tmrTimeout = time.time()
+
+        # Execute the function
+        self.currState()
+
+    def CheckTimeout(self, timeout):  # in seconds
+        if time.time() - self.tmrTimeout > timeout:
+            return True
+        else:
+            return False
+
+    def Connect(self):
+        self.logger.log("Initializing serial port...")
+
+        self.serPort = serial.Serial(
+
+            port='/dev/ttyS0',
+            baudrate=9600,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            bytesize=serial.EIGHTBITS,
+            timeout=0.1
+        )
+
+    def getIncomeSMSList(self):
+        return self.incomeSMSList
+
+    def clearIncomeSMSList(self):
+        self.incomeSMSList.clear()
+
+    def ReadSMS(self):
+        self.reqReadSMS = True
+
+    def CheckSignalInfo(self):
+        self.reqSignalInfo = True
+
+    def SendSMS(self, receiver, text):
+        if DISABLE_SMS:
+            self.logger.log("SMS feature manually disabled! SMS:'" + str(text) + "' will not be send!")
+            return True
+
+        if self.reqSendSMS:
+            self.logger.log("Already sending SMS! Text:" + str(self.sendSMStext))
+            return False
+        else:
+            self.logger.log("Sending SMS:" + text)
+            self.reqSendSMS = True
+            self.receiverNumber = receiver
+            self.sendSMStext = text
+            return True
+
+    def getCommState(self):  # status of communication with SIM800L module
+        return self.commState
+
+    def getSignalInfo(self):
+        return self.qualityIndicator
+
+    def ReceiveLinesFromSerial(self):
+        maxChars = 200  # max this count of chars can be read
+        rcvLine = bytes()
+        rcvLines = []
+        ptr = 0
+        try:
+            ch = self.serPort.read(maxChars)
+        except Exception as inst:
+            self.logger.log("Exception in reading phone serial port")
+            self.logger.log(type(inst))  # the exception instance
+            self.logger.log(inst.args)  # arguments stored in .args
+            self.logger.log(inst)
+
+            return rcvLines
+
+        if len(ch) == maxChars:  # if we have received maximum characters, increase var and then reset input buffer - when phone is offline, input buffer is full of zeroes
+            self.clearBufferWhenPhoneOffline += 1
+
+        if self.clearBufferWhenPhoneOffline > 3:
+            self.logger.log("Serial input buffer reset!")
+            clearBufferWhenPhoneOffline = 0
+            serPort.reset_input_buffer()
+            return []
+
+        while ptr < len(ch):
+
+            if ch[ptr] == 10:  # b'\n'
+                rcvLines.append(rcvLine)
+                rcvLine = bytes()
+
+            elif ch[ptr] != 0:  # b'\x00'
+                # print(ch)
+                # print("chr:"+chr(ord(ch)))
+                # print(ch[ptr])
+                rcvLine += ch[ptr].to_bytes(1, byteorder='big')
+            ptr += 1
+
+        if len(rcvLine) != 0:
             rcvLines.append(rcvLine)
-            rcvLine=bytes()
-            
-        elif(ch[ptr]!=0):#b'\x00'
-            #print(ch)
-            #print("chr:"+chr(ord(ch)))
-            #print(ch[ptr])
-            rcvLine+=ch[ptr].to_bytes(1, byteorder='big')
-        ptr += 1
+        return rcvLines
 
-    if(len(rcvLine)!=0):
-        rcvLines.append(rcvLine)
-    return rcvLines
+    def handle(self):
+        self.ReadSMS()
+        self.CheckSignalInfo()
+
+        # process incoming SMS
+        for sms in self.getIncomeSMSList():
+            self.IncomingSMS(sms)
+        self.clearIncomeSMSList()
+
+        self.mySQL.updateState('phoneSignalInfo', str(self.getSignalInfo()))
+        self.mySQL.updateState('phoneCommState', int(self.getCommState()))
+
+        if not self.terminate:  # do not continue if app terminated
+            self.threading.Timer(20, self.timerPhone).start()
+        else:
+            # end logger thread too
+            self.logger.terminate()
