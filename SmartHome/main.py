@@ -35,11 +35,7 @@ MINUTE = 60
 
 # -----------------------------------------------
 
-# -------------STATE VARIABLES-------------------
 
-
-globalFlags = {}  # contains data from table globalFlags - controls behaviour of subsystems
-currentValues = {}  # contains latest measurements data
 # -----------------------------------------------
 
 # ------------AUXILIARY VARIABLES----------------
@@ -58,8 +54,6 @@ tmrConsPowerwall = 0
 tmrVentHeatControl = 0
 tmrFastPowerwallControl = 0
 
-bufferedCellModVoltage = 24 * [0]
-
 # cycle time
 tmrCycleTime = 0
 cycleTime_avg = 0
@@ -69,7 +63,7 @@ cycleTime = 0
 cycleTime_max = 0
 # -----------------------------------------------
 
-logger = Logger("main", verbosity=Logger.FULL)
+logger = Logger("main", verbosity=parameters.VERBOSITY)
 MySQL = cMySQL()
 cThreadModule.logger = logger
 ###############################################################################################################
@@ -83,7 +77,11 @@ def main():
         commProcessor = comm.cCommProcessor(period_s=5)
         dataProcessor = data_processing.cDataProcessor(phone=phone, period_s=10)
         houseSecurity = cHouseSecurity(logger, MySQL, commProcessor, dataProcessor, phone)
+
         commProcessor.house_security = houseSecurity
+        commProcessor.TCP_server.data_received_callback = dataProcessor.data_received
+        dataProcessor.house_security = houseSecurity
+        dataProcessor.commProcessor = commProcessor
 
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -96,6 +94,7 @@ def main():
 
     commProcessor.handle()
     dataProcessor.handle()
+    commProcessor.TCP_server.handle()
     phone.handle()
 
     ######################## MAIN LOOP ####################################################################################

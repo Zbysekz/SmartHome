@@ -29,6 +29,23 @@ if time.time() - tmrPriceCalc > 3600 * 4:  # each 4 hour
     updateStats.execute_4hour(MySQL_GeneralThread)
 
 
+if time.time() - tmrVentHeatControl > 300:  # each 5 mins
+    tmrVentHeatControl = time.time()
+
+    if len(globalFlags) > 0 and len(currentValues) > 0:  # we get both values from DTB
+        ControlPowerwall()
+        ControlVentilation()
+        ControlHeating()
+    else:
+        tmrVentHeatControl = time.time() - 200  # try it sooner
+
+if time.time() - tmrFastPowerwallControl > 30:  # each 30secs
+    tmrFastPowerwallControl = time.time()
+    globalFlags = MySQL_GeneralThread.getGlobalFlags()  # update global flags
+    currentValues = MySQL_GeneralThread.getCurrentValues()
+
+    ControlPowerwall_fast()
+
 def CheckGasSensor():
     global alarm, gasSensorPrepared
 

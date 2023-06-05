@@ -13,6 +13,7 @@ from parameters import parameters
 from templates.threadModule import cThreadModule
 from logger import Logger
 from databaseMySQL import cMySQL
+from comm.device import cDevice
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -22,17 +23,18 @@ sys.path.append(parent)
 class cTCPServer(cThreadModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.logger = Logger("tcpServer", Logger.RICH)
+        self.logger = Logger("tcpServer", parameters.VERBOSITY)
         self.conn = ''
         self.s = ''
         self.BUFFER_SIZE = 256  # Normally 1024, but we want fast response
         self.sendQueue = []
         self.TXQUEUELIMIT = 30  # send buffer size for all messages
         self.TXQUEUELIMIT_PER_DEVICE = 5  #  how much send messages can be in queue at the same time - if there is this count,
-        # device is considered as offline
-        self.onlineDevices = []  #  list of online devices - offline becomes when we want to send lot of data to it, but it's not connecting
 
         self.tmrPrintBufferStat = time.time()
+        self.data_received_callback = None
+        self.mySQL = cMySQL()
+        self.devices = None
 
     def init(self):
         self.logger.log('tcp server init')
@@ -43,7 +45,7 @@ class cTCPServer(cThreadModule):
         self.s.listen(10)
 
         self.tmrPrintBufferStat = time.time()
-        self.mySQL = cMySQL()
+
 
         # conn.close()
         # print ('end')
@@ -55,15 +57,19 @@ class cTCPServer(cThreadModule):
             self.s.settimeout(4.0)
             conn, addr = self.s.accept()
             ip = addr[0]
-            self.logger.log('Device with address ' + str(ip) + ' was connected', Logger.RICH)
-            if addr[0] not in self.onlineDevices:
-                self.onlineDevices.append(ip)
-                self.logger.log('New device with address ' + str(ip) + ' was connected')
-                self.MySQL.AddOnlineDevice(str(ip))
+            device = cDevice.get_device(ip, self.devices)
+            if device is None:
+                self.logger.log(f"Unknown device was trying to connect! IP:{ip}")
+                return
+            self.logger.log(f'Device {str(device)} was connected', Logger.RICH)
+            if not device.online:
+                self.logger.log(f'New device {str(device)} was connected', Logger.NORMAL)
+                self.mySQL.AddOnlineDevice(str(ip))
+                device.online = True
 
             conn.settimeout(4.0)
 
-            Thread(target=self.ReceiveThread, args=(conn, ip)).start()
+            Thread(target=self.ReceiveThread, args=(conn, device)).start()
 
         except KeyboardInterrupt:
             self.logger.log("Interrupted by user keyboard -----")
@@ -79,24 +85,24 @@ class cTCPServer(cThreadModule):
                 self.logger.log("Exception:")
                 self.logger.log(''.join('!! ' + line for line in lines))
 
-    def ReceiveThread(self, conn, ip):
+    def ReceiveThread(self, conn, device):
         try:
             # if you have something to send, send it
             sendWasPerformed = False
 
-            queueNotForThisIp = [x for x in self.sendQueue if x[1] != ip]
+            queueNotForThisIp = [x for x in self.sendQueue if x[1] != device.ip_address]
 
             for tx in self.sendQueue:
-                if tx[1] == ip:  # only if we have something to send to the address that has connected
+                if tx[1] == device.ip_address:  # only if we have something to send to the address that has connected
                     conn.send(tx[0])
 
                     sendWasPerformed = True
-                    self.logger.log(f"Sending tx data to '{ip}' data:{tx[0]}", Logger.RICH)
+                    self.logger.log(f"Sending tx data to {str(device)} data:{tx[0]}", Logger.RICH)
 
             self.sendQueue = queueNotForThisIp  # replace items with the items that we haven't sent
 
             if not sendWasPerformed:
-                self.logger.log("Nothing to be send to this connected device '" + str(ip) + "'", Logger.FULL)
+                self.logger.log(f"Nothing to be send to this connected device {str(device)})", Logger.FULL)
 
             conn.send(serialData.CreatePacket(
                 bytes([199])))  # ending packet - signalizing that we don't have anything to sent no more
@@ -110,7 +116,8 @@ class cTCPServer(cThreadModule):
                 if r:
                     data = conn.recv(self.BUFFER_SIZE)
                 else:
-                    self.logger.log("Device '" + str(ip) + "' was connected, but haven't send any data.")
+                    self.logger.log(f"Device {str(device)}) was connected,"
+                                    f" but haven't send any data.")
                     break
 
                 if not data:
@@ -120,12 +127,13 @@ class cTCPServer(cThreadModule):
                 for d in data:
                     # if last received byte was ok, finish
                     # client can send multiple complete packets
-                    isMeteostation = str(ip) == "192.168.0.10"  # extra exception for meteostation
+                    isMeteostation = str(device.name) == "METEO"  # extra exception for meteostation
                     if not receiverInstance.Receive(d, noCRC=isMeteostation):
-                        self.logger.log("Error above for ip:" + str(ip))
+                        self.logger.log("Error above for METEO")
                     st += str(d) + ", "
 
                 self.logger.log("Received data:" + str(st), Logger.FULL)
+                self.data_received_callback(receiverInstance.getRcvdData())
 
         except ConnectionResetError:
             if ip != "192.168.0.11":  # ignore keyboard reset errors
@@ -148,10 +156,13 @@ class cTCPServer(cThreadModule):
             if cnt >= self.TXQUEUELIMIT_PER_DEVICE:  # this device will become offline
 
                 self.RemoveOnlineDevice(MySQL, destination)
+                device = cDevice.get_device(destination, self.devices)
+                if device:
+                    device.online = False
                 # now remove the oldest message and further normally append newest
                 oldMsgs = [msg for msg in self.sendQueue if msg[1] == destination]
 
-                if (len(oldMsgs) > 0):
+                if len(oldMsgs) > 0:
                     self.sendQueue.remove(oldMsgs[0])
 
         if len(self.sendQueue) < self.TXQUEUELIMIT:
@@ -160,10 +171,11 @@ class cTCPServer(cThreadModule):
             self.logger.log("MAXIMUM TX QUEUE LIMIT REACHED!!")
 
     def RemoveOnlineDevice(self, MySQL, destination):
-        if destination in self.onlineDevices:
-            self.onlineDevices.remove(destination)
-            self.logger.log("Device with address:'" + destination + "' became OFFLINE!")
-            MySQL.RemoveOnlineDevice(destination)
+        device = cDevice.get_device(destination, self.devices)
+
+        device.online = False
+        self.logger.log(f"Device {str(device)} became OFFLINE!")
+        MySQL.RemoveOnlineDevice(destination)
 
     def SendACK(self, data, destination):
         # poslem CRC techto dat na danou destinaci

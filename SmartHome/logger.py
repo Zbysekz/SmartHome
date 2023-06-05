@@ -30,12 +30,17 @@ class Logger:
 
         dateStr = datetime.now().strftime('%Y-%m-%d')
         datetimeStr = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        with open(f"/var/log/SmartHome/{dateStr}_{self.filename}.log", "a") as file:
+
+        path = f"/var/log/SmartHome/{dateStr}"
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        with open(f"{path}/{self.filename}.log", "a") as file:
             file.write(datetimeStr + " >> " + str(txt) + "\n")
 
         all_ok = False
         if send_SMS:
-            if _verbosity == CRITICAL:
+            if _verbosity == Logger.CRITICAL:
                 if len(self.queue) == 0:
                     all_ok = True
                     if all_members:

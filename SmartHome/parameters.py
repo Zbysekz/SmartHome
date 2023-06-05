@@ -35,7 +35,7 @@ class Parameters:
         if hasattr(self, "INSTANCE_CHECK"):
             self.INSTANCE_CHECK = eval(self.INSTANCE_CHECK)
     def verbosity_convert(self, name):
-        d = {"CRITICAL": 0, "NORMAL": 1, "RICH": 2, "FULL":3}
+        d = {"CRITICAL": 0, "NORMAL": 1, "RICH": 2, "FULL": 3}
         return d[name]
 
     def save(self):

@@ -11,7 +11,6 @@ from logger import Logger
 
 
 class Receiver:
-
     def __init__(self):
 
         self.logger = Logger("serialData", verbosity=Logger.NORMAL)

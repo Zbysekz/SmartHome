@@ -1,24 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
-if time.time() - tmrVentHeatControl > 300:  # each 5 mins
-    tmrVentHeatControl = time.time()
-
-    if len(globalFlags) > 0 and len(currentValues) > 0:  # we get both values from DTB
-        ControlPowerwall()
-        ControlVentilation()
-        ControlHeating()
-    else:
-        tmrVentHeatControl = time.time() - 200  # try it sooner
-
-if time.time() - tmrFastPowerwallControl > 30:  # each 30secs
-    tmrFastPowerwallControl = time.time()
-    globalFlags = MySQL_GeneralThread.getGlobalFlags()  # update global flags
-    currentValues = MySQL_GeneralThread.getCurrentValues()
-
-    ControlPowerwall_fast()
-
 # now just simple method, then upgrade by approximation curve probably
 def calculatePowerwallSOC(voltage):
     MAX = 49.8
@@ -31,9 +13,7 @@ def calculatePowerwallSOC(voltage):
     return SOC
 
 
-def ControlPowerwall():  # called each # 5 mins
-    global globalFlags, currentValues, powerwall_last_fail, powerwall_last_full, powerwall_last_full_tmr
-
+def ControlPowerwall(globalFlags, currentValues):  # called each # 5 mins
     if globalFlags['autoPowerwallRun'] == 1:
         solarPowered = currentValues[
             'status_rackUno_stateMachineStatus'] == 3
