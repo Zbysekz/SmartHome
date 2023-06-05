@@ -18,8 +18,11 @@ class cDevice:
         self.last_activity = None
 
     def handle_timeout(self):
-        if self.timeout_s is not None and time.time() - self.last_activity >= self.timeout_s:
-            return True
+        if self.last_activity:
+            if self.timeout_s is not None and time.time() - self.last_activity >= self.timeout_s:
+                return True
+            else:
+                return False
         else:
             return False
 
@@ -28,14 +31,15 @@ class cDevice:
 
     @classmethod
     def get_timeout_devices(cls, list):
-        return [device.handle_timeout() for device in list]
+        return [device for device in list if device.handle_timeout()]
 
     @classmethod
     def get_ip(cls, name, list):
         for item in list:
             if item.name == name:
-                return item.ip
+                return item.ip_address
         return None
+
 class cCommProcessor(cThreadModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -57,13 +61,17 @@ class cCommProcessor(cThreadModule):
         self.wifiCheckCnt = 0
 
         self.mySQL = cMySQL()
-        self.logger.log("Initializing TCP port...")
+        self.logger.log(f"Initializing TCP port {parameters.SERVER_PORT} on IP:{parameters.SERVER_IP} ...")
         self.TCP_server = cTCPServer()
+        self.house_security = None
+
+
         initTCP = True
         nOfTries = 0
         while initTCP:
             try:
                 self.TCP_server.init()
+                self.TCP_server.handle()
                 initTCP = False  # succeeded
             except OSError as e:
                 nOfTries += 1
@@ -130,17 +138,14 @@ class cCommProcessor(cThreadModule):
             self.MySQL.insertValue('status', 'heatingControlInhibit', True)
             self.logger.log("Start heating control by Tx command")
 
-    def PIRSensorRefresh(self, alarm, locked):
+    def PIRSensorRefresh(self):
         self.logger.log("PIR sensor refresh!", Logger.FULL)
 
-        self.TCP_server.Send(bytes([0, int(alarm != 0), int(locked)]),  cDevice.get_ip("IP_PIR_SENSOR", self.devices))  # id, alarm(0/1),locked(0/1)
+        self.TCP_server.send(self.mySQL, bytes([0, int(self.house_security.alarm != 0), int(self.house_security.locked)]),  cDevice.get_ip("IP_PIR_SENSOR", self.devices))  # id, alarm(0/1),locked(0/1)
 
-    def KeyboardRefresh(self, alarm, locked):
+    def KeyboardRefresh(self):
         self.logger.log("Keyboard refresh!", Logger.FULL)
-        val = (int(alarm != 0)) + 2 * (int(locked))
+        val = (int(self.house_security.alarm != 0)) + 2 * (int(self.house_security.locked))
 
-        self.TCP_server.Send(self.sqlInst, bytes([10, val]), cDevice.get_ip("IP_KEYBOARD", self.devices))  # id, alarm(0/1),locked(0/1)
-
-    def RefreshTimeout(self, IP: str):
-        self.tmrTimeouts[IP][0] = time.time()
+        self.TCP_server.send(self.mySQL, bytes([10, val]), cDevice.get_ip("IP_KEYBOARD", self.devices))  # id, alarm(0/1),locked(0/1)
 

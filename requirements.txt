@@ -1,0 +1,4 @@
+pyserial
+pymysql
+mysql-connector
+mysqlclient

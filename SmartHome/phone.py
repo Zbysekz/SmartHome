@@ -10,7 +10,7 @@ import time
 from parameters import Parameters
 from databaseMySQL import cMySQL
 from templates.threadModule import cThreadModule
-
+import threading
 
 DISABLE_SMS = False
 
@@ -387,7 +387,7 @@ class cPhone(cThreadModule):
             rcvLines.append(rcvLine)
         return rcvLines
 
-    def handle(self):
+    def _handle(self):
         self.ReadSMS()
         self.CheckSignalInfo()
 
@@ -398,9 +398,3 @@ class cPhone(cThreadModule):
 
         self.mySQL.updateState('phoneSignalInfo', str(self.getSignalInfo()))
         self.mySQL.updateState('phoneCommState', int(self.getCommState()))
-
-        if not self.terminate:  # do not continue if app terminated
-            self.threading.Timer(20, self.timerPhone).start()
-        else:
-            # end logger thread too
-            self.logger.terminate()

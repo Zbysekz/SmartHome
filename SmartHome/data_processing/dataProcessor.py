@@ -1,6 +1,8 @@
 from databaseMySQL import cMySQL
 from templates.threadModule import cThreadModule
 from control.house_security import cHouseSecurity
+
+
 class cDataProcessor(cThreadModule):
     def __init__(self, phone, **kwargs):
         super().__init__(**kwargs)

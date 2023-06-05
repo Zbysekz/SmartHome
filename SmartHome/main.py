@@ -71,7 +71,7 @@ cycleTime_max = 0
 
 logger = Logger("main", verbosity=Logger.FULL)
 MySQL = cMySQL()
-
+cThreadModule.logger = logger
 ###############################################################################################################
 def main():
     try:
@@ -82,7 +82,8 @@ def main():
         logger.phone = phone
         commProcessor = comm.cCommProcessor(period_s=5)
         dataProcessor = data_processing.cDataProcessor(phone=phone, period_s=10)
-        homeSecurity = cHouseSecurity(logger, MySQL, commProcessor, dataProcessor, phone)
+        houseSecurity = cHouseSecurity(logger, MySQL, commProcessor, dataProcessor, phone)
+        commProcessor.house_security = houseSecurity
 
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()

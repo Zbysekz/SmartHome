@@ -8,29 +8,29 @@ import time
 import select
 import traceback
 import subprocess
-from datetime import datetime
 from threading import Thread
 from parameters import parameters
+from templates.threadModule import cThreadModule
+from logger import Logger
+from databaseMySQL import cMySQL
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
 
-from logger import Logger
 
-
-class cTCPServer:
-    def __init__(self):
-
+class cTCPServer(cThreadModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.logger = Logger("tcpServer", Logger.RICH)
         self.conn = ''
         self.s = ''
         self.BUFFER_SIZE = 256  # Normally 1024, but we want fast response
         self.sendQueue = []
         self.TXQUEUELIMIT = 30  # send buffer size for all messages
-        self.TXQUEUELIMIT_PER_DEVICE = 5  # how much send messages can be in queue at the same time - if there is this count,
+        self.TXQUEUELIMIT_PER_DEVICE = 5  #  how much send messages can be in queue at the same time - if there is this count,
         # device is considered as offline
-        self.onlineDevices = []  # list of online devices - offline becomes when we want to send lot of data to it, but it's not connecting
+        self.onlineDevices = []  #  list of online devices - offline becomes when we want to send lot of data to it, but it's not connecting
 
         self.tmrPrintBufferStat = time.time()
 
@@ -43,14 +43,12 @@ class cTCPServer:
         self.s.listen(10)
 
         self.tmrPrintBufferStat = time.time()
+        self.mySQL = cMySQL()
 
         # conn.close()
         # print ('end')
 
-    def isTerminated(self):
-        return self.terminate
-
-    def _handle(self, MySQL):
+    def _handle(self):
         self.PrintBufferStatistics()
 
         try:
@@ -61,7 +59,7 @@ class cTCPServer:
             if addr[0] not in self.onlineDevices:
                 self.onlineDevices.append(ip)
                 self.logger.log('New device with address ' + str(ip) + ' was connected')
-                MySQL.AddOnlineDevice(str(ip))
+                self.MySQL.AddOnlineDevice(str(ip))
 
             conn.settimeout(4.0)
 
@@ -165,7 +163,7 @@ class cTCPServer:
         if destination in self.onlineDevices:
             self.onlineDevices.remove(destination)
             self.logger.log("Device with address:'" + destination + "' became OFFLINE!")
-            self.MySQL.RemoveOnlineDevice(destination)
+            MySQL.RemoveOnlineDevice(destination)
 
     def SendACK(self, data, destination):
         # poslem CRC techto dat na danou destinaci
