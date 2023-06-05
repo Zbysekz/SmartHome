@@ -136,15 +136,15 @@ class cTCPServer(cThreadModule):
                 self.data_received_callback(receiverInstance.getRcvdData())
 
         except ConnectionResetError:
-            if ip != "192.168.0.11":  # ignore keyboard reset errors
+            if device.ip_address != "192.168.0.11":  # ignore keyboard reset errors
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-                self.logger.log("Exception in rcv thread, IP:" + str(ip))
+                self.logger.log("Exception in rcv thread, device:" + str(device))
                 self.logger.log(''.join('!! ' + line for line in lines))
         except Exception:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-            self.logger.log("Exception in rcv thread, IP:" + str(ip))
+            self.logger.log("Exception in rcv thread, device:" + str(device))
             self.logger.log(''.join('!! ' + line for line in lines))
 
         conn.close()
@@ -172,7 +172,9 @@ class cTCPServer(cThreadModule):
 
     def RemoveOnlineDevice(self, MySQL, destination):
         device = cDevice.get_device(destination, self.devices)
-
+        if device is None:
+            self.logger.log(f"Device {str(device)} tried to be removed but it doesn't exists in list! IP:{destination}")
+            return
         device.online = False
         self.logger.log(f"Device {str(device)} became OFFLINE!")
         MySQL.RemoveOnlineDevice(destination)
@@ -180,10 +182,13 @@ class cTCPServer(cThreadModule):
     def SendACK(self, data, destination):
         # poslem CRC techto dat na danou destinaci
         CRC = serialData.calculateCRC(data) + len(data)
-
+        device = cDevice.get_device(destination, self.devices)
+        if device is None:
+            self.logger.log(f"Attempted to send ACK to device {str(device)} but it doesn't exists in list! IP:{destination}")
+            return
         if len(self.sendQueue) < self.TXQUEUELIMIT:
             self.sendQueue.append((serialData.CreatePacket(bytes([99, int(CRC) % 256, int(CRC / 256)])), destination))
-            self.logger.log("sending BACK" + str(CRC) + " to destination:" + destination)
+            self.logger.log("sending BACK" + str(CRC) + f" to device:{str(device)}")
         else:
             self.logger.log("MAXIMUM TX QUEUE LIMIT REACHED")
 
