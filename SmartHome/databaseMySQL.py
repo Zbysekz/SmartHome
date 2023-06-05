@@ -198,7 +198,7 @@ class cMySQL:
 
     @ThreadingLockDecorator
     def insertValue(self, name, sensorName, value, timestamp=None, periodicity=0, writeNowDiff=1, onlyCurrent=False):
-        self.logger.log(f"MySQL - inserting value {name} for {sensorName}", _verbosity=self.logger.FULL)
+       # self.logger.log(f"MySQL - inserting value {name} for {sensorName}", _verbosity=self.logger.FULL)
         try:
             db, cursor = self.getConnection()
 
@@ -219,7 +219,7 @@ class cMySQL:
             self.logger.log(f"Error while writing to database for measurement:{name} - {sensorName}, exception:")
             self.logger.log_exception(e)
             return False
-        self.logger.log(f"MySQL - done inserting value {name}", _verbosity=self.logger.FULL)
+        #self.logger.log(f"MySQL - done inserting value {name}", _verbosity=self.logger.FULL)
         return True
 
     @ThreadingLockDecorator

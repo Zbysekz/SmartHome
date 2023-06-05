@@ -58,8 +58,8 @@ class cCommProcessor(cThreadModule):
         self.mySQL.RemoveOnlineDevices()  # clean up online device table
 
     def _handle(self):
-        if self.keyboardRefreshCnt >= 4:
-            keyboardRefreshCnt = 0
+        if self.keyboardRefreshCnt >= 40:
+            self.keyboardRefreshCnt = 0
             self.KeyboardRefresh()
             self.PIRSensorRefresh()
         else:
@@ -86,7 +86,8 @@ class cCommProcessor(cThreadModule):
         if len(data):
             try:
                 for packet in data:
-                    byteArray = bytes([int(x) for x in packet[0].split(',')])
+                    ip = packet[1]
+                    byteArray = bytes([int(x) for x in ip.split(',')])
                     self.logger.log("Sending data from MYSQL database to:")
 
                     if packet[1] == parameters.SERVER_IP:
@@ -94,9 +95,9 @@ class cCommProcessor(cThreadModule):
                         self.logger.log(byteArray)
                         self.ExecuteTxCommand(byteArray)
                     else:
-                        self.logger.log(packet[1])
+                        self.logger.log(str(ip))
                         self.logger.log(byteArray)
-                        self.TCP_server.Send(byteArray, packet[1], crc16=True)
+                        self.TCP_server.send(self.mySQL, byteArray, ip, crc16=True)
             except ValueError:
                 self.logger.log("MySQL - getTXbuffer - Value Error:" + str(packet[0]))
 
@@ -114,13 +115,13 @@ class cCommProcessor(cThreadModule):
     def PIRSensorRefresh(self):
         self.logger.log("PIR sensor refresh!", Logger.FULL)
 
-        self.TCP_server.send(self.mySQL, bytes([0, int(self.house_security.alarm != 0), int(self.house_security.locked)]),  cDevice.get_ip("IP_PIR_SENSOR", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
+        self.TCP_server.send(self.mySQL, bytes([0, int(self.house_security.alarm != 0), int(self.house_security.locked)]),  cDevice.get_ip("PIR_SENSOR", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
 
     def KeyboardRefresh(self):
         self.logger.log("Keyboard refresh!", Logger.FULL)
         val = (int(self.house_security.alarm != 0)) + 2 * (int(self.house_security.locked))
 
-        self.TCP_server.send(self.mySQL, bytes([10, val]), cDevice.get_ip("IP_KEYBOARD", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
+        self.TCP_server.send(self.mySQL, bytes([10, val]), cDevice.get_ip("KEYBOARD", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
 
     def send_ack_keyboard(self, data):
         self.TCP_server.SendACK(data, cDevice.get_ip("IP_KEYBOARD", cCommProcessor.devices))

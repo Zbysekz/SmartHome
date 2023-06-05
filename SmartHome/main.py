@@ -74,7 +74,7 @@ def main():
 
         phone = cPhone(period_s=20)
         logger.phone = phone
-        commProcessor = comm.cCommProcessor(period_s=5)
+        commProcessor = comm.cCommProcessor(period_s=1)
         dataProcessor = data_processing.cDataProcessor(phone=phone, period_s=10)
         houseSecurity = cHouseSecurity(logger, MySQL, commProcessor, dataProcessor, phone)
 

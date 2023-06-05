@@ -40,18 +40,24 @@ class cDataProcessor(cThreadModule):
 
     def data_received(self, data):  # called from commProcessor with data received
         try:
+            print("PUT INSIDE")
+            print(data)
             self.receive_queue.put(data)
         except queue.Full:
             self.logger.Log("Queue in dataProcessor is FULL!!")
 
     def _handle(self):
-        try:
-            data = self.receive_queue.get(block=False)
-        except queue.Empty:
-            return
-        if data:
-            self.mySQL.PersistentConnect()
-            while data:  # process all received packets
+
+        self.mySQL.PersistentConnect()
+        while self.receive_queue.qsize() >0:
+            try:
+                print("rcv")
+                data = self.receive_queue.get(block=False)
+            except queue.Empty:
+                return
+            print("yes")
+            print(data)
+            if data:
                 try:
                     self.process_incoming_data(data)
 
@@ -60,7 +66,7 @@ class cDataProcessor(cThreadModule):
                 except Exception as e:
                     self.logger.log(f"General exception while processing incoming data! data: {data}")
                     self.logger.log_exception(e)
-            self.mySQL.PersistentDisconnect()
+        self.mySQL.PersistentDisconnect()
         # -------------------------------------------------
 
     def process_incoming_data(self, data):
@@ -114,6 +120,8 @@ class cDataProcessor(cThreadModule):
             solarConnected = (data[4] & 0x01) != 0
             heating = (data[4] & 0x02) != 0
             err_module_no = data[5]
+
+            print(f"JUST RECEIVED POWERWALL!!! {data}")
 
             self.mySQL.insertValue('status', 'powerwall_stateMachineStatus', powerwall_stateMachineStatus,
                                    periodicity=30 * MINUTE, writeNowDiff=1)
