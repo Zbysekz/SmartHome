@@ -107,7 +107,7 @@ class cTCPServer(cThreadModule):
             conn.send(serialData.CreatePacket(
                 bytes([199])))  # ending packet - signalizing that we don't have anything to sent no more
 
-            time.sleep(0.1)  # give client some time to send me data
+            time.sleep(0.5)  # give client some time to send me data
 
             receiverInstance = serialData.Receiver()
             while True:
@@ -133,7 +133,8 @@ class cTCPServer(cThreadModule):
                     st += str(d) + ", "
 
                 self.logger.log("Received data:" + str(st), Logger.FULL)
-                self.data_received_callback(receiverInstance.getRcvdData())
+                while receiverInstance.getRcvdDataLen() > 0:
+                    self.data_received_callback(receiverInstance.getRcvdData())
 
         except ConnectionResetError:
             if device.ip_address != "192.168.0.11":  # ignore keyboard reset errors

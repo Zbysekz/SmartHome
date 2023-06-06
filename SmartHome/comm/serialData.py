@@ -6,14 +6,14 @@ import os
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-from parameters import Parameters
+from parameters import parameters
 from logger import Logger
 
 
 class Receiver:
     def __init__(self):
 
-        self.logger = Logger("serialData", verbosity=Logger.NORMAL)
+        self.logger = Logger("serialData", verbosity=parameters.VERBOSITY)
 
         self.RXBUFFSIZE = 100
         self.readState = 0

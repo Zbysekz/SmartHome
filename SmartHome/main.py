@@ -99,10 +99,15 @@ def main():
 
     ######################## MAIN LOOP ####################################################################################
     while True:
+        try:
+            if not cThreadModule.checkTermination():
+                break
+            time.sleep(5)
+        except KeyboardInterrupt:
+            logger.log("Interrupted by user! quitting...")
+            cThreadModule.terminateAll()
+        except Exception as e:
 
-        if not cThreadModule.checkTermination():
-            break
-        time.sleep(5)
         # ----------------------------------------------
 
 ####################################################################################################################

@@ -40,8 +40,7 @@ class cDataProcessor(cThreadModule):
 
     def data_received(self, data):  # called from commProcessor with data received
         try:
-            print("PUT INSIDE")
-            print(data)
+            print(f"PUT INSIDE {data}")
             self.receive_queue.put(data)
         except queue.Full:
             self.logger.Log("Queue in dataProcessor is FULL!!")
@@ -49,14 +48,11 @@ class cDataProcessor(cThreadModule):
     def _handle(self):
 
         self.mySQL.PersistentConnect()
-        while self.receive_queue.qsize() >0:
+        while self.receive_queue.qsize() > 0:
             try:
-                print("rcv")
                 data = self.receive_queue.get(block=False)
             except queue.Empty:
                 return
-            print("yes")
-            print(data)
             if data:
                 try:
                     self.process_incoming_data(data)
@@ -101,10 +97,11 @@ class cDataProcessor(cThreadModule):
                                    writeNowDiff=0.2)
 
         elif data[0] > 10 and data[0] <= 40:  # POWERWALL
+            print(f"powerwall income:{data}")
             voltage = (data[2] * 256 + data[3]) / 100
             if data[1] < 24:
                 self.bufferedCellModVoltage[
-                    data[1]] = voltage  # we need to store voltages for each module, to calculate burning energy later
+                    data[1]] = voltage   # we need to store voltages for each module, to calculate burning energy later
             temp = (data[4] * 256 + data[5]) / 10
 
             if voltage < 5:
@@ -120,8 +117,6 @@ class cDataProcessor(cThreadModule):
             solarConnected = (data[4] & 0x01) != 0
             heating = (data[4] & 0x02) != 0
             err_module_no = data[5]
-
-            print(f"JUST RECEIVED POWERWALL!!! {data}")
 
             self.mySQL.insertValue('status', 'powerwall_stateMachineStatus', powerwall_stateMachineStatus,
                                    periodicity=30 * MINUTE, writeNowDiff=1)
