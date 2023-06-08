@@ -4,3 +4,4 @@ consumptionData/electricityPriceData.txt
 consumptionData/totalSumBias.txt
 .idea/*
 config.ini
+update.tar.gz
