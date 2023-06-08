@@ -25,6 +25,7 @@ class cDataProcessor(cThreadModule):
         self.bufferedCellModVoltage = 24 * [0]
 
         self.tmrConsPowerwall = 0
+        self.tmrCurrentValues = 0
 
         # -------------STATE VARIABLES-------------------
         self.globalFlags = {}  # contains data from table globalFlags - controls behaviour of subsystems
@@ -40,7 +41,6 @@ class cDataProcessor(cThreadModule):
 
     def data_received(self, data):  # called from commProcessor with data received
         try:
-            print(f"PUT INSIDE {data}")
             self.receive_queue.put(data)
         except queue.Full:
             self.logger.Log("Queue in dataProcessor is FULL!!")
@@ -57,6 +57,10 @@ class cDataProcessor(cThreadModule):
                 try:
                     self.process_incoming_data(data)
 
+                    if time.time() - self.tmrCurrentValues > 5:
+                        self.tmrCurrentValues = time.time()
+                        self.currentValues = self.mySQL.getCurrentValues()
+                        self.globalFlags = self.mySQL.getGlobalFlags()
                 except IndexError:
                     self.logger.log("IndexError while processing incoming data! data:" + str(data))
                 except Exception as e:
@@ -97,7 +101,6 @@ class cDataProcessor(cThreadModule):
                                    writeNowDiff=0.2)
 
         elif data[0] > 10 and data[0] <= 40:  # POWERWALL
-            print(f"powerwall income:{data}")
             voltage = (data[2] * 256 + data[3]) / 100
             if data[1] < 24:
                 self.bufferedCellModVoltage[
@@ -276,10 +279,10 @@ class cDataProcessor(cThreadModule):
             self.mySQL.insertValue('power', 'solar', solarPower)
 
             if batteryStatus == 0 and time.time() - self.tmrConsPowerwall > 3600:  # each hour
-                self.logger.log("Daily solar cons", _verbosity=Logger.FULL)
-                tmrConsPowerwall = time.time()
-                # self.mySQL.insertDailySolarCons((data[9] * 16777216 + data[10] * 65536 + data[11] * 256 + data[12]) * 10.0)  # in 0.01 kWh
-            self.logger.log("process completed", _verbosity=Logger.FULL)
+                self.logger.log("Daily solar cons", _verbosity=Logger.RICH)
+                self.tmrConsPowerwall = time.time()
+                self.mySQL.insertDailySolarCons((data[9] * 16777216 + data[10] * 65536 + data[11] * 256 + data[12]) * 10.0)  # in 0.01 kWh
+            self.logger.log("process completed", _verbosity=Logger.RICH)
 
         elif data[0] == 107:  # data from brewhouse
             self.mySQL.insertValue('temperature', 'brewhouse_horkaVoda', (data[1] * 256 + data[2]) / 100.0 + 6.0,

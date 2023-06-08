@@ -39,7 +39,6 @@ class cCommProcessor(cThreadModule):
         self.TCP_server.devices = cCommProcessor.devices
         self.house_security = None
 
-
         initTCP = True
         nOfTries = 0
         while initTCP:
@@ -51,7 +50,9 @@ class cCommProcessor(cThreadModule):
                 if (nOfTries > 30):
                     raise Exception('Too much tries to create TCP port', ' ')
                 print("Trying to create TCP port again..")
+
                 time.sleep(10)
+
 
         self.logger.log("TCP port connected OK")
 
@@ -75,9 +76,9 @@ class cCommProcessor(cThreadModule):
         timeout_devices_list = cDevice.get_timeout_devices(cCommProcessor.devices)
         for device in timeout_devices_list:
             if device.critical:
-                self.logger.log(f"Lost critical device! IP:{device.ip_address}", Logger.CRITICAL)
+                self.logger.log(f"Lost critical device! {str(device)}", Logger.CRITICAL)
             else:
-                self.logger.log(f"Lost device! IP:{device.ip_address}", Logger.NORMAL)
+                self.logger.log(f"Lost device! {str(device)}", Logger.NORMAL)
             self.TCP_server.RemoveOnlineDevice(device.IP)
 
 
@@ -87,7 +88,7 @@ class cCommProcessor(cThreadModule):
             try:
                 for packet in data:
                     ip = packet[1]
-                    byteArray = bytes([int(x) for x in ip.split(',')])
+                    byteArray = bytes([int(x) for x in packet[0].split(',')])
                     self.logger.log("Sending data from MYSQL database to:")
 
                     if packet[1] == parameters.SERVER_IP:
@@ -95,11 +96,16 @@ class cCommProcessor(cThreadModule):
                         self.logger.log(byteArray)
                         self.ExecuteTxCommand(byteArray)
                     else:
-                        self.logger.log(str(ip))
+                        device = cDevice.get_device(ip, cCommProcessor.devices)
+                        self.logger.log(str(device))
                         self.logger.log(byteArray)
                         self.TCP_server.send(self.mySQL, byteArray, ip, crc16=True)
-            except ValueError:
+            except ValueError as e:
                 self.logger.log("MySQL - getTXbuffer - Value Error:" + str(packet[0]))
+                self.logger.log_exception(e)
+            except Exception as e:
+                self.logger.log("MySQL - getTXbuffer - Exception:")
+                self.logger.log_exception(e)
 
     def ExecuteTxCommand(self, data):
         if data[0] == 0:  # resetAlarm

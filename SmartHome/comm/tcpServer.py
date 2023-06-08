@@ -110,7 +110,8 @@ class cTCPServer(cThreadModule):
             time.sleep(0.5)  # give client some time to send me data
 
             receiverInstance = serialData.Receiver()
-            while True:
+            tryit = 3
+            while tryit > 0:
                 # data receive
                 r, _, _ = select.select([conn], [], [], 4)
                 if r:
@@ -118,8 +119,11 @@ class cTCPServer(cThreadModule):
                 else:
                     self.logger.log(f"Device {str(device)}) was connected,"
                                     f" but haven't send any data.")
-                    break
-
+                    tryit -= 1
+                    time.sleep(1)
+                    continue
+                if tryit<3:
+                    self.logger.log(f"But on other try it SUCCEEDED!")
                 if not data:
                     break
 
@@ -156,7 +160,6 @@ class cTCPServer(cThreadModule):
             cnt = sum([msg[1] == destination for msg in self.sendQueue])  # how much are with same address
             if cnt >= self.TXQUEUELIMIT_PER_DEVICE:  # this device will become offline
 
-                print(f"HUHEE {destination}")
                 self.RemoveOnlineDevice(MySQL, destination)
                 device = cDevice.get_device(destination, self.devices)
                 if device:

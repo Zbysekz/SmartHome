@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from logger import Logger
 import time
-from parameters import Parameters
+from parameters import parameters
 from databaseMySQL import cMySQL
 from templates.threadModule import cThreadModule
 import threading
@@ -18,7 +18,7 @@ DISABLE_SMS = False
 class cPhone(cThreadModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.logger = Logger("phone", verbosity=Logger.NORMAL)
+        self.logger = Logger("phone", verbosity=parameters.VERBOSITY)
 
         self.mySQL = cMySQL()
         self.serPort = 0
@@ -46,7 +46,7 @@ class cPhone(cThreadModule):
         self.commState = False
         self.signalStrength = 0
 
-        self.logger = Logger("phone", verbosity=Logger.NORMAL)
+        self.tmrHandle = 0
 
         # ---------------------------------------------------------------------------------------
         self.stateList = [
@@ -68,6 +68,8 @@ class cPhone(cThreadModule):
 
         self.currState = self.STATE_idle
         self.nextState = ""
+
+        self.connect()
 
     # ---------------------------------------------------------------------------------------
     def STATE_idle(self):
@@ -102,7 +104,7 @@ class cPhone(cThreadModule):
 
         for rcvLine in rcvLines:
             if b"OK" in rcvLine:
-                serPort.write(bytes("AT+CMGS=\x22" + self.receiverNumber + "\x22\x0D", 'UTF-8'))  # \x22 is "
+                self.serPort.write(bytes("AT+CMGS=\x22" + self.receiverNumber + "\x22\x0D", 'UTF-8'))  # \x22 is "
                 self.NextState()
                 break
 
@@ -116,7 +118,7 @@ class cPhone(cThreadModule):
 
         for rcvLine in rcvLines:
             if b">" in rcvLine:
-                serPort.write(bytes(self.sendSMStext + "\x1A", 'UTF-8'))
+                self.serPort.write(bytes(self.sendSMStext + "\x1A", 'UTF-8'))
                 self.NextState()
                 break
 
@@ -141,9 +143,7 @@ class cPhone(cThreadModule):
             self.commState = False
 
     def STATE_SMS_read(self):
-        global serPort
-
-        serPort.write(bytes("AT+CMGF=1\x0D", 'UTF-8'))
+        self.serPort.write(bytes("AT+CMGF=1\x0D", 'UTF-8'))
 
         self.NextState()
 
@@ -218,7 +218,7 @@ class cPhone(cThreadModule):
             commState = False
 
     def STATE_SMS_delete(self):
-        serPort.write(bytes("AT+CMGDA=\x22DEL ALL\x22\x0D", 'UTF-8'))
+        self.serPort.write(bytes("AT+CMGDA=\x22DEL ALL\x22\x0D", 'UTF-8'))
         self.NextState()
 
     def STATE_SMS_delete2(self):
@@ -300,7 +300,7 @@ class cPhone(cThreadModule):
         else:
             return False
 
-    def Connect(self):
+    def connect(self):
         self.logger.log("Initializing serial port...")
 
         self.serPort = serial.Serial(
@@ -312,6 +312,7 @@ class cPhone(cThreadModule):
             bytesize=serial.EIGHTBITS,
             timeout=0.1
         )
+        self.logger.log("ok")
 
     def getIncomeSMSList(self):
         return self.incomeSMSList
@@ -367,7 +368,7 @@ class cPhone(cThreadModule):
         if self.clearBufferWhenPhoneOffline > 3:
             self.logger.log("Serial input buffer reset!")
             clearBufferWhenPhoneOffline = 0
-            serPort.reset_input_buffer()
+            self.serPort.reset_input_buffer()
             return []
 
         while ptr < len(ch):
@@ -388,13 +389,17 @@ class cPhone(cThreadModule):
         return rcvLines
 
     def _handle(self):
-        self.ReadSMS()
-        self.CheckSignalInfo()
+        self.Process()  # fast call
 
-        # process incoming SMS
-        for sms in self.getIncomeSMSList():
-            self.IncomingSMS(sms)
-        self.clearIncomeSMSList()
+        if time.time() - self.tmrHandle > 20:
+            self.tmrHandle = time.time()
+            self.ReadSMS()
+            self.CheckSignalInfo()
 
-        self.mySQL.updateState('phoneSignalInfo', str(self.getSignalInfo()))
-        self.mySQL.updateState('phoneCommState', int(self.getCommState()))
+            # process incoming SMS
+            for sms in self.getIncomeSMSList():
+                self.IncomingSMS(sms)
+            self.clearIncomeSMSList()
+
+            self.mySQL.updateState('phoneSignalInfo', str(self.getSignalInfo()))
+            self.mySQL.updateState('phoneCommState', int(self.getCommState()))

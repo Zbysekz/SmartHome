@@ -72,7 +72,7 @@ def main():
 
         logger.log("Entry point main.py")
 
-        phone = cPhone(period_s=20)
+        phone = cPhone(period_s=5)
         logger.phone = phone
         commProcessor = comm.cCommProcessor(period_s=1)
         dataProcessor = data_processing.cDataProcessor(phone=phone, period_s=10)
@@ -83,6 +83,9 @@ def main():
         dataProcessor.house_security = houseSecurity
         dataProcessor.commProcessor = commProcessor
 
+    except KeyboardInterrupt:
+        logger.log("Interrupted by user...")
+        sys.exit(1)
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -107,7 +110,9 @@ def main():
             logger.log("Interrupted by user! quitting...")
             cThreadModule.terminateAll()
         except Exception as e:
-
+            logger.log("Unexpected exception! quitting...")
+            logger.log_exception(e)
+            cThreadModule.terminateAll()
         # ----------------------------------------------
 
 ####################################################################################################################
