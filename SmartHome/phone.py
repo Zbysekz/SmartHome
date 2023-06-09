@@ -47,6 +47,7 @@ class cPhone(cThreadModule):
         self.signalStrength = 0
 
         self.tmrHandle = 0
+        self.tmrSignalInfo = 0
 
         # ---------------------------------------------------------------------------------------
         self.stateList = [
@@ -215,7 +216,7 @@ class cPhone(cThreadModule):
         if self.CheckTimeout(10):
             self.logger.log("Timeout in state:" + str(self.currState))
             self.NextState(self.STATE_idle)
-            commState = False
+            self.commState = False
 
     def STATE_SMS_delete(self):
         self.serPort.write(bytes("AT+CMGDA=\x22DEL ALL\x22\x0D", 'UTF-8'))
@@ -391,10 +392,13 @@ class cPhone(cThreadModule):
     def _handle(self):
         self.Process()  # fast call
 
-        if time.time() - self.tmrHandle > 20:
+        if time.time() - self.tmrSignalInfo > 601:
+            self.tmrSignalInfo = time.time()
+            self.CheckSignalInfo()
+        elif time.time() - self.tmrHandle > 20:
             self.tmrHandle = time.time()
             self.ReadSMS()
-            self.CheckSignalInfo()
+
 
             # process incoming SMS
             for sms in self.getIncomeSMSList():

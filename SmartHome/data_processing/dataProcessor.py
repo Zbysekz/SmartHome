@@ -8,6 +8,7 @@ import struct
 from control.powerwall import calculatePowerwallSOC
 import time
 from parameters import parameters
+from avg import cMovingAvg
 
 # for periodicity mysql inserts
 HOUR = 3600
@@ -26,6 +27,7 @@ class cDataProcessor(cThreadModule):
 
         self.tmrConsPowerwall = 0
         self.tmrCurrentValues = 0
+        self.avg_water_tank = cMovingAvg(10)
 
         # -------------STATE VARIABLES-------------------
         self.globalFlags = {}  # contains data from table globalFlags - controls behaviour of subsystems
@@ -221,16 +223,19 @@ class cDataProcessor(cThreadModule):
                 lin = (raw + 382.3461538) / 51.785714
                 dist_cm = lin * 32.992511 - 108.597222  # see spreadsheet
 
-            if dist_cm < 11:
-                waterTank_level = 100.0
-            elif dist_cm > 191:
-                waterTank_level = 0.0
-            else:
-                waterTank_level = (191.0 - dist_cm) / 180.0 * 100
+            # if dist_cm < 11:
+            #     waterTank_level = 100.0
+            # elif dist_cm > 191:
+            #     waterTank_level = 0.0
+            # else:
+            #     waterTank_level = (191.0 - dist_cm) / 180.0 * 100
 
-            self.mySQL.insertValue('status', 'waterTank_level', waterTank_level, periodicity=6 * HOUR,
-                                   writeNowDiff=0.5)
-            self.mySQL.insertValue('status', 'waterTank_level_raw', raw, periodicity=6 * HOUR,
+            waterTank_level = 100 * (1 - (raw - 170) / (550 - 170))
+            self.avg_water_tank.append_value(waterTank_level)
+
+            self.mySQL.insertValue('status', 'waterTank_level', self.avg_water_tank.value, periodicity=6 * HOUR,
+                                   writeNowDiff=1)
+            self.mySQL.insertValue('status', 'waterTank_level_raw', raw, periodicity=1 * HOUR,
                                    writeNowDiff=0.5)
 
         elif data[0] == 104:  # data from PIR sensor
