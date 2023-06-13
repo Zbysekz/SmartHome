@@ -33,7 +33,6 @@ class cHouseControl:
 
     def handle(self):
         try:
-            self.logger.log("entry handle")
             if time.time() - self.tmrPriceCalc > 3600 * 4:  # each 4 hour
                 self.tmrPriceCalc = time.time()
                 try:
@@ -44,7 +43,6 @@ class cHouseControl:
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                     self.logger.log(str(e))
                     self.logger.log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
-                self.logger.log("solar cons handle")
                 self.mySQL.update_day_solar_production()
                 self.logger.log("Successfully run price calculation", self.logger.RICH)
         except Exception as e:
