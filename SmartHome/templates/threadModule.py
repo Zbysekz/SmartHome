@@ -23,6 +23,7 @@ class cThreadModule:
             if module.terminate:
                 cThreadModule.logger.log(f"Terminating all threads, triggered by thread module {name}")
                 cThreadModule.terminateAll()
+                break
 
     @classmethod
     def terminateAll(cls):

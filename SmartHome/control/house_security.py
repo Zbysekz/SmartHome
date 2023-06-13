@@ -15,8 +15,6 @@ class cHouseSecurity:
         self.dataProcessor = dataProcessor
         self.phone = phone
 
-
-
         self.alarmCounting = False  # when door was opened and system locked
         self.alarmCnt = 0
 
@@ -55,9 +53,24 @@ class cHouseSecurity:
                 self.commProcessor.KeyboardRefresh(self.alarm, self.locked)
                 self.commProcessor.PIRSensorRefresh(self.alarm, self.locked)
 
+    def CheckGasSensor(self):
+        if gasSensorPrepared:
+            if not GPIO.input(PIN_GAS_ALARM):
+                logger.log("RPI GAS ALARM!!");
+                alarm |= GAS_ALARM_RPI
+                MySQL.updateState("alarm", int(alarm))
+                if alarm_last & GAS_ALARM_RPI == 0:
+                    phone.SendSMS(Parameters.MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
+                KeyboardRefresh(MySQL)
+                PIRSensorRefresh(MySQL)
+
+        else:
+            if time.time() - tmrPrepareGasSensor > 120:  # after 2 mins
+                gasSensorPrepared = True
+
     def keyboard_data_receive(self, doorSW):
         if doorSW and self.locked and (self.alarm & cHouseSecurity.DOOR_ALARM) == 0 and not self.alarmCounting:
-            alarmCounting = True
+            self.alarmCounting = True
             self.logger.log("LOCKED and DOORS opened")
 
     def PIR_sensor_data_receive(self):
@@ -93,14 +106,14 @@ class cHouseSecurity:
                 self.logger.log("LOCKED by keyboard")
             if data[1] == 4:  # doors opened and locked
                 if alarm == 0 and locked:
-                    alarmCounting = True
+                    self.alarmCounting = True
                 self.logger.log("LOCKED and DOORS opened event")
         if data[0] == 1:
             if data[1] == 1:  # unlock PIN
                 locked = False
                 alarm = 0
-                alarmCounting = False
-                alarmCnt = 0
+                self.alarmCounting = False
+                self.alarmCnt = 0
                 self.logger.log("UNLOCKED by keyboard PIN")
                 house_security.unlock_house()
 
@@ -108,8 +121,8 @@ class cHouseSecurity:
             if data[1] == 0:  # unlock RFID
                 locked = False
                 alarm = 0
-                alarmCounting = False
-                alarmCnt = 0
+                self.alarmCounting = False
+                self.alarmCnt = 0
                 self.logger.log("UNLOCKED by keyboard RFID")
                 house_security.unlock_house()
 

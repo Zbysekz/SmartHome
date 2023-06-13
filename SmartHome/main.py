@@ -25,6 +25,7 @@ from parameters import parameters
 import data_processing
 from templates.threadModule import cThreadModule
 from control.house_security import cHouseSecurity
+from control.house_control import cHouseControl
 
 # -------------DEFINITIONS-----------------------
 RESTART_ON_EXCEPTION = True
@@ -77,6 +78,7 @@ def main():
         commProcessor = comm.cCommProcessor(period_s=1)
         dataProcessor = data_processing.cDataProcessor(phone=phone, period_s=10)
         houseSecurity = cHouseSecurity(logger, MySQL, commProcessor, dataProcessor, phone)
+        houseControl = cHouseControl(logger, dataProcessor, commProcessor)
 
         commProcessor.house_security = houseSecurity
         commProcessor.TCP_server.data_received_callback = dataProcessor.data_received
@@ -95,6 +97,7 @@ def main():
             #os.system("shutdown -r 1")  # reboot after one minute
             #input("Reboot in one minute. Press Enter to continue...")
 
+    # these have their own threads
     commProcessor.handle()
     dataProcessor.handle()
     commProcessor.TCP_server.handle()
@@ -103,6 +106,8 @@ def main():
     ######################## MAIN LOOP ####################################################################################
     while True:
         try:
+            houseSecurity.handle()
+            houseControl.handle()
             if not cThreadModule.checkTermination():
                 break
             time.sleep(5)

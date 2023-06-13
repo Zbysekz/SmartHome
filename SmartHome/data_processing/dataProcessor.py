@@ -354,10 +354,10 @@ class cDataProcessor(cThreadModule):
                                    writeNowDiff=0.5,
                                    onlyCurrent=True)
 
-            self.mySQL.insertValue('temperature', 'brewhouse_cellar', temperature1 / 10.0,
+            self.mySQL.insertValue('temperature', 'brewhouse_cellar', temperature2 / 10.0,
                                    periodicity=5 * MINUTE,  # with correction
                                    writeNowDiff=0.1)
-            self.mySQL.insertValue('temperature', 'brewhouse_cellarbox', temperature2 / 10.0,
+            self.mySQL.insertValue('temperature', 'brewhouse_cellarbox', temperature1 / 10.0,
                                    periodicity=5 * MINUTE,  # with correction
                                    writeNowDiff=0.1)
             self.mySQL.insertValue('temperature', 'brewhouse_room', temperature_sht / 10.0,

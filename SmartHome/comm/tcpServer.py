@@ -49,6 +49,10 @@ class cTCPServer(cThreadModule):
 
         # conn.close()
         # print ('end')
+    def __del__(self):
+        self.logger.log("Called destructor")
+        if self.s:
+            self.s.close()
 
     def _handle(self):
         self.PrintBufferStatistics()
@@ -154,13 +158,13 @@ class cTCPServer(cThreadModule):
 
         conn.close()
 
-    def send(self, MySQL, data, destination, crc16=True):  # put in send queue
+    def send(self, data, destination, crc16=True):  # put in send queue
 
         if len(self.sendQueue) >= self.TXQUEUELIMIT_PER_DEVICE:  # if buffer is at least that full
             cnt = sum([msg[1] == destination for msg in self.sendQueue])  # how much are with same address
             if cnt >= self.TXQUEUELIMIT_PER_DEVICE:  # this device will become offline
 
-                self.RemoveOnlineDevice(MySQL, destination)
+                self.RemoveOnlineDevice(self.mySQL, destination)
                 device = cDevice.get_device(destination, self.devices)
                 if device:
                     device.online = False

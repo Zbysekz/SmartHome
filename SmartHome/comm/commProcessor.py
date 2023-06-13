@@ -99,7 +99,7 @@ class cCommProcessor(cThreadModule):
                         device = cDevice.get_device(ip, cCommProcessor.devices)
                         self.logger.log(str(device))
                         self.logger.log(byteArray)
-                        self.TCP_server.send(self.mySQL, byteArray, ip, crc16=True)
+                        self.TCP_server.send(byteArray, ip, crc16=True)
             except ValueError as e:
                 self.logger.log("MySQL - getTXbuffer - Value Error:" + str(packet[0]))
                 self.logger.log_exception(e)
@@ -121,14 +121,24 @@ class cCommProcessor(cThreadModule):
     def PIRSensorRefresh(self):
         self.logger.log("PIR sensor refresh!", Logger.FULL)
 
-        self.TCP_server.send(self.mySQL, bytes([0, int(self.house_security.alarm != 0), int(self.house_security.locked)]),  cDevice.get_ip("PIR_SENSOR", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
+        self.TCP_server.send(bytes([0, int(self.house_security.alarm != 0), int(self.house_security.locked)]),  cDevice.get_ip("PIR_SENSOR", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
 
     def KeyboardRefresh(self):
         self.logger.log("Keyboard refresh!", Logger.FULL)
         val = (int(self.house_security.alarm != 0)) + 2 * (int(self.house_security.locked))
 
-        self.TCP_server.send(self.mySQL, bytes([10, val]), cDevice.get_ip("KEYBOARD", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
+        self.TCP_server.send(bytes([10, val]), cDevice.get_ip("KEYBOARD", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
 
     def send_ack_keyboard(self, data):
         self.TCP_server.SendACK(data, cDevice.get_ip("IP_KEYBOARD", cCommProcessor.devices))
 
+    def heating_inhibition(self, on_off):
+        self.logger.log(f"Rackuno inhibition {on_off}!", Logger.FULL)
+
+        self.TCP_server.send(bytes([1, int(on_off)]), cDevice.get_ip("RACKUNO", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
+
+    def switch_to_grid(self):
+        self.TCP_server.send(bytes([3]), cDevice.get_ip("RACKUNO", cCommProcessor.devices))  # Switch to GRID command
+
+    def switch_to_solar(self):
+        self.TCP_server.send(bytes([4]), cDevice.get_ip("RACKUNO", cCommProcessor.devices))  # Switch to SOLAR command

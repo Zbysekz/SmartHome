@@ -46,6 +46,14 @@ class cDevice:
                 return item
         return None
 
+    @classmethod
+    def get_device_by_name(cls, name, list):
+        ip = cls.get_ip(name, list)
+        for item in list:
+            if item.ip_address == ip:
+                return item
+        return None
+
     def __str__(self):
         return f"{self.name}({self.ip_address})"
 

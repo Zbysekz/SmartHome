@@ -430,6 +430,29 @@ class cMySQL:
             return None
 
         return values       
-                
+
+    def update_day_solar_production(self):
+        try:
+            db, cursor = self.getConnection()
+
+            sql = "select value from measurements where kind='consumption' and source='powerwallDaily' order by time desc limit 2;"
+            cursor.execute(sql)
+
+            data = cursor.fetchall()
+
+            if data:
+                today = data[0][0]
+                last_day = data[1][0]
+
+                self.insertCalculatedValue("production", "solar_today", today)
+                self.insertCalculatedValue("production", "solar_last_day", last_day)
+
+        except Exception as e:
+            self.logger.log("Error while writing to database for update_day_solar_production, exception:")
+            self.logger.log_exception(e)
+            return None
+
+        return
+
 if __name__=="__main__":
     print("run")
