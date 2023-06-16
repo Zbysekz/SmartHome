@@ -3,6 +3,12 @@ import time
 import electricityPrice
 import os
 import sys
+import updateStats
+from databaseMySQL import cMySQL
+from datetime import datetime
+from parameters import parameters
+from logger import Logger
+from templates.threadModule import cThreadModule
 
 PIN_BTN_PC = 26
 PIN_GAS_ALARM = 23
@@ -11,9 +17,10 @@ actualHeatingInhibition = False
 INHIBITED_ROOM_TEMPERATURE = 20.0  # °C
 
 
-class cHouseControl:
-    def __init__(self, logger):
-        self.logger = logger
+class cHouseControl(cThreadModule):
+    def __init__(self, dataProcessor, **kwargs):
+        super().__init__(**kwargs)
+        self.logger = Logger("houseControl", verbosity=parameters.VERBOSITY)
         self.logger.log("Initializing pin for PC button & gas alarm...")
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
@@ -22,8 +29,15 @@ class cHouseControl:
         self.logger.log("Ok")
         self.tmrPriceCalc = 0
         self.tmrVentHeatControl = 0
+        self.mySQL = cMySQL()
 
-    def handle(self):
+        self.dataProcessor = dataProcessor
+        self.house_security = None
+        self.commProcessor = None
+        self.tmrUpdateVals = 0
+
+
+    def _handle(self):
         if time.time() - self.tmrPriceCalc > 3600 * 4:  # each 4 hour
             self.tmrPriceCalc = time.time()
             try:
@@ -34,57 +48,46 @@ class cHouseControl:
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                 self.logger.log(str(e))
                 self.logger.log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
-            updateStats.execute_4hour(MySQL_GeneralThread)
-
+            updateStats.execute_4hour(self.mySQL)
 
         if time.time() - self.tmrVentHeatControl > 300:  # each 5 mins
-            tmrVentHeatControl = time.time()
+            self.tmrVentHeatControl = time.time()
 
-            if len(globalFlags) > 0 and len(currentValues) > 0:  # we get both values from DTB
-                ControlPowerwall()
-                ControlVentilation()
-                ControlHeating()
+            if len(self.dataProcessor.globalFlags) > 0 and len(self.dataProcessor.currentValues) > 0:  # we get both values from DTB
+                self.ControlVentilation()
+                self.ControlHeating()
             else:
-                tmrVentHeatControl = time.time() - 200  # try it sooner
+                self.tmrVentHeatControl = time.time() - 200  # try it sooner
 
-        if time.time() - tmrFastPowerwallControl > 30:  # each 30secs
-            tmrFastPowerwallControl = time.time()
-            globalFlags = MySQL_GeneralThread.getGlobalFlags()  # update global flags
-            currentValues = MySQL_GeneralThread.getCurrentValues()
+        if time.time() - self.tmrUpdateVals > 30:  # each 30secs
+            self.tmrUpdateVals = time.time()
+            self.dataProcessor.globalFlags = self.mySQL.getGlobalFlags()  # update global flags
+            self.dataProcessor.currentValues = self.mySQL.getCurrentValues()
 
-            ControlPowerwall_fast()
 
     def CheckGasSensor(self):
-        if gasSensorPrepared:
+        if self.gasSensorPrepared:
             if not GPIO.input(PIN_GAS_ALARM):
-                logger.log("RPI GAS ALARM!!");
-                alarm |= GAS_ALARM_RPI
-                MySQL.updateState("alarm", int(alarm))
-                if alarm_last & GAS_ALARM_RPI == 0:
-                    phone.SendSMS(Parameters.MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
-                KeyboardRefresh(MySQL)
-                PIRSensorRefresh(MySQL)
+                self.house_security.gas_alarm_detected()
 
         else:
-            if time.time() - tmrPrepareGasSensor > 120:  # after 2 mins
-                gasSensorPrepared = True
+            if time.time() - self.tmrPrepareGasSensor > 120:  # after 2 mins
+                self.gasSensorPrepared = True
 
-    def TogglePCbutton():
-        global PIN_BTN_PC
+    def TogglePCbutton(self):
         GPIO.output(PIN_BTN_PC, True)
         time.sleep(2)
         GPIO.output(PIN_BTN_PC, False)
 
-
-    def ControlVentilation():  # called each 5 mins
-        if globalFlags['autoVentilation'] == 1:
+    def ControlVentilation(self):  # called each 5 mins
+        if self.dataProcessor.globalFlags['autoVentilation'] == 1:
             datetimeNow = datetime.now()
             dayTime = 7 < datetimeNow.hour < 21
             summerTime = 5 < datetimeNow.month < 9
             afterSchool = datetimeNow.weekday()<5 and datetimeNow.hour > 8 and\
                 datetimeNow.hour < 10
 
-            roomHumidity = currentValues.get("humidity_PIR sensor")
+            roomHumidity = self.dataProcessor.currentValues.get("humidity_PIR sensor")
             if roomHumidity is None:
                 ventilationCommand = 99  # do not control
             else:
@@ -100,7 +103,7 @@ class cHouseControl:
                     else:
                         ventilationCommand = 99
                 else:  # WARM OUTSIDE
-                    if (afterSchool and roomHumidity >= 61.0):
+                    if afterSchool and roomHumidity >= 61.0:
                         ventilationCommand = 4
                     elif roomHumidity >= 60.0 and dayTime:
                         ventilationCommand = 3
@@ -116,26 +119,27 @@ class cHouseControl:
         else:
             ventilationCommand = 99
 
-        MySQL_GeneralThread.updateState("ventilationCommand", ventilationCommand)
+        self.mySQL.updateState("ventilationCommand", ventilationCommand)
 
     def ControlHeating(self):  # called each 5 mins
 
         HYSTERESIS = 0.5  # +- °C
-        roomTemperature = currentValues.get("temperature_PIR sensor")
-        heatingControlInhibit = currentValues.get("status_heatingControlInhibit")
+        roomTemperature = self.dataProcessor.currentValues.get("temperature_PIR sensor")
+        heatingControlInhibit = self.dataProcessor.currentValues.get("status_heatingControlInhibit")
 
         if heatingControlInhibit:
             if roomTemperature is not None:
-                if actualHeatingInhibition:
+                if self.actualHeatingInhibition:
                     if roomTemperature <= INHIBITED_ROOM_TEMPERATURE - HYSTERESIS:
-                        actualHeatingInhibition = False
+                        self.actualHeatingInhibition = False
                 else:
                     if roomTemperature >= INHIBITED_ROOM_TEMPERATURE + HYSTERESIS:
-                        actualHeatingInhibition = True
+                        self.actualHeatingInhibition = True
 
-            if roomTemperature is not None and actualHeatingInhibition:
-                comm.Send(MySQL, bytes([1, 1]), IP_RACKUNO)
+            if roomTemperature is not None and self.actualHeatingInhibition:
+                self.commProcessor.set_heating_inhibition(1)
             else:
-                comm.Send(MySQL, bytes([1, 0]), IP_RACKUNO)
+                self.commProcessor.set_heating_inhibition(0)
+
         else:
-            comm.Send(MySQL, bytes([1, 0]), IP_RACKUNO)  # not controlling
+            self.commProcessor.set_heating_inhibition(0)  # not controlling

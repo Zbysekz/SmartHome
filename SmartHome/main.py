@@ -25,6 +25,8 @@ from parameters import parameters
 import data_processing
 from templates.threadModule import cThreadModule
 from control.house_security import cHouseSecurity
+from control.house import cHouseControl
+from control.powerwall import cPowerwallControl
 
 # -------------DEFINITIONS-----------------------
 RESTART_ON_EXCEPTION = True
@@ -72,12 +74,20 @@ def main():
 
         logger.log("Entry point main.py")
 
+        threading.excepthook = exception_in_thread
+
         phone = cPhone(period_s=5)
         logger.phone = phone
         commProcessor = comm.cCommProcessor(period_s=1)
         dataProcessor = data_processing.cDataProcessor(phone=phone, period_s=10)
+        houseControl = cHouseControl(dataProcessor=dataProcessor, period_s=4)
         houseSecurity = cHouseSecurity(logger, MySQL, commProcessor, dataProcessor, phone)
+        powerwallControl = cPowerwallControl(period_s=30)
 
+        powerwallControl.dataProcessor = dataProcessor
+        houseControl.house_security = houseSecurity
+        houseControl.commProcessor = commProcessor
+        phone.sms_received_callback = dataProcessor.sms_received
         commProcessor.house_security = houseSecurity
         commProcessor.TCP_server.data_received_callback = dataProcessor.data_received
         dataProcessor.house_security = houseSecurity
@@ -99,6 +109,8 @@ def main():
     dataProcessor.handle()
     commProcessor.TCP_server.handle()
     phone.handle()
+    houseControl.handle()
+    powerwallControl.handle()
 
     ######################## MAIN LOOP ####################################################################################
     while True:
@@ -114,6 +126,10 @@ def main():
             logger.log_exception(e)
             cThreadModule.terminateAll()
         # ----------------------------------------------
+
+def exception_in_thread(args):
+    logger.log(f"Unexpected exception in thread! quitting...{args}")
+    cThreadModule.terminateAll()
 
 ####################################################################################################################
 

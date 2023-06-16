@@ -117,13 +117,13 @@ class cTCPServer(cThreadModule):
                 if r:
                     data = conn.recv(self.BUFFER_SIZE)
                 else:
-                    self.logger.log(f"Device {str(device)}) was connected,"
-                                    f" but haven't send any data.")
+
                     tryit -= 1
                     time.sleep(1)
+                    if tryit == 0:
+                        self.logger.log(f"Device {str(device)}) was connected,"
+                                        f" but haven't send any data.")
                     continue
-                if tryit<3:
-                    self.logger.log(f"But on other try it SUCCEEDED!")
                 if not data:
                     break
 

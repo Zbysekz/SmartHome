@@ -53,7 +53,6 @@ class cCommProcessor(cThreadModule):
 
                 time.sleep(10)
 
-
         self.logger.log("TCP port connected OK")
 
         self.mySQL.RemoveOnlineDevices()  # clean up online device table
@@ -132,3 +131,9 @@ class cCommProcessor(cThreadModule):
     def send_ack_keyboard(self, data):
         self.TCP_server.SendACK(data, cDevice.get_ip("IP_KEYBOARD", cCommProcessor.devices))
 
+    def set_heating_inhibition(self, value):
+        self.TCP_server.send(self.mySQL, bytes([1, value]), cDevice.get_ip("RACKUNO", cCommProcessor.devices))
+
+    def test_cellar(self):
+        print("SENDING TO CELLAR !!!!!!!!!!!!!!!!!!!!!!")
+        self.TCP_server.send(self.mySQL, bytes([1, 2, 3, 4]), cDevice.get_ip("CELLAR", cCommProcessor.devices))
