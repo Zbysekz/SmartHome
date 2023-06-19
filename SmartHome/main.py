@@ -25,7 +25,7 @@ from parameters import parameters
 import data_processing
 from templates.threadModule import cThreadModule
 from control.house_security import cHouseSecurity
-from control.house import cHouseControl
+from control.house_control import cHouseControl
 from control.powerwall import cPowerwallControl
 
 # -------------DEFINITIONS-----------------------
