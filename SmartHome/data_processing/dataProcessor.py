@@ -19,7 +19,7 @@ class cDataProcessor(cThreadModule):
     def __init__(self, phone, **kwargs):
         super().__init__(**kwargs)
         self.mySQL = cMySQL()
-        self.logger = Logger("dataProcessor", verbosity=Logger.NORMAL)
+        self.logger = Logger("dataProcessor", verbosity=parameters.VERBOSITY)
         self.phone = phone
         self.house_security = None
         self.commProcessor = None
@@ -287,7 +287,7 @@ class cDataProcessor(cThreadModule):
                 self.logger.log("Daily solar cons", _verbosity=Logger.RICH)
                 self.tmrConsPowerwall = time.time()
                 self.mySQL.insertDailySolarCons((data[9] * 16777216 + data[10] * 65536 + data[11] * 256 + data[12]) * 10.0)  # in 0.01 kWh
-            self.logger.log("process completed", _verbosity=Logger.RICH)
+                self.logger.log("process completed", _verbosity=Logger.RICH)
 
         elif data[0] == 107:  # data from brewhouse
             self.mySQL.insertValue('temperature', 'brewhouse_horkaVoda', (data[1] * 256 + data[2]) / 100.0 + 6.0,
@@ -434,7 +434,7 @@ class cDataProcessor(cThreadModule):
         else:
             self.logger.log("Unknown event, data:" + str(data))
 
-    def incoming_SMS(self, data):
+    def sms_received(self, data):
         if data[1] == parameters.MY_NUMBER1:
             if data[0].startswith("get status"):
 

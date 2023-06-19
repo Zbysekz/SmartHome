@@ -21,6 +21,15 @@ class cHouseSecurity:
         self.alarm = False
         self.locked = False
 
+    def gas_alarm_detected(self):
+        self.logger.log("RPI GAS ALARM!!");
+        self.alarm |= cHouseSecurity.GAS_ALARM_RPI
+        self.mySql.updateState("alarm", int(self.alarm))
+        if self.alarm_last & cHouseSecurity.GAS_ALARM_RPI == 0:
+            self.phone.SendSMS(parameters.MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
+        self.KeyboardRefresh(self.mySql)
+        self.PIRSensorRefresh(self.mySql)
+
     def deactivate_alarm(self):
         self.alarm = False
 

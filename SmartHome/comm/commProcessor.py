@@ -53,7 +53,6 @@ class cCommProcessor(cThreadModule):
 
                 time.sleep(10)
 
-
         self.logger.log("TCP port connected OK")
 
         self.mySQL.RemoveOnlineDevices()  # clean up online device table
@@ -142,3 +141,6 @@ class cCommProcessor(cThreadModule):
 
     def switch_to_solar(self):
         self.TCP_server.send(bytes([4]), cDevice.get_ip("RACKUNO", cCommProcessor.devices))  # Switch to SOLAR command
+    def test_cellar(self):
+        print("SENDING TO CELLAR !!!!!!!!!!!!!!!!!!!!!!")
+        self.TCP_server.send(self.mySQL, bytes([1, 2, 3, 4]), cDevice.get_ip("CELLAR", cCommProcessor.devices))

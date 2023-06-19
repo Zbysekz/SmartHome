@@ -41,6 +41,7 @@ class cPhone(cThreadModule):
         self.clearBufferWhenPhoneOffline = 0
         self.timeOfReceive = 0
         self.configLine = ""
+        self.sms_received_callback = None
 
         # stats
         self.commState = False
@@ -181,7 +182,7 @@ class cPhone(cThreadModule):
         for rcvLine in rcvLines:  # receiving of one way asynchronnous commands
             try:
                 if self.readSMSsender != "":
-                    self.readSMStext = rcvLine.decode("utf-8").replace('\r', '')
+                    self.readSMStext = rcvLine.decode("utf-8").replace('\r', '').lower()
 
                     self.nOfReceivedSMS = self.nOfReceivedSMS + 1
 
@@ -303,7 +304,10 @@ class cPhone(cThreadModule):
 
     def connect(self):
         self.logger.log("Initializing serial port...")
-
+        if not parameters.ON_RASPBERRY:
+            self.logger.log("Not on RPI system.. will not try to connect to phone!")
+            self.serPort = None
+            return
         self.serPort = serial.Serial(
 
             port='/dev/ttyS0',
@@ -390,6 +394,8 @@ class cPhone(cThreadModule):
         return rcvLines
 
     def _handle(self):
+        if not parameters.ON_RASPBERRY:
+            return
         self.Process()  # fast call
 
         if time.time() - self.tmrSignalInfo > 601:
@@ -402,7 +408,7 @@ class cPhone(cThreadModule):
 
             # process incoming SMS
             for sms in self.getIncomeSMSList():
-                self.IncomingSMS(sms)
+                self.sms_received_callback(sms)
             self.clearIncomeSMSList()
 
             self.mySQL.updateState('phoneSignalInfo', str(self.getSignalInfo()))

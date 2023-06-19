@@ -11,12 +11,17 @@ class cThreadModule:
         self.tmr = None
 
     def handle(self):
+        threading.excepthook = self.exception_in_thread
         self._handle()
         if not self.terminate or self.period_s is None:
             self.tmr = threading.Timer(self.period_s, self.handle)  # calling itself periodically
+            #self.tmr.daemon = True
             self.tmr.start()
             cThreadModule.modules[self._type] = self
 
+    def exception_in_thread(self, args):
+        self.logger.log(f"Exception in thread, ending! {args}")
+        self.terminate = True
     @classmethod
     def checkTermination(cls):
         for name, module in cThreadModule.modules.items():
