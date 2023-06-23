@@ -19,7 +19,6 @@ import sys
 import struct
 import electricityPrice
 import time
-import updateStats
 from logger import Logger
 from parameters import parameters
 import data_processing

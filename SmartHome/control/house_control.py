@@ -5,7 +5,6 @@ import time
 import electricityPrice
 import os
 import sys
-import updateStats
 from databaseMySQL import cMySQL
 from datetime import datetime
 
@@ -50,7 +49,7 @@ class cHouseControl(cThreadModule):
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                 self.logger.log(str(e))
                 self.logger.log(str(exc_type) + " : " + str(fname) + " : " + str(exc_tb.tb_lineno))
-            updateStats.execute_4hour(self.mySQL)
+            self.mySQL.update_day_solar_production()
 
         if time.time() - self.tmrVentHeatControl > 300:  # each 5 mins
             self.tmrVentHeatControl = time.time()
