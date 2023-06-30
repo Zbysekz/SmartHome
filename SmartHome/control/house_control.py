@@ -74,6 +74,7 @@ class cHouseControl(cThreadModule):
         else:
             if time.time() - self.tmrPrepareGasSensor > 120:  # after 2 mins
                 self.gasSensorPrepared = True
+
     def TogglePCbutton(self):
         GPIO.output(PIN_BTN_PC, True)
         time.sleep(2)

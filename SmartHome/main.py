@@ -91,6 +91,7 @@ def main():
         commProcessor.TCP_server.data_received_callback = dataProcessor.data_received
         dataProcessor.house_security = houseSecurity
         dataProcessor.commProcessor = commProcessor
+        dataProcessor.house_control = houseControl
 
     except KeyboardInterrupt:
         logger.log("Interrupted by user...")

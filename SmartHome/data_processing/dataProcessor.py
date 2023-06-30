@@ -22,6 +22,7 @@ class cDataProcessor(cThreadModule):
         self.logger = Logger("dataProcessor", verbosity=parameters.VERBOSITY)
         self.phone = phone
         self.house_security = None
+        self.house_control = None
         self.commProcessor = None
         self.bufferedCellModVoltage = 24 * [0]
 
@@ -472,7 +473,7 @@ class cDataProcessor(cThreadModule):
 
             elif data[0].startswith("toggle PC"):
                 self.logger.log("Toggle PC button by SMS command.")
-                # TogglePCbutton()
+                self.house_control.TogglePCbutton()
             elif data[0].startswith("heating on"):
                 self.logger.log("Heating on by SMS command.")
                 heatingControlInhibit = False
