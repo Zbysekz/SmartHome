@@ -217,12 +217,6 @@ class cDataProcessor(cThreadModule):
                                    writeNowDiff=1)
 
             raw = data[7] * 256 + data[8]
-            if raw < 360:
-                lin = (raw + 16.72222222222) / 38.766666666
-                dist_cm = lin * 24.698118 - 108.597222  # see spreadsheet
-            else:
-                lin = (raw + 382.3461538) / 51.785714
-                dist_cm = lin * 32.992511 - 108.597222  # see spreadsheet
 
             # if dist_cm < 11:
             #     waterTank_level = 100.0
@@ -231,7 +225,8 @@ class cDataProcessor(cThreadModule):
             # else:
             #     waterTank_level = (191.0 - dist_cm) / 180.0 * 100
 
-            waterTank_level = 100 * (1 - (raw - 170) / (550 - 170))
+            waterTank_level = 100 * (-raw*0.000244052235241*raw+0.093727045956581*raw+171.116013166274)/180.0
+            waterTank_level = max(0, min(waterTank_level, 100))
             self.avg_water_tank.append_value(waterTank_level)
 
             self.mySQL.insertValue('status', 'waterTank_level', self.avg_water_tank.value, periodicity=6 * HOUR,
@@ -437,7 +432,8 @@ class cDataProcessor(cThreadModule):
 
     def sms_received(self, data):
         if data[1] == parameters.MY_NUMBER1:
-            if data[0].startswith("get status"):
+            sms_text = data[0].lower()
+            if sms_text.startswith("get status"):
 
                 txt = "Stand-by"
                 if self.house_security.alarm & cHouseSecurity.DOOR_ALARM != 0:
@@ -457,32 +453,32 @@ class cDataProcessor(cThreadModule):
 
                 self.phone.SendSMS(data[1], txt)
                 self.logger.log("Get status by SMS command.")
-            elif data[0].startswith("lock"):
+            elif sms_text.startswith("lock"):
                 locked = True
 
                 self.mySQL_phoneThread.updateState("locked", int(locked))
                 self.logger.log("Locked by SMS command.")
-            elif data[0].startswith("unlock"):
+            elif sms_text.startswith("unlock"):
                 locked = False
 
                 self.mySQL_phoneThread.updateState("locked", int(locked))
                 self.logger.log("Unlocked by SMS command.")
-            elif data[0].startswith("deactivate alarm"):
+            elif sms_text.startswith("deactivate alarm"):
                 self.logger.log("Alarm deactivated by SMS command.")
                 self.house_security.deactivate_alarm()
 
-            elif data[0].startswith("toggle PC"):
+            elif sms_text.startswith("toggle pc"):
                 self.logger.log("Toggle PC button by SMS command.")
                 self.house_control.TogglePCbutton()
-            elif data[0].startswith("heating on"):
+            elif sms_text.startswith("heating on"):
                 self.logger.log("Heating on by SMS command.")
                 heatingControlInhibit = False
                 self.phone.SendSMS(data[1], "Ok. Heating was set ON.")
-            elif data[0].startswith("heating off"):
+            elif sms_text.startswith("heating off"):
                 self.logger.log("Heating off by SMS command.")
                 heatingControlInhibit = True
                 self.phone.SendSMS(data[1], "Ok. Heating was set OFF.")
-            elif data[0].startswith("help"):
+            elif sms_text.startswith("help"):
                 self.logger.log("Sending help hints back")
                 self.phone.SendSMS(data[1],
                                    "get status;lock;unlock;deactivate alarm;toggle PC;heating on; heating off;")
