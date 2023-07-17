@@ -311,6 +311,7 @@ class cDataProcessor(cThreadModule):
             temp_setpoint = cDataProcessor.correctNegative(data[8] * 256 + data[9])
             temperature1 = cDataProcessor.correctNegative(data[10] * 256 + data[11])
             temperature2 = cDataProcessor.correctNegative(data[12] * 256 + data[13])
+            temperature3 = cDataProcessor.correctNegative(data[14] * 256 + data[15])
 
             params_valid = bits & 0x01
             errorFlags = bits & 0x02
@@ -350,6 +351,9 @@ class cDataProcessor(cThreadModule):
                                    writeNowDiff=0.5,
                                    onlyCurrent=True)
 
+            self.mySQL.insertValue('temperature', 'brewhouse_fermentor', temperature3 / 10.0,
+                                   periodicity=5 * MINUTE,  # with correction
+                                   writeNowDiff=0.1)
             self.mySQL.insertValue('temperature', 'brewhouse_cellar', temperature2 / 10.0,
                                    periodicity=5 * MINUTE,  # with correction
                                    writeNowDiff=0.1)
