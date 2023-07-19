@@ -120,6 +120,9 @@ def main():
             houseControl.handle()
             if not cThreadModule.checkTermination():
                 break
+
+            logger.sendQueue()  # send sms from logger
+
             time.sleep(5)
         except KeyboardInterrupt:
             logger.log("Interrupted by user! quitting...")
@@ -131,7 +134,7 @@ def main():
         # ----------------------------------------------
 
 def exception_in_thread(args):
-    logger.log(f"Unexpected exception in thread! quitting...{args}")
+    logger.log(f"Unexpected exception in thread! quitting...{args}", logger.CRITICAL)
     cThreadModule.terminateAll()
 
 ####################################################################################################################

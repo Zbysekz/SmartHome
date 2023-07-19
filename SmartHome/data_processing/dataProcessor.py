@@ -67,7 +67,8 @@ class cDataProcessor(cThreadModule):
                 except IndexError:
                     self.logger.log("IndexError while processing incoming data! data:" + str(data))
                 except Exception as e:
-                    self.logger.log(f"General exception while processing incoming data! data: {data}")
+                    self.logger.log(
+                        f"General exception while processing incoming data! data: {data}")
                     self.logger.log_exception(e)
         self.mySQL.PersistentDisconnect()
         # -------------------------------------------------
@@ -84,20 +85,25 @@ class cDataProcessor(cThreadModule):
             temp = (data[4] * 256 + data[5]) / 10 + 0.5
             RH = (data[6] * 256 + data[7]) / 10
 
-            self.mySQL.insertValue('bools', 'door switch 1', doorSW, periodicity=120 * MINUTE, writeNowDiff=1)
+            self.mySQL.insertValue('bools', 'door switch 1', doorSW, periodicity=120 * MINUTE,
+                                   writeNowDiff=1)
             # self.mySQL.insertValue('bools','gas alarm 1',gasAlarm,periodicity =30*MINUTE, writeNowDiff = 1)
             # self.mySQL.insertValue('gas','keyboard',gas)
-            self.mySQL.insertValue('temperature', 'keyboard', temp, periodicity=60 * MINUTE, writeNowDiff=1)
-            self.mySQL.insertValue('humidity', 'keyboard', RH, periodicity=60 * MINUTE, writeNowDiff=1)
+            self.mySQL.insertValue('temperature', 'keyboard', temp, periodicity=60 * MINUTE,
+                                   writeNowDiff=1)
+            self.mySQL.insertValue('humidity', 'keyboard', RH, periodicity=60 * MINUTE,
+                                   writeNowDiff=1)
 
             self.house_security.keyboard_data_receive(doorSW)
 
         elif data[0] == 101:  # data from meteostations
             meteoTemp = cDataProcessor.correctNegative((data[1] * 256 + data[2]))
 
-            self.mySQL.insertValue('temperature', 'meteostation 1', meteoTemp / 100, periodicity=60 * MINUTE,
+            self.mySQL.insertValue('temperature', 'meteostation 1', meteoTemp / 100,
+                                   periodicity=60 * MINUTE,
                                    writeNowDiff=0.5)
-            self.mySQL.insertValue('pressure', 'meteostation 1', (data[3] * 65536 + data[4] * 256 + data[5]) / 100,
+            self.mySQL.insertValue('pressure', 'meteostation 1',
+                                   (data[3] * 65536 + data[4] * 256 + data[5]) / 100,
                                    periodicity=50 * MINUTE, writeNowDiff=100)
             self.mySQL.insertValue('voltage', 'meteostation 1', (data[6] * 256 + data[7]) / 1000,
                                    periodicity=50 * MINUTE,
@@ -107,14 +113,17 @@ class cDataProcessor(cThreadModule):
             voltage = (data[2] * 256 + data[3]) / 100
             if data[1] < 24:
                 self.bufferedCellModVoltage[
-                    data[1]] = voltage   # we need to store voltages for each module, to calculate burning energy later
+                    data[
+                        1]] = voltage  # we need to store voltages for each module, to calculate burning energy later
             temp = (data[4] * 256 + data[5]) / 10
 
             if voltage < 5:
-                self.mySQL.insertValue('voltage', 'powerwall cell ' + str(data[1]), voltage, periodicity=30 * MINUTE,
+                self.mySQL.insertValue('voltage', 'powerwall cell ' + str(data[1]), voltage,
+                                       periodicity=30 * MINUTE,
                                        writeNowDiff=0.1)
             if temp < 70:
-                self.mySQL.insertValue('temperature', 'powerwall cell ' + str(data[1]), temp, periodicity=30 * MINUTE,
+                self.mySQL.insertValue('temperature', 'powerwall cell ' + str(data[1]), temp,
+                                       periodicity=30 * MINUTE,
                                        writeNowDiff=0.5)
         elif data[0] == 10:  # POWERWALL STATUS
             powerwall_stateMachineStatus = data[1]
@@ -124,26 +133,33 @@ class cDataProcessor(cThreadModule):
             heating = (data[4] & 0x02) != 0
             err_module_no = data[5]
 
-            self.mySQL.insertValue('status', 'powerwall_stateMachineStatus', powerwall_stateMachineStatus,
+            self.mySQL.insertValue('status', 'powerwall_stateMachineStatus',
+                                   powerwall_stateMachineStatus,
                                    periodicity=30 * MINUTE, writeNowDiff=1)
-            self.mySQL.insertValue('status', 'powerwall_errorStatus', errorStatus, periodicity=60 * MINUTE,
+            self.mySQL.insertValue('status', 'powerwall_errorStatus', errorStatus,
+                                   periodicity=60 * MINUTE,
                                    writeNowDiff=1)
-            self.mySQL.insertValue('status', 'powerwall_errorStatus_cause', errorStatus_cause, periodicity=60 * MINUTE,
+            self.mySQL.insertValue('status', 'powerwall_errorStatus_cause', errorStatus_cause,
+                                   periodicity=60 * MINUTE,
                                    writeNowDiff=1)
-            self.mySQL.insertValue('status', 'powerwall_solarConnected', solarConnected, periodicity=60 * MINUTE,
+            self.mySQL.insertValue('status', 'powerwall_solarConnected', solarConnected,
+                                   periodicity=60 * MINUTE,
                                    writeNowDiff=1)
             self.mySQL.insertValue('status', 'powerwall_heating', heating, periodicity=60 * MINUTE,
                                    writeNowDiff=1)
-            self.mySQL.insertValue('status', 'powerwall_err_module_no', err_module_no, periodicity=60 * MINUTE,
+            self.mySQL.insertValue('status', 'powerwall_err_module_no', err_module_no,
+                                   periodicity=60 * MINUTE,
                                    writeNowDiff=1)
 
         elif data[0] == 69:  # general statistics from powerwall
             P = 300.0 * 1 / 7.0  # power of the heating element * duty_cycle : duty_cycle is ratio is 1:6 so 1/7
-            WhValue = (data[2] * 256 + data[1]) * P / 360.0  # counting pulse per 10s => 6 = P*1Wmin => P/360Wh
+            WhValue = (data[2] * 256 + data[
+                1]) * P / 360.0  # counting pulse per 10s => 6 = P*1Wmin => P/360Wh
             if WhValue > 0:
                 self.mySQL.insertValue('consumption', 'powerwall_heating', WhValue)
             if data[3] > 0:
-                self.logger.log("CRC mismatch counter of BMS_controller not zero! Value:" + str(data[3]))
+                self.logger.log(
+                    "CRC mismatch counter of BMS_controller not zero! Value:" + str(data[3]))
         elif data[0] > 40 and data[0] <= 69:  # POWERWALL - calibrations
             volCal = struct.unpack('f', bytes([data[2], data[3], data[4], data[5]]))[0]
             tempCal = struct.unpack('f', bytes([data[6], data[7], data[8], data[9]]))[0]
@@ -153,7 +169,8 @@ class cDataProcessor(cThreadModule):
         elif data[0] > 70 and data[0] < 99:  # POWERWALL - statistics
             valueToWrite = (data[2] * 256 + data[3])
 
-            self.mySQL.insertValue('counter', 'powerwall cell ' + str(data[1]), valueToWrite, periodicity=60 * MINUTE,
+            self.mySQL.insertValue('counter', 'powerwall cell ' + str(data[1]), valueToWrite,
+                                   periodicity=60 * MINUTE,
                                    writeNowDiff=1)
 
             # compensate dimensionless value from module to represent Wh
@@ -165,7 +182,8 @@ class cDataProcessor(cThreadModule):
                     bufVolt = 4  # it is too soon to have buffered voltage
             else:
                 bufVolt = 4  # some sensible value if error occurs
-            val = (data[4] * 256 + data[5])  # this value is counter for how long bypass was switched on
+            val = (data[4] * 256 + data[
+                5])  # this value is counter for how long bypass was switched on
             T = 10  # each 10 min data comes.
             R = 2  # Ohms of burning resistor
             # coeficient, depends on T and on timer on cell module,
@@ -190,29 +208,35 @@ class cDataProcessor(cThreadModule):
                                    writeNowDiff=0.2)
         elif data[0] == 103:  # data from rackUno
             # store power
-            self.mySQL.insertValue('power', 'grid', (data[1] * 256 + data[2]), periodicity=30 * MINUTE, writeNowDiff=50)
+            self.mySQL.insertValue('power', 'grid', (data[1] * 256 + data[2]),
+                                   periodicity=30 * MINUTE, writeNowDiff=50)
 
             # now store consumption according to tariff
             stdTariff = (data[5] & 0x01) == 0
             detectSolarPower = (data[5] & 0x02) == 0
             rackUno_heatingInhibition = (data[5] & 0x04) == 0
 
-            self.mySQL.insertValue('status', 'rackUno_detectSolarPower', int(detectSolarPower), periodicity=6 * HOUR,
+            self.mySQL.insertValue('status', 'rackUno_detectSolarPower', int(detectSolarPower),
+                                   periodicity=6 * HOUR,
                                    writeNowDiff=1)
 
-            self.mySQL.insertValue('status', 'rackUno_heatingInhibition', int(rackUno_heatingInhibition),
+            self.mySQL.insertValue('status', 'rackUno_heatingInhibition',
+                                   int(rackUno_heatingInhibition),
                                    periodicity=6 * HOUR,
                                    writeNowDiff=1)
 
             if not stdTariff:  # T1 - low tariff
                 self.mySQL.insertValue('consumption', 'lowTariff',
-                                       (data[3] * 256 + data[4]) / 60)  # from power to consumption - 1puls=1Wh
+                                       (data[3] * 256 + data[
+                                           4]) / 60)  # from power to consumption - 1puls=1Wh
             else:
                 self.mySQL.insertValue('consumption', 'stdTariff',
-                                       (data[3] * 256 + data[4]) / 60)  # from power to consumption - 1puls=1Wh
+                                       (data[3] * 256 + data[
+                                           4]) / 60)  # from power to consumption - 1puls=1Wh
 
             rackUno_stateMachineStatus = data[6]
-            self.mySQL.insertValue('status', 'rackUno_stateMachineStatus', rackUno_stateMachineStatus,
+            self.mySQL.insertValue('status', 'rackUno_stateMachineStatus',
+                                   rackUno_stateMachineStatus,
                                    periodicity=6 * HOUR,
                                    writeNowDiff=1)
 
@@ -225,11 +249,13 @@ class cDataProcessor(cThreadModule):
             # else:
             #     waterTank_level = (191.0 - dist_cm) / 180.0 * 100
 
-            waterTank_level = 100 * (-raw*0.000244052235241*raw+0.093727045956581*raw+171.116013166274)/180.0
+            waterTank_level = 100 * (
+                    -raw * 0.000244052235241 * raw + 0.093727045956581 * raw + 171.116013166274) / 180.0
             waterTank_level = max(0, min(waterTank_level, 100))
             self.avg_water_tank.append_value(waterTank_level)
 
-            self.mySQL.insertValue('status', 'waterTank_level', self.avg_water_tank.value, periodicity=6 * HOUR,
+            self.mySQL.insertValue('status', 'waterTank_level', self.avg_water_tank.value,
+                                   periodicity=6 * HOUR,
                                    writeNowDiff=1)
             self.mySQL.insertValue('status', 'waterTank_level_raw', raw, periodicity=1 * HOUR,
                                    writeNowDiff=0.5)
@@ -242,12 +268,15 @@ class cDataProcessor(cThreadModule):
 
             # check validity and store values
             if tempPIR > -30.0 and tempPIR < 80.0:
-                self.mySQL.insertValue('temperature', 'PIR sensor', tempPIR, periodicity=60 * MINUTE, writeNowDiff=1)
+                self.mySQL.insertValue('temperature', 'PIR sensor', tempPIR,
+                                       periodicity=60 * MINUTE, writeNowDiff=1)
 
             if humidPIR >= 0.0 and tempPIR <= 100.0:
-                self.mySQL.insertValue('humidity', 'PIR sensor', humidPIR, periodicity=60 * MINUTE, writeNowDiff=1)
+                self.mySQL.insertValue('humidity', 'PIR sensor', humidPIR, periodicity=60 * MINUTE,
+                                       writeNowDiff=1)
 
-            self.mySQL.insertValue('gas', 'PIR sensor', (data[5] * 256 + data[6]), periodicity=60 * MINUTE,
+            self.mySQL.insertValue('gas', 'PIR sensor', (data[5] * 256 + data[6]),
+                                   periodicity=60 * MINUTE,
                                    writeNowDiff=50)
         elif data[0] == 105:  # data from PIR sensor
             gasAlarm2 = data[1]
@@ -257,24 +286,30 @@ class cDataProcessor(cThreadModule):
 
         elif data[0] == 106:  # data from powerwall ESP
             batteryStatus = data[13] * 256 + data[14]
-            self.mySQL.insertValue('status', 'powerwallEpeverBatteryStatus', batteryStatus, periodicity=6 * HOUR,
+            self.mySQL.insertValue('status', 'powerwallEpeverBatteryStatus', batteryStatus,
+                                   periodicity=6 * HOUR,
                                    writeNowDiff=1)
-            self.mySQL.insertValue('status', 'powerwallEpeverChargerStatus', data[15] * 256 + data[16],
+            self.mySQL.insertValue('status', 'powerwallEpeverChargerStatus',
+                                   data[15] * 256 + data[16],
                                    periodicity=6 * HOUR,
                                    writeNowDiff=1)
             self.logger.log("status inserted", _verbosity=Logger.FULL)
             if batteryStatus == 0 and (
-                    self.currentValues.get('status_powerwall_stateMachineStatus') == 10 or self.currentValues.get(
+                    self.currentValues.get(
+                        'status_powerwall_stateMachineStatus') == 10 or self.currentValues.get(
                 'status_powerwall_stateMachineStatus') == 20):  # valid only if epever reports battery ok and battery is really connected
                 powerwallVolt = (data[1] * 256 + data[2]) / 100.0
-                self.mySQL.insertValue('voltage', 'powerwallSum', powerwallVolt, periodicity=60 * MINUTE,
+                self.mySQL.insertValue('voltage', 'powerwallSum', powerwallVolt,
+                                       periodicity=60 * MINUTE,
                                        writeNowDiff=0.5)
                 soc = calculatePowerwallSOC(powerwallVolt)
-                self.mySQL.insertValue('status', 'powerwallSoc', soc, periodicity=2 * HOUR, writeNowDiff=1)
+                self.mySQL.insertValue('status', 'powerwallSoc', soc, periodicity=2 * HOUR,
+                                       writeNowDiff=1)
 
             temperature = cDataProcessor.correctNegative(data[3] * 256 + data[4])
 
-            self.mySQL.insertValue('temperature', 'powerwallOutside', temperature / 100.0, periodicity=30 * MINUTE,
+            self.mySQL.insertValue('temperature', 'powerwallOutside', temperature / 100.0,
+                                   periodicity=30 * MINUTE,
                                    writeNowDiff=2)
             solarPower = (data[5] * 16777216 + data[6] * 65536 + data[7] * 256 + data[8]) / 100.0
             self.mySQL.insertValue('power', 'solar', solarPower)
@@ -282,18 +317,22 @@ class cDataProcessor(cThreadModule):
             if batteryStatus == 0 and time.time() - self.tmrConsPowerwall > 3600:  # each hour
                 self.logger.log("Daily solar cons", _verbosity=Logger.RICH)
                 self.tmrConsPowerwall = time.time()
-                self.mySQL.insertDailySolarCons((data[9] * 16777216 + data[10] * 65536 + data[11] * 256 + data[12]) * 10.0)  # in 0.01 kWh
+                self.mySQL.insertDailySolarCons((data[9] * 16777216 + data[10] * 65536 + data[
+                    11] * 256 + data[12]) * 10.0)  # in 0.01 kWh
                 self.logger.log("process completed", _verbosity=Logger.RICH)
 
         elif data[0] == 107:  # data from brewhouse
-            self.mySQL.insertValue('temperature', 'brewhouse_horkaVoda', (data[1] * 256 + data[2]) / 100.0 + 6.0,
+            self.mySQL.insertValue('temperature', 'brewhouse_horkaVoda',
+                                   (data[1] * 256 + data[2]) / 100.0 + 6.0,
                                    # with correction
                                    periodicity=5 * MINUTE,
                                    writeNowDiff=0.1)
-            self.mySQL.insertValue('temperature', 'brewhouse_horkaVoda_setpoint', (data[3] * 256 + data[4]) / 100.0,
+            self.mySQL.insertValue('temperature', 'brewhouse_horkaVoda_setpoint',
+                                   (data[3] * 256 + data[4]) / 100.0,
                                    periodicity=5 * MINUTE,
                                    writeNowDiff=0.1)
-            self.mySQL.insertValue('temperature', 'brewhouse_rmut', (data[5] * 256 + data[6]) / 100.0,
+            self.mySQL.insertValue('temperature', 'brewhouse_rmut',
+                                   (data[5] * 256 + data[6]) / 100.0,
                                    periodicity=5 * MINUTE,
                                    writeNowDiff=0.1)
         elif data[0] == 108:  # data from chiller
@@ -304,74 +343,85 @@ class cDataProcessor(cThreadModule):
                                    writeNowDiff=0.1)
         elif data[0] == 109:  # data from cellar
             bits = data[1]
+            bits2 = data[2]
+            bits3 = data[3]
 
-            temperature_sht = cDataProcessor.correctNegative(data[2] * 256 + data[3])
-            humidity = (data[4] * 256 + data[5])
-            dew_point = cDataProcessor.correctNegative(data[6] * 256 + data[7])
-            temp_setpoint = cDataProcessor.correctNegative(data[8] * 256 + data[9])
-            temperature1 = cDataProcessor.correctNegative(data[10] * 256 + data[11])
-            temperature2 = cDataProcessor.correctNegative(data[12] * 256 + data[13])
-            temperature3 = cDataProcessor.correctNegative(data[14] * 256 + data[15])
+            temperature_sht = cDataProcessor.correctNegative(data[4] * 256 + data[5])
+            humidity = (data[6] * 256 + data[7])
+            dew_point = cDataProcessor.correctNegative(data[8] * 256 + data[9])
+            polybox_setpoint = cDataProcessor.correctNegative(data[10] * 256 + data[11])
+            polybox_hysteresis = cDataProcessor.correctNegative(data[12] * 256 + data[13])
+            fermentor_setpoint = cDataProcessor.correctNegative(data[14] * 256 + data[15])
+            fermentor_hysteresis = cDataProcessor.correctNegative(data[16] * 256 + data[17])
 
-            params_valid = bits & 0x01
-            errorFlags = bits & 0x02
-            water_pump_alarm = bits & 0x04
-            fanControl_autMan = bits & 0x08
-            tempControl_autMan = bits & 0x10
-            tempPump_onOff = bits & 0x20
-            reserve = bits & 0x40
-            fan_active = 0
+            temp_polybox = cDataProcessor.correctNegative(data[18] * 256 + data[19])
+            temp_cellar = cDataProcessor.correctNegative(data[20] * 256 + data[21])
+            temp_fermentor = cDataProcessor.correctNegative(data[22] * 256 + data[23])
 
-            self.mySQL.insertValue('status', 'cellar_params_valid', params_valid,
+            bits_list = {
+                "params_valid": bool(bits & (1 << 0)),
+                "errorFlags": bool(bits & (1 << 1)),
+                "water_pump_alarm": bool(bits & (1 << 2)),
+                "fanControl_autMan": bool(bits & (1 << 3)),
+                "fan_onOff": bool(bits & (1 << 4)),
+                "brewhouse_polybox_autMan": bool(bits & (1 << 5)),
+                "brewhouse_chillPump_onOff": bool(bits & (1 << 6)),
+                "brewhouse_freezer_onOff": bool(bits & (1 << 7)),
+                "brewhouse_fermentor_autMan": bool(bits2 & (1 << 0)),
+                "brewhouse_fermentor_heating_onOff": bool(bits2 & (1 << 1)),
+                "garden1_autMan": bool(bits2 & (1 << 2)),
+                "garden1_onOff": bool(bits2 & (1 << 3)),
+                "garden2_autMan": bool(bits2 & (1 << 4)),
+                "garden2_onOff": bool(bits2 & (1 << 5)),
+                "garden3_autMan": bool(bits2 & (1 << 6)),
+                "garden3_onOff": bool(bits2 & (1 << 7)),
+                "brewhouse_valve_cellar1_onOff": bool(bits3 & (1 << 0)),
+                "brewhouse_valve_cellar2_onOff": bool(bits3 & (1 << 1))
+            }
+
+            def insert_for_bits(name, val):
+                self.mySQL.insertValue('status', name, val,
+                                       periodicity=240 * MINUTE,  # with correction
+                                       writeNowDiff=0.1,
+                                       onlyCurrent=True)
+
+            for name, val in bits_list.items():
+                insert_for_bits(name, val)
+
+            def insert_for_temps(name, val):
+                self.mySQL.insertValue('temperature', name, val/10.0,
+                                       periodicity=240 * MINUTE,  # with correction
+                                       writeNowDiff=0.5,
+                                       onlyCurrent=False)
+
+            temp_list = {
+                "brewhouse_room": temperature_sht,
+                "brewhouse_polybox_setpoint" : polybox_setpoint,
+                "brewhouse_fermentor_setpoint": fermentor_setpoint,
+                "brewhouse_polybox": temp_polybox,
+                "brewhouse_cellar": temp_cellar,
+                "brewhouse_fermentor": temp_fermentor
+
+            }
+            for name, val in temp_list.items():
+                insert_for_temps(name, val)
+
+            self.mySQL.insertValue('temperature', 'brewhouse_polybox_hysteresis', polybox_hysteresis / 10.0,
                                    periodicity=240 * MINUTE,  # with correction
-                                   writeNowDiff=0.1,
+                                   writeNowDiff=0.01,
                                    onlyCurrent=True)
-            self.mySQL.insertValue('temperature', 'cellar_errorFlags', errorFlags,
+            self.mySQL.insertValue('temperature', 'brewhouse_fermentor_hysteresis',
+                                   fermentor_hysteresis / 10.0,
                                    periodicity=240 * MINUTE,  # with correction
-                                   writeNowDiff=0.1,
-                                   onlyCurrent=True)
-            self.mySQL.insertValue('temperature', 'cellar_water_pump_alarm', water_pump_alarm,
-                                   periodicity=240 * MINUTE,  # with correction
-                                   writeNowDiff=0.1,
-                                   onlyCurrent=True)
-            self.mySQL.insertValue('temperature', 'cellar_fanControl_autMan', fanControl_autMan,
-                                   periodicity=240 * MINUTE,  # with correction
-                                   writeNowDiff=0.1,
-                                   onlyCurrent=True)
-            self.mySQL.insertValue('temperature', 'cellar_tempControl_autMan', tempControl_autMan,
-                                   periodicity=240 * MINUTE,  # with correction
-                                   writeNowDiff=0.1,
-                                   onlyCurrent=True)
-            self.mySQL.insertValue('temperature', 'cellar_tempPump_onOff', tempPump_onOff,
-                                   periodicity=240 * MINUTE,  # with correction
-                                   writeNowDiff=0.1,
-                                   onlyCurrent=True)
-            self.mySQL.insertValue('temperature', 'cellar_temp_setpoint', temp_setpoint,
-                                   periodicity=240 * MINUTE,  # with correction
-                                   writeNowDiff=0.5,
+                                   writeNowDiff=0.01,
                                    onlyCurrent=True)
 
-            self.mySQL.insertValue('temperature', 'brewhouse_fermentor', temperature3 / 10.0,
-                                   periodicity=5 * MINUTE,  # with correction
-                                   writeNowDiff=0.1)
-            self.mySQL.insertValue('temperature', 'brewhouse_cellar', temperature2 / 10.0,
-                                   periodicity=5 * MINUTE,  # with correction
-                                   writeNowDiff=0.1)
-            self.mySQL.insertValue('temperature', 'brewhouse_cellarbox', temperature1 / 10.0,
-                                   periodicity=5 * MINUTE,  # with correction
-                                   writeNowDiff=0.1)
-            self.mySQL.insertValue('temperature', 'brewhouse_room', temperature_sht / 10.0,
-                                   periodicity=5 * MINUTE,  # with correction
-                                   writeNowDiff=0.1)
             self.mySQL.insertValue('humidity', 'brewhouse_room', humidity / 10.0,
-                                   periodicity=5 * MINUTE,  # with correction
+                                   periodicity=240 * MINUTE,  # with correction
                                    writeNowDiff=0.5)
             self.mySQL.insertValue('temperature', 'brewhouse_dew_point', dew_point / 10.0,
-                                   periodicity=5 * MINUTE,  # with correction
+                                   periodicity=240 * MINUTE,  # with correction
                                    writeNowDiff=0.1)
-            self.mySQL.insertValue('bools', 'brewhouse_fan', fan_active,
-                                   periodicity=30 * MINUTE,  # with correction
-                                   writeNowDiff=0.5)
 
 
         elif data[0] == 110:  # data from iSpindel
@@ -450,9 +500,11 @@ class cDataProcessor(cThreadModule):
                     txt = "PIR movement alarm"
                 elif self.house_security.locked:
                     txt = "Locked"
-                txt += ", powerwall status:" + str(self.currentValues.get('status_powerwall_stateMachineStatus'))
+                txt += ", powerwall status:" + str(
+                    self.currentValues.get('status_powerwall_stateMachineStatus'))
                 txt += ", solar power:" + str(int(self.currentValues.get('power_solar'))) + " W"
-                txt += ", room temp:{:.1f} C".format(self.currentValues.get("temperature_PIR sensor"))
+                txt += ", room temp:{:.1f} C".format(
+                    self.currentValues.get("temperature_PIR sensor"))
                 txt += ", room humid:{:.1f} %".format(self.currentValues.get("humidity_PIR sensor"))
 
                 self.phone.SendSMS(data[1], txt)
