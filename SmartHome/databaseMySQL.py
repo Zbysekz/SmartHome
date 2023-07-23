@@ -330,8 +330,8 @@ class cMySQL:
         try:
             db, cursor = self.getConnection()
 
-            sql = "INSERT INTO TXbuffer (destination, data) VALUES (%s, %s)"
-            val = (destination, str(data))
+            sql = "INSERT INTO TXbuffer (destination, data, timestamp) VALUES (%s, %s, %s)"
+            val = (destination, str(data), datetime.now())
             cursor.execute(sql, val)
 
             db.commit()

@@ -137,7 +137,7 @@ class cTCPServer(cThreadModule):
                     # client can send multiple complete packets
                     isMeteostation = str(device.name) == "METEO"  # extra exception for meteostation
                     if not receiverInstance.Receive(d, noCRC=isMeteostation):
-                        self.logger.log("Error above for METEO")
+                        self.logger.log(f"Error receiving for {device.name} !")
                     st += str(d) + ", "
 
                 self.logger.log("Received data:" + str(st), Logger.FULL)

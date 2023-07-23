@@ -61,7 +61,7 @@ class Receiver:
         elif self.readState == 2:
             self.rxLen = rcv  # length
 
-            if self.rxLen > 20:
+            if self.rxLen > 40:
                 self.readState = 0
                 self.logger.log("ERR2", Logger.RICH)
                 result = False
