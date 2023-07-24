@@ -13,9 +13,11 @@ class ParameterLine(QWidget):
             uic.loadUi('./widgets/parameter.ui', self)  # Load the .ui file
         else:
             uic.loadUi('./widgets/parameter2.ui', self)  # Load the .ui file
+            self.label_real_2.setText("(?)")
 
         # self.show() # Show the GUI
         self.label.setText(name)
+        self.label_real.setText("(?)")
         self.callback_change = callback_change
         self.btnSet.clicked.connect(self.setPar)
         self.id = id
@@ -27,9 +29,5 @@ class ParameterLine(QWidget):
         else:
             self.callback_change.emit(str(self.id), str(self.spinBox.value()), str(int(self.doubleSpinBox.value()*10)))
 
-    def change(self):
-        self.callback_change.emit()
-
-    def update(self, state):
-        #self.setColor("lime")
-        pass
+    def update(self, value):
+        self.label_real.setText(str(value))

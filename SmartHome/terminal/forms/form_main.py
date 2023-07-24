@@ -17,7 +17,6 @@ IP_RACKUNO = "192.168.0.5"
 IP_POWERWALL = "192.168.0.12"
 IP_SERVER = "192.168.0.3"
 IP_CELLAR= "192.168.0.33"
-MySQL = cMySQL()
 
 SINGLE_VALUE = 1
 DOUBLE_VALUE = 2
@@ -32,8 +31,9 @@ class MainWindow(QMainWindow):
         self.c.cellarParameter.connect(self.cellar_parameter_set)
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
-
-        self.timer.start(1000)
+        self.MySQL = cMySQL()
+        self.timer.start(5000)
+        self.all_params = []
 
 
         cellar_wd = [["polybox aut/man","0", SINGLE_VALUE],
@@ -52,13 +52,14 @@ class MainWindow(QMainWindow):
             self.cellar_params.append(wd)
             layout.addWidget(wd)
 
+        self.all_params.append(self.cellar_params)
         self.show()
 
     def cellar_parameter_set(self, id, val, val2):
         self.SendData(id+","+val+","+val2, address=IP_CELLAR)
 
     def SendData(self, data, address=None):
-        MySQL.insertTxCommand(address, data)
+        self.MySQL.insertTxCommand(address, data)
 
     def showError(self, str):
         msg = QMessageBox()
@@ -77,4 +78,15 @@ class MainWindow(QMainWindow):
         pass
 
     def update(self):
-        pass
+        values = self.MySQL.getCurrentValues()
+
+        if values is not None:
+            for name, val, timestamp in values:
+                print(name, val, timestamp)
+                stripped = name.replace("temperature").replace("status")
+
+                try:
+                    idx = [x.name for x in self.all_params].index(stripped)
+                except ValueError:
+                    continue
+                self.all_params[idx].update(val)
