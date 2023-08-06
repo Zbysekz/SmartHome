@@ -10,6 +10,7 @@ import threading
 import pathlib
 from logger import Logger
 from parameters import parameters
+import traceback
 
 thisScriptPath = str(pathlib.Path(__file__).parent.absolute())
 
@@ -48,6 +49,9 @@ class cMySQL:
         self.databaseCon.close()
 
     def init_db(self):
+        print("connecting to DB")
+        #for line in traceback.format_stack():
+        #    print(line.strip())
         return mysql.connector.connect(
             host="localhost",
             user="mainScript",
@@ -198,7 +202,8 @@ class cMySQL:
 
     @ThreadingLockDecorator
     def insertValue(self, name, sensorName, value, timestamp=None, periodicity=0, writeNowDiff=1, onlyCurrent=False):
-       # self.logger.log(f"MySQL - inserting value {name} for {sensorName}", _verbosity=self.logger.FULL)
+        tt = time.time()
+        self.logger.log(f"MySQL - inserting value {name} for {sensorName}", _verbosity=self.logger.FULL)
         try:
             db, cursor = self.getConnection()
 
@@ -219,7 +224,9 @@ class cMySQL:
             self.logger.log(f"Error while writing to database for measurement:{name} - {sensorName}, exception:")
             self.logger.log_exception(e)
             return False
-        #self.logger.log(f"MySQL - done inserting value {name}", _verbosity=self.logger.FULL)
+        diff = time.time() - tt
+        if diff > 1:
+            self.logger.log(f"SLOW - MySQL - done inserting value {name} took {'%.2f s'%diff}", _verbosity=self.logger.RICH)
         return True
 
     @ThreadingLockDecorator

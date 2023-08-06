@@ -77,7 +77,7 @@ def main():
 
         phone = cPhone(period_s=5)
         logger.phone = phone
-        commProcessor = comm.cCommProcessor(period_s=1)
+        commProcessor = comm.cCommProcessor(period_s=10)
         dataProcessor = data_processing.cDataProcessor(phone=phone, period_s=10)
         houseControl = cHouseControl(dataProcessor=dataProcessor, period_s=4)
         houseSecurity = cHouseSecurity(logger, MySQL, commProcessor, dataProcessor, phone)
@@ -117,7 +117,6 @@ def main():
     while True:
         try:
             houseSecurity.handle()
-            houseControl.handle()
             if not cThreadModule.checkTermination():
                 break
 
