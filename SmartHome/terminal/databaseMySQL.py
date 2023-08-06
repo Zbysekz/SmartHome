@@ -158,7 +158,7 @@ class cMySQL:
         try:
             db, cursor = self.getConnection()
 
-            sql = "SELECT name, value FROM currentMeasurements"
+            sql = "SELECT name, value, timestamp FROM currentMeasurements"
             cursor.execute(sql)
 
             data = cursor.fetchall()
@@ -168,8 +168,8 @@ class cMySQL:
                 result[d[0]] = d[1]
 
         except Exception as e:
-            self.logger.log("Error while writing to database for getCurrentValues:, exception:")
-            self.logger.log_exception(e)
+            print("Error while writing to database for getCurrentValues:, exception:")
+            print(repr(e))
             return None
         return result
 

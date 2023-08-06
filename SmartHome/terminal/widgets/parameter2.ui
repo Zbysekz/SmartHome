@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>402</width>
-    <height>69</height>
+    <width>423</width>
+    <height>73</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -22,10 +22,36 @@
     </widget>
    </item>
    <item>
-    <widget class="QSpinBox" name="spinBox"/>
-   </item>
-   <item>
-    <widget class="QDoubleSpinBox" name="doubleSpinBox"/>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <item>
+        <widget class="QLabel" name="label_real">
+         <property name="text">
+          <string>parameter 123</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label_real_2">
+         <property name="text">
+          <string>parameter 123</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <widget class="QSpinBox" name="spinBox"/>
+       </item>
+       <item>
+        <widget class="QDoubleSpinBox" name="doubleSpinBox"/>
+       </item>
+      </layout>
+     </item>
+    </layout>
    </item>
    <item>
     <widget class="QPushButton" name="btnSet">

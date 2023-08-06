@@ -22,7 +22,18 @@
     </widget>
    </item>
    <item>
-    <widget class="QSpinBox" name="spinBox"/>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <widget class="QLabel" name="label_real">
+       <property name="text">
+        <string>parameter 123</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QSpinBox" name="spinBox"/>
+     </item>
+    </layout>
    </item>
    <item>
     <widget class="QPushButton" name="btnSet">
