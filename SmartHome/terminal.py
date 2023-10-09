@@ -143,13 +143,13 @@ e.append(E6)
 e.append(E7)
 e.append(E8)
 
-B = Button(top,text="Provision",command = buttonProvisionCallback)
+B = Button(top,text="Provision", command = buttonProvisionCallback)
 B.place(x=20,y=100)
 
-B = Button(top,text="Blink cell",command = buttonBlinkCallback)
+B = Button(top,text="Blink cell", command = buttonBlinkCallback)
 B.place(x=110,y=100)
 
-B = Button(top,text="Set new addr",command = buttonAddressSetCallback)
+B = Button(top,text="Set new addr", command = buttonAddressSetCallback)
 B.place(x=200,y=100)
 
 eCellID = Entry(top)

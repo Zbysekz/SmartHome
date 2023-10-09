@@ -44,13 +44,13 @@ class cPowerwallControl(cThreadModule):
             solarPowered = currentValues[
                 'status_rackUno_stateMachineStatus'] == 3
            # if enough SoC to run
-            if not solarPowered and currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues[
+            if not solarPowered and currentValues['status_powerwall_stateMachineStatus'] in [10, 20] and currentValues[
                 'status_powerwallSoc'] > 40:  # more than 40% SoC
                 self.logger.log("Auto powerwall control - Switching to solar")
                 #MySQL.insertTxCommand(IP_POWERWALL, "10")  # RUN command
                 self.mySQL.insertTxCommand(cDevice.get_ip("RACKUNO", cCommProcessor.devices), "4")  # Switch to SOLAR command
             # if below SoC
-            elif solarPowered and currentValues['status_powerwall_stateMachineStatus'] == 20 and currentValues[
+            elif solarPowered and currentValues['status_powerwall_stateMachineStatus'] in [10, 20] and currentValues[
                     'status_powerwallSoc'] <= 20:  # less than 20% SoC
                 self.logger.log("Auto powerwall control - Switching to grid")
                 self.mySQL.insertTxCommand(cDevice.get_ip("RACKUNO", cCommProcessor.devices), "3")  # Switch to GRID command
@@ -58,6 +58,11 @@ class cPowerwallControl(cThreadModule):
                 if not self.powerwall_last_fail:
                     self.logger.log("Powerwall in error state!", Logger.CRITICAL)
                 self.powerwall_last_fail = True
+
+                if solarPowered: # prevent immediate solar connect after error recovery
+                    self.mySQL.insertTxCommand(cDevice.get_ip("RACKUNO", cCommProcessor.devices),
+                                               "3")  # Switch to GRID command
+
             else:
                 self.powerwall_last_fail = False
 
