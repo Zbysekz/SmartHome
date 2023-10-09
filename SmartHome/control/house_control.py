@@ -62,8 +62,10 @@ class cHouseControl(cThreadModule):
 
         if time.time() - self.tmrUpdateVals > 30:  # each 30secs
             self.tmrUpdateVals = time.time()
+            self.mySQL.PersistentConnect()
             self.dataProcessor.globalFlags = self.mySQL.getGlobalFlags()  # update global flags
             self.dataProcessor.currentValues = self.mySQL.getCurrentValues()
+            self.mySQL.PersistentDisconnect()
 
 
     def CheckGasSensor(self):

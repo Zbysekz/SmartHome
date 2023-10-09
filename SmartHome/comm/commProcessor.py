@@ -5,7 +5,7 @@ from databaseMySQL import cMySQL
 from templates.threadModule import cThreadModule
 from parameters import parameters
 from comm.device import cDevice
-
+import datetime
 
 # for periodicity mysql inserts
 HOUR = 3600
@@ -24,7 +24,8 @@ class cCommProcessor(cThreadModule):
                cDevice('CELLAR', '192.168.0.33', MINUTE * 10),
                cDevice('POWERWALL_THERMOSTAT', '192.168.0.32', MINUTE * 10, critical=True),
                cDevice('ESP_POWERWALL', '192.168.0.15', 100),
-               cDevice('VICTRON_INVERTER', '192.168.0.16', MINUTE * 10)}
+               cDevice('VICTRON_INVERTER', '192.168.0.16', MINUTE * 10),
+               cDevice('MARTHA_TENT', '192.168.0.37', MINUTE * 10)}
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -58,6 +59,7 @@ class cCommProcessor(cThreadModule):
         self.mySQL.RemoveOnlineDevices()  # clean up online device table
 
     def _handle(self):
+        self.mySQL.PersistentConnect()
         if self.keyboardRefreshCnt >= 40:
             self.keyboardRefreshCnt = 0
             self.KeyboardRefresh()
@@ -105,7 +107,7 @@ class cCommProcessor(cThreadModule):
             except Exception as e:
                 self.logger.log("MySQL - getTXbuffer - Exception:")
                 self.logger.log_exception(e)
-
+        self.mySQL.PersistentDisconnect()
     def ExecuteTxCommand(self, data):
         if data[0] == 0:  # resetAlarm
             self.logger.log("Alarm deactivated by Tx interface.")
@@ -126,10 +128,11 @@ class cCommProcessor(cThreadModule):
         self.logger.log("Keyboard refresh!", Logger.FULL)
         val = (int(self.house_security.alarm != 0)) + 2 * (int(self.house_security.locked))
 
-        self.TCP_server.send(bytes([10, val]), cDevice.get_ip("KEYBOARD", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
+        #self.TCP_server.send(bytes([10, val]), cDevice.get_ip("KEYBOARD", cCommProcessor.devices))  # id, alarm(0/1),locked(0/1)
 
     def send_ack_keyboard(self, data):
-        self.TCP_server.SendACK(data, cDevice.get_ip("IP_KEYBOARD", cCommProcessor.devices))
+        #self.TCP_server.SendACK(data, cDevice.get_ip("IP_KEYBOARD", cCommProcessor.devices))
+        pass
 
     def heating_inhibition(self, on_off):
         self.logger.log(f"Rackuno inhibition {on_off}!", Logger.FULL)
@@ -141,6 +144,6 @@ class cCommProcessor(cThreadModule):
 
     def switch_to_solar(self):
         self.TCP_server.send(bytes([4]), cDevice.get_ip("RACKUNO", cCommProcessor.devices))  # Switch to SOLAR command
-    def test_cellar(self):
-        print("SENDING TO CELLAR !!!!!!!!!!!!!!!!!!!!!!")
-        self.TCP_server.send(self.mySQL, bytes([1, 2, 3, 4]), cDevice.get_ip("CELLAR", cCommProcessor.devices))
+    def send_clock(self, ip):
+        now = datetime.datetime.now()
+        self.TCP_server.send(bytes([66, now.hour, now.minute]), ip)

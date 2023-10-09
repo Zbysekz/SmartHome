@@ -9,6 +9,8 @@ from control.powerwall import calculatePowerwallSOC
 import time
 from parameters import parameters
 from avg import cMovingAvg
+from comm.device import cDevice
+from comm.commProcessor import cCommProcessor
 
 # for periodicity mysql inserts
 HOUR = 3600
@@ -35,6 +37,7 @@ class cDataProcessor(cThreadModule):
         self.currentValues = {}  # contains latest measurements data
 
         self.receive_queue = queue.Queue()
+        self.printQueueSize = time.time()
 
     @classmethod
     def correctNegative(cls, val):
@@ -52,25 +55,37 @@ class cDataProcessor(cThreadModule):
 
         self.mySQL.PersistentConnect()
         while self.receive_queue.qsize() > 0:
+            if time.time() - self.printQueueSize > 60:
+                self.printQueueSize = time.time()
+                if self.receive_queue.qsize() > 10:
+                    self.logger.log(f"-----------------ReceiveQueueSize:{self.receive_queue.qsize()}")
             try:
                 data = self.receive_queue.get(block=False)
             except queue.Empty:
-                return
+                break
             if data:
                 try:
+                    m = time.time()
                     self.process_incoming_data(data)
 
-                    if time.time() - self.tmrCurrentValues > 5:
-                        self.tmrCurrentValues = time.time()
-                        self.currentValues = self.mySQL.getCurrentValues()
-                        self.globalFlags = self.mySQL.getGlobalFlags()
+                    diff = time.time()-m
+                    if diff > 2:
+                        print("---> %.2f"% (time.time()-m))
+                        print(f"for data ID:{data[0]}")
                 except IndexError:
                     self.logger.log("IndexError while processing incoming data! data:" + str(data))
                 except Exception as e:
                     self.logger.log(
                         f"General exception while processing incoming data! data: {data}")
                     self.logger.log_exception(e)
+
+        if time.time() - self.tmrCurrentValues > 5:
+            self.tmrCurrentValues = time.time()
+            self.currentValues = self.mySQL.getCurrentValues()
+            self.globalFlags = self.mySQL.getGlobalFlags()
+
         self.mySQL.PersistentDisconnect()
+        self.logger.log(f"LEAVING WITH -----------------ReceiveQueueSize:{self.receive_queue.qsize()}")
         # -------------------------------------------------
 
     def process_incoming_data(self, data):
@@ -378,6 +393,7 @@ class cDataProcessor(cThreadModule):
                 "brewhouse_valve_cellar1_onOff": bool(bits3 & (1 << 0)),
                 "brewhouse_valve_cellar2_onOff": bool(bits3 & (1 << 1))
             }
+            print(bits_list)
 
             def insert_for_bits(name, val):
                 self.mySQL.insertValue('status', name, val,
@@ -385,8 +401,8 @@ class cDataProcessor(cThreadModule):
                                        writeNowDiff=0.1,
                                        onlyCurrent=True)
 
-            for name, val in bits_list.items():
-                insert_for_bits(name, val)
+            # for name, val in bits_list.items():
+            #     insert_for_bits(name, val)
 
             def insert_for_temps(name, val):
                 self.mySQL.insertValue('temperature', name, val/10.0,
@@ -403,6 +419,7 @@ class cDataProcessor(cThreadModule):
                 "brewhouse_fermentor": temp_fermentor
 
             }
+            print(temp_list)
             for name, val in temp_list.items():
                 insert_for_temps(name, val)
 
@@ -468,6 +485,19 @@ class cDataProcessor(cThreadModule):
             self.mySQL.insertValue('power', 'inverter', (data[1] * 256 + data[2]),
                                    periodicity=5 * MINUTE,  # with correction
                                    writeNowDiff=50)
+        elif data[0] == 114:  # data from martha tent
+            reqClock_martha = data[1]
+            if reqClock_martha:
+                self.commProcessor.send_clock(cDevice.get_ip("MARTHA_TENT", cCommProcessor.devices))
+            self.mySQL.insertValue('temperature', 'martha_tent', (data[2] * 256 + data[3])/10.0,
+                                   periodicity=120 * MINUTE,  # with correction
+                                   writeNowDiff=0.5)
+            self.mySQL.insertValue('humidity', 'martha_tent', (data[4] * 256 + data[5]) / 10.0,
+                                   periodicity=120 * MINUTE,  # with correction
+                                   writeNowDiff=2)
+            self.mySQL.insertValue('gas', 'martha_tent', (data[6] * 256 + data[7]),
+                                   periodicity=120 * MINUTE,  # with correction
+                                   writeNowDiff=10)
 
         elif data[0] == 0 and data[1] == 1:  # live event
             self.logger.log("Live event!", Logger.FULL)
@@ -483,6 +513,7 @@ class cDataProcessor(cThreadModule):
 
         else:
             self.logger.log("Unknown event, data:" + str(data))
+        self.logger.log("Done", Logger.FULL)
 
     def sms_received(self, data):
         if data[1] == parameters.MY_NUMBER1:
