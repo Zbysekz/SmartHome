@@ -1,25 +1,29 @@
 import json
 
 from PyQt5 import uic
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QStackedWidget, QMessageBox, QFileDialog, QLabel
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QStackedWidget, QMessageBox, QFileDialog, \
+    QLabel
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtCore import pyqtSignal, QObject
 from widgets.parameter import ParameterLine
 from databaseMySQL import cMySQL
+import datetime
 
 class Communicate(QObject):
-
     closeApp = pyqtSignal()
     showNotFoundError = pyqtSignal()
     cellarParameter = pyqtSignal(str, str, str)
 
+
 IP_RACKUNO = "192.168.0.5"
 IP_POWERWALL = "192.168.0.12"
 IP_SERVER = "192.168.0.3"
-IP_CELLAR= "192.168.0.33"
+IP_CELLAR = "192.168.0.33"
 
 SINGLE_VALUE = 1
 DOUBLE_VALUE = 2
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()  # Call the inherited classes __init__ method
@@ -35,15 +39,24 @@ class MainWindow(QMainWindow):
         self.timer.start(5000)
         self.all_params = []
 
-
-        cellar_wd = [["polybox aut/man","0", SINGLE_VALUE],
-                     ["fanControl aut/man","1", SINGLE_VALUE],
-                     ["freezer_onOff","2", SINGLE_VALUE],
-                     ["chillPump_onOff","3", SINGLE_VALUE],
-                     ["fan_onOff","4", SINGLE_VALUE],
-                     ["polybox_setpoint","5",DOUBLE_VALUE],
-                     ["fermentor_autMan","6", SINGLE_VALUE],
-                     ["fermentor_setpoint","7", DOUBLE_VALUE],]
+        cellar_wd = [["brewhouse_polybox_autMan", "0", SINGLE_VALUE],
+                     ["fanControl_autMan", "1", SINGLE_VALUE],
+                     ["brewhouse_freezer_onOff", "2", SINGLE_VALUE],
+                     ["brewhouse_chillPump_onOff", "3", SINGLE_VALUE],
+                     ["fan_onOff", "4", SINGLE_VALUE],
+                     ["brewhouse_polybox_setpoint", "5", DOUBLE_VALUE],
+                     ["brewhouse_fermentor_autMan", "6", SINGLE_VALUE],
+                     ["brewhouse_fermentor_setpoint", "7", DOUBLE_VALUE],
+                     ["garden1_autMan", "20", SINGLE_VALUE],
+                     ["garden2_autMan", "21", SINGLE_VALUE],
+                     ["garden3_autMan", "22", SINGLE_VALUE],
+                     ["garden1_onOff", "23", SINGLE_VALUE],
+                     ["garden2_onOff", "24", SINGLE_VALUE],
+                     ["garden3_onOff", "25", SINGLE_VALUE],
+                     ["garden2_duration_min", "28", SINGLE_VALUE],
+                     ["garden3_duration_min", "29", SINGLE_VALUE],
+                     ["garden_morning_h", "30", SINGLE_VALUE],
+                     ["garden_evening_h", "31", SINGLE_VALUE],]
         self.cellar_params = []
         layout = self.cellarLayout.layout()
         for name, id, type in cellar_wd:
@@ -52,11 +65,11 @@ class MainWindow(QMainWindow):
             self.cellar_params.append(wd)
             layout.addWidget(wd)
 
-        self.all_params.append(self.cellar_params)
+        self.all_params += self.cellar_params
         self.show()
 
     def cellar_parameter_set(self, id, val, val2):
-        self.SendData(id+","+val+","+val2, address=IP_CELLAR)
+        self.SendData(id + "," + val + "," + val2, address=IP_CELLAR)
 
     def SendData(self, data, address=None):
         self.MySQL.insertTxCommand(address, data)
@@ -72,21 +85,22 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):  # overriden method from ui
         self.close()
 
-
     def keyPressEvent(self, event):
-        #if event.key() == Qt.Key.Key_Escape:
+        # if event.key() == Qt.Key.Key_Escape:
         pass
 
     def update(self):
         values = self.MySQL.getCurrentValues()
 
         if values is not None:
-            for name, val, timestamp in values:
-                print(name, val, timestamp)
-                stripped = name.replace("temperature").replace("status")
+            for name, vals in values.items():
+                value = vals[0]
+                last_update = vals[1]
+                stripped = name.replace("temperature_", "").replace("status_", "")
 
                 try:
                     idx = [x.name for x in self.all_params].index(stripped)
                 except ValueError:
                     continue
-                self.all_params[idx].update(val)
+                if (datetime.datetime.utcnow() - last_update).total_seconds() < 3600:
+                    self.all_params[idx].update(value)
