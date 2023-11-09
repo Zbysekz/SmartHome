@@ -70,8 +70,8 @@ class cDataProcessor(cThreadModule):
 
                     diff = time.time()-m
                     if diff > 2:
-                        print("---> %.2f"% (time.time()-m))
-                        print(f"for data ID:{data[0]}")
+                        self.logger.log("---> %.2f"% (time.time()-m), self.logger.FULL)
+                        self.logger.log(f"for data ID:{data[0]}", self.logger.FULL)
                 except IndexError:
                     self.logger.log("IndexError while processing incoming data! data:" + str(data))
                 except Exception as e:
@@ -394,7 +394,6 @@ class cDataProcessor(cThreadModule):
                 "brewhouse_valve_cellar2_onOff": bool(bits3 & (1 << 1)),
                 "request_clock": bool(bits3 & (1 << 2))
             }
-            print(bits_list)
 
             if bits_list["request_clock"]:
                 self.commProcessor.send_clock(cDevice.get_ip("CELLAR", cCommProcessor.devices))
@@ -423,7 +422,6 @@ class cDataProcessor(cThreadModule):
                 "brewhouse_fermentor": temp_fermentor
 
             }
-            print(temp_list)
             for name, val in temp_list.items():
                 insert_for_temps(name, val)
 

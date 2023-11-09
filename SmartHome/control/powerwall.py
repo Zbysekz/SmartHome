@@ -45,7 +45,7 @@ class cPowerwallControl(cThreadModule):
                 'status_rackUno_stateMachineStatus'] == 3
            # if enough SoC to run
             if not solarPowered and currentValues['status_powerwall_stateMachineStatus'] in [10, 20] and currentValues[
-                'status_powerwallSoc'] > 40:  # more than 40% SoC
+                'status_powerwallSoc'] > 70:  # more than 70% SoC
                 self.logger.log("Auto powerwall control - Switching to solar")
                 #MySQL.insertTxCommand(IP_POWERWALL, "10")  # RUN command
                 self.mySQL.insertTxCommand(cDevice.get_ip("RACKUNO", cCommProcessor.devices), "4")  # Switch to SOLAR command

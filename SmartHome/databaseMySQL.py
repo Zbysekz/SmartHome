@@ -49,7 +49,6 @@ class cMySQL:
         self.databaseCon.close()
 
     def init_db(self):
-        print("connecting to DB")
         #for line in traceback.format_stack():
         #    print(line.strip())
         return mysql.connector.connect(
