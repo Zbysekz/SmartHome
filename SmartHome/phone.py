@@ -42,7 +42,8 @@ class cPhone(cThreadModule):
         self.timeOfReceive = 0
         self.configLine = ""
         self.sms_received_callback = None
-
+        
+        self.time_last_sms_received = time.time()
         # stats
         self.commState = False
         self.signalStrength = 0
@@ -179,6 +180,8 @@ class cPhone(cThreadModule):
     def STATE_SMS_read3(self):
         rcvLines = self.ReceiveLinesFromSerial()
 
+        self.logger.log("Will read " + str(len(rcvLines)) + " of lines..",
+                        Logger.FULL)
         for rcvLine in rcvLines:  # receiving of one way asynchronnous commands
             try:
                 if self.readSMSsender != "":
@@ -190,6 +193,8 @@ class cPhone(cThreadModule):
                                Logger.NORMAL)
                     self.incomeSMSList.append((self.readSMStext, self.readSMSsender))
                     self.readSMSsender = ""
+                    self.ResetTimeout()  # we are communicating, reset timeout
+                    self.time_last_sms_received = time.time()
                     continue
                 elif b"+CMGL:" in rcvLine or self.configLine != "":  # waits for sms sender, but wait for complete line
                     self.logger.log("Phone RCV2:" + str(rcvLine), Logger.FULL)
@@ -302,6 +307,9 @@ class cPhone(cThreadModule):
         else:
             return False
 
+    def ResetTimeout(self):
+        self.tmrTimeout = time.time()
+
     def connect(self):
         self.logger.log("Initializing serial port...")
         if not parameters.ON_RASPBERRY:
@@ -367,14 +375,15 @@ class cPhone(cThreadModule):
 
             return rcvLines
 
-        if len(ch) == maxChars:  # if we have received maximum characters, increase var and then reset input buffer - when phone is offline, input buffer is full of zeroes
-            self.clearBufferWhenPhoneOffline += 1
+        if time.time() - self.time_last_sms_received > 120000:  # only if we are not receiving sms for some time (we could be now reading a ton of sms)
+            if len(ch) == maxChars:  # if we have received maximum characters, increase var and then reset input buffer - when phone is offline, input buffer is full of zeroes
+                self.clearBufferWhenPhoneOffline += 1
 
-        if self.clearBufferWhenPhoneOffline > 3:
-            self.logger.log("Serial input buffer reset!")
-            clearBufferWhenPhoneOffline = 0
-            self.serPort.reset_input_buffer()
-            return []
+            if self.clearBufferWhenPhoneOffline > 3:
+                self.logger.log("Serial input buffer reset!")
+                clearBufferWhenPhoneOffline = 0
+                self.serPort.reset_input_buffer()
+                return []
 
         while ptr < len(ch):
 
