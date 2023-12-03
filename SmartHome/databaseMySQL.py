@@ -64,13 +64,28 @@ class cMySQL:
             conn.close()
 
     @ThreadingLockDecorator
-    def getTotalSum(self):
+    def getTotalSum(self, dateOfInvoicing):
+        try:
+            current_NT = self.getValues("consumption", "lowTariff", dateOfInvoicing, datetime.now(), True)[0]
 
-        points_low=self.getValues("consumption","lowTariff",datetime(2000,1,1,0,0),datetime.now(),True)
-        points_std=self.getValues("consumption","stdTariff",datetime(2000,1,1,0,0),datetime.now(),True)
-
-
-        return points_low[0], points_std[0]
+            archive_NT =  self.getValues_archive("consumption", "lowTariff", dateOfInvoicing,
+                                        datetime.now(), True)[0]
+            current_VT = self.getValues("consumption", "stdTariff", dateOfInvoicing, datetime.now(), True)[0]
+            archive_VT =  self.getValues_archive("consumption", "stdTariff", dateOfInvoicing,
+                                        datetime.now(), True)[0]
+            if current_VT is None:
+                current_VT = 0
+            if current_NT is None:
+                current_NT = 0
+            if archive_VT is None:
+                archive_VT = 0
+            if archive_NT is None:
+                archive_NT = 0
+        except Exception as e:
+            self.logger.log(
+                "Error calculating price from last invoicing:"+repr(e))
+            return 0,0
+        return current_NT+archive_NT, current_VT+archive_VT
 
     @ThreadingLockDecorator
     def AddOnlineDevice(self, ip):
@@ -199,6 +214,37 @@ class cMySQL:
 
         return values
 
+    @ThreadingLockDecorator
+    def getValues_archive(self, kind, sensorName, timeFrom, timeTo, _sum=False):
+
+        try:
+            db, cursor = self.getConnection()
+
+            if not _sum:
+                select = 'SELECT value'
+            else:
+                select = 'SELECT SUM(value)'
+
+            sql = select + " FROM measurements_archive WHERE source=%s AND time > %s AND time < %s"
+            val = (sensorName, timeFrom, timeTo)
+            cursor.execute(sql, val)
+
+            result = cursor.fetchall()
+
+            values = []
+            for x in result:
+                values.append(x[0])
+
+            cursor.close()
+            self.closeDBIfNeeded(db)
+
+        except Exception as e:
+            self.logger.log(
+                "Error while writing to database for measurement:" + sensorName + " exception:")
+            self.logger.log_exception(e)
+            return None
+
+        return values
     @ThreadingLockDecorator
     def insertValue(self, name, sensorName, value, timestamp=None, periodicity=0, writeNowDiff=1, onlyCurrent=False):
         tt = time.time()

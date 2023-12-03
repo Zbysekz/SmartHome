@@ -47,6 +47,7 @@ class MainWindow(QMainWindow):
                      ["brewhouse_polybox_setpoint", "5", DOUBLE_VALUE],
                      ["brewhouse_fermentor_autMan", "6", SINGLE_VALUE],
                      ["brewhouse_fermentor_setpoint", "7", DOUBLE_VALUE],
+                     ["brewhouse_fermentor_heating", "8", SINGLE_VALUE],
                      ["garden1_autMan", "20", SINGLE_VALUE],
                      ["garden2_autMan", "21", SINGLE_VALUE],
                      ["garden3_autMan", "22", SINGLE_VALUE],
