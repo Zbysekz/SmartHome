@@ -38,6 +38,7 @@ class cDataProcessor(cThreadModule):
 
         self.receive_queue = queue.Queue()
         self.printQueueSize = time.time()
+        self.last_notification = time.time()
 
     @classmethod
     def correctNegative(cls, val):
@@ -59,6 +60,11 @@ class cDataProcessor(cThreadModule):
                 self.printQueueSize = time.time()
                 if self.receive_queue.qsize() > 10:
                     self.logger.log(f"-----------------ReceiveQueueSize:{self.receive_queue.qsize()}")
+                    if self.receive_queue.qsize() > 500 and (time.time() - self.last_notification)>60*60:
+                        self.last_notification = time.time()
+                        self.logger.log(f"Receive queue large! {self.receive_queue.qsize()}",
+                                        self.logger.CRITICAL)
+                        
             try:
                 data = self.receive_queue.get(block=False)
             except queue.Empty:
