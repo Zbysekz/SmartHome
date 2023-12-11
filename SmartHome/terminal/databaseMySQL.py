@@ -46,7 +46,7 @@ class cMySQL:
 
     def init_db(self):
         return mysql.connector.connect(
-            host="192.168.0.3",
+            host="127.0.0.1",
             user="mainScript",
             password="mainScript",
             database="db1",
@@ -158,14 +158,14 @@ class cMySQL:
         try:
             db, cursor = self.getConnection()
 
-            sql = "SELECT name, value, timestamp FROM currentMeasurements"
+            sql = "SELECT name, value, lastUpdate FROM currentMeasurements"
             cursor.execute(sql)
 
             data = cursor.fetchall()
 
             result = {}
             for d in data:
-                result[d[0]] = d[1]
+                result[d[0]] = [d[1], d[2]]
 
         except Exception as e:
             print("Error while writing to database for getCurrentValues:, exception:")

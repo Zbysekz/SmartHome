@@ -22,10 +22,12 @@ class cCommProcessor(cThreadModule):
                cDevice('POWERWALL', '192.168.0.12', 100, critical=True),
                cDevice('KEGERATOR', '192.168.0.35', MINUTE * 10),
                cDevice('CELLAR', '192.168.0.33', MINUTE * 10),
-               cDevice('POWERWALL_THERMOSTAT', '192.168.0.32', MINUTE * 10, critical=True),
+               cDevice('POWERWALL_THERMOSTAT', '192.168.0.32', MINUTE * 30, critical=True),
                cDevice('ESP_POWERWALL', '192.168.0.15', 100),
                cDevice('VICTRON_INVERTER', '192.168.0.16', MINUTE * 10),
-               cDevice('MARTHA_TENT', '192.168.0.37', MINUTE * 10)}
+               cDevice('MARTHA_TENT', '192.168.0.37', MINUTE * 10),
+               cDevice('ISPINDEL1', '192.168.0.34', MINUTE * 120),
+               cDevice('OLD_FRIDGE_THERMOSTAT', '192.168.0.36', MINUTE * 600)}
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

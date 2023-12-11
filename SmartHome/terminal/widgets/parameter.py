@@ -22,6 +22,7 @@ class ParameterLine(QWidget):
         self.btnSet.clicked.connect(self.setPar)
         self.id = id
         self.type = type
+        self.name = name
 
     def setPar(self):
         if self.type == 1:

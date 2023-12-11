@@ -76,8 +76,8 @@ class cDataProcessor(cThreadModule):
 
                     diff = time.time()-m
                     if diff > 2:
-                        print("---> %.2f"% (time.time()-m))
-                        print(f"for data ID:{data[0]}")
+                        self.logger.log("---> %.2f"% (time.time()-m), self.logger.FULL)
+                        self.logger.log(f"for data ID:{data[0]}", self.logger.FULL)
                 except IndexError:
                     self.logger.log("IndexError while processing incoming data! data:" + str(data))
                 except Exception as e:
@@ -279,7 +279,7 @@ class cDataProcessor(cThreadModule):
                                    periodicity=6 * HOUR,
                                    writeNowDiff=1)
             self.mySQL.insertValue('status', 'waterTank_level_raw', raw, periodicity=1 * HOUR,
-                                   writeNowDiff=0.5)
+                                   writeNowDiff=10)
 
         elif data[0] == 104:  # data from PIR sensor
             tempPIR = (data[1] * 256 + data[2]) / 10.0
@@ -397,18 +397,21 @@ class cDataProcessor(cThreadModule):
                 "garden3_autMan": bool(bits2 & (1 << 6)),
                 "garden3_onOff": bool(bits2 & (1 << 7)),
                 "brewhouse_valve_cellar1_onOff": bool(bits3 & (1 << 0)),
-                "brewhouse_valve_cellar2_onOff": bool(bits3 & (1 << 1))
+                "brewhouse_valve_cellar2_onOff": bool(bits3 & (1 << 1)),
+                "request_clock": bool(bits3 & (1 << 2))
             }
-            print(bits_list)
+
+            if bits_list["request_clock"]:
+                self.commProcessor.send_clock(cDevice.get_ip("CELLAR", cCommProcessor.devices))
 
             def insert_for_bits(name, val):
                 self.mySQL.insertValue('status', name, val,
                                        periodicity=240 * MINUTE,  # with correction
                                        writeNowDiff=0.1,
-                                       onlyCurrent=True)
+                                       onlyCurrent=False)
 
-            # for name, val in bits_list.items():
-            #     insert_for_bits(name, val)
+            for name, val in bits_list.items():
+                insert_for_bits(name, val)
 
             def insert_for_temps(name, val):
                 self.mySQL.insertValue('temperature', name, val/10.0,
@@ -425,7 +428,6 @@ class cDataProcessor(cThreadModule):
                 "brewhouse_fermentor": temp_fermentor
 
             }
-            print(temp_list)
             for name, val in temp_list.items():
                 insert_for_temps(name, val)
 
@@ -494,6 +496,7 @@ class cDataProcessor(cThreadModule):
         elif data[0] == 114:  # data from martha tent
             reqClock_martha = data[1]
             if reqClock_martha:
+                self.logger.log("Martha requested clock, sending...")
                 self.commProcessor.send_clock(cDevice.get_ip("MARTHA_TENT", cCommProcessor.devices))
             self.mySQL.insertValue('temperature', 'martha_tent', (data[2] * 256 + data[3])/10.0,
                                    periodicity=120 * MINUTE,  # with correction
