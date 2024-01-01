@@ -450,7 +450,7 @@ class cDataProcessor(cThreadModule):
                                    writeNowDiff=0.1)
 
             self.mySQL.insertValue('status', 'brewhouse_pump_act_per_h',
-                                   pump_activations_per_h,
+                                   pump_activations_per_h / 10.0,
                                    periodicity=60 * MINUTE,  # with correction
                                    writeNowDiff=1)
 
