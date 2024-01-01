@@ -76,8 +76,8 @@ class cDataProcessor(cThreadModule):
 
                     diff = time.time()-m
                     if diff > 2:
-                        self.logger.log("---> %.2f"% (time.time()-m), self.logger.FULL)
-                        self.logger.log(f"for data ID:{data[0]}", self.logger.FULL)
+                        self.logger.log("---> %.2f"% (time.time()-m), self.logger.RICH)
+                        self.logger.log(f"for data ID:{data[0]}", self.logger.RICH)
                 except IndexError:
                     self.logger.log("IndexError while processing incoming data! data:" + str(data))
                 except Exception as e:

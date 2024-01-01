@@ -7,6 +7,7 @@ from parameters import parameters
 from logger import Logger
 from databaseMySQL import cMySQL
 import time
+from datetime import datetime
 
 # now just simple method, then upgrade by approximation curve probably
 def calculatePowerwallSOC(voltage):
@@ -41,17 +42,28 @@ class cPowerwallControl(cThreadModule):
         currentValues = self.dataProcessor.currentValues
 
         if globalFlags['autoPowerwallRun'] == 1:
+
+            datetimeNow = datetime.now()
+            summerTime = 3 < datetimeNow.month < 10
+
+            if summerTime:
+                upperRunThreshold = 70
+                lowerStopThreshold = 20
+            else:
+                upperRunThreshold = 90
+                lowerStopThreshold = 40
+
             solarPowered = currentValues[
                 'status_rackUno_stateMachineStatus'] == 3
            # if enough SoC to run
             if not solarPowered and currentValues['status_powerwall_stateMachineStatus'] in [10, 20] and currentValues[
-                'status_powerwallSoc'] > 70:  # more than 70% SoC
+                'status_powerwallSoc'] > upperRunThreshold:  # more than 70% SoC
                 self.logger.log("Auto powerwall control - Switching to solar")
                 #MySQL.insertTxCommand(IP_POWERWALL, "10")  # RUN command
                 self.mySQL.insertTxCommand(cDevice.get_ip("RACKUNO", cCommProcessor.devices), "4")  # Switch to SOLAR command
             # if below SoC
             elif solarPowered and currentValues['status_powerwall_stateMachineStatus'] in [10, 20] and currentValues[
-                    'status_powerwallSoc'] <= 20:  # less than 20% SoC
+                    'status_powerwallSoc'] <= lowerStopThreshold:  # less than 20% SoC
                 self.logger.log("Auto powerwall control - Switching to grid")
                 self.mySQL.insertTxCommand(cDevice.get_ip("RACKUNO", cCommProcessor.devices), "3")  # Switch to GRID command
             if currentValues['status_powerwall_stateMachineStatus'] == 99:
