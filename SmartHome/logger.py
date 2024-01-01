@@ -6,7 +6,7 @@ import os
 import sys
 from parameters import Parameters
 
-send_SMS = False
+send_SMS = True
 rootPath = str(pathlib.Path(__file__).parent.absolute())
 
 class Logger:

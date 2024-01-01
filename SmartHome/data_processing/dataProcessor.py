@@ -372,6 +372,7 @@ class cDataProcessor(cThreadModule):
             temp_polybox = cDataProcessor.correctNegative(data[18] * 256 + data[19])
             temp_cellar = cDataProcessor.correctNegative(data[20] * 256 + data[21])
             temp_fermentor = cDataProcessor.correctNegative(data[22] * 256 + data[23])
+            pump_activations_per_h = cDataProcessor.correctNegative(data[24] * 256 + data[25])
 
             bits_list = {
                 "params_valid": bool(bits & (1 << 0)),
@@ -441,6 +442,11 @@ class cDataProcessor(cThreadModule):
             self.mySQL.insertValue('temperature', 'brewhouse_dew_point', dew_point / 10.0,
                                    periodicity=240 * MINUTE,  # with correction
                                    writeNowDiff=0.1)
+
+            self.mySQL.insertValue('status', 'brewhouse_pump_act_per_h',
+                                   pump_activations_per_h,
+                                   periodicity=60 * MINUTE,  # with correction
+                                   writeNowDiff=1)
 
 
         elif data[0] == 110:  # data from iSpindel
