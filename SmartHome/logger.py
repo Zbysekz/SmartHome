@@ -39,6 +39,8 @@ class Logger:
             file.write(datetimeStr + " >> " + str(txt) + "\n")
 
         if send_SMS:
+            if self.phone is None:
+                return
             if _verbosity == Logger.CRITICAL:
                 if len(self.queue) == 0:
                     if all_members:

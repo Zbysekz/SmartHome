@@ -76,7 +76,7 @@ def main():
         threading.excepthook = exception_in_thread
 
         phone = cPhone(period_s=5)
-        logger.phone = phone
+        Logger.phone = phone
         commProcessor = comm.cCommProcessor(period_s=10)
         dataProcessor = data_processing.cDataProcessor(phone=phone, period_s=10)
         houseControl = cHouseControl(dataProcessor=dataProcessor, period_s=4)
