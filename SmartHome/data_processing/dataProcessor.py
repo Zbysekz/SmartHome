@@ -50,7 +50,7 @@ class cDataProcessor(cThreadModule):
         try:
             self.receive_queue.put(data)
         except queue.Full:
-            self.logger.Log("Queue in dataProcessor is FULL!!")
+            self.logger.log("Queue in dataProcessor is FULL!!")
 
     def _handle(self):
 
