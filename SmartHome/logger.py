@@ -4,7 +4,7 @@ import pathlib
 import traceback
 import os
 import sys
-from parameters import Parameters
+from parameters import parameters
 
 send_SMS = True
 rootPath = str(pathlib.Path(__file__).parent.absolute())
@@ -44,16 +44,16 @@ class Logger:
             if _verbosity == Logger.CRITICAL:
                 if len(self.queue) == 0:
                     if all_members:
-                        if not Logger.phone.SendSMS(Parameters.PETA_NUMBER, txt):  # no success
-                            self.queue += [[Parameters.PETA_NUMBER, txt]]
-                    if not Logger.phone.SendSMS(Parameters.MY_NUMBER1, txt):  # no success
-                        self.queue += [[Parameters.MY_NUMBER1, txt]]
+                        if not Logger.phone.SendSMS(parameters.PETA_NUMBER, txt):  # no success
+                            self.queue += [[parameters.PETA_NUMBER, txt]]
+                    if not Logger.phone.SendSMS(parameters.MY_NUMBER1, txt):  # no success
+                        self.queue += [[parameters.MY_NUMBER1, txt]]
 
                 else:
                     if len(self.queue) < 4:
                         if all_members:
-                            self.queue += [[Parameters.PETA_NUMBER, txt]]
-                        self.queue += [[Parameters.MY_NUMBER1, txt]]
+                            self.queue += [[parameters.PETA_NUMBER, txt]]
+                        self.queue += [[parameters.MY_NUMBER1, txt]]
 
     def log_exception(self, e):
         exc_type, exc_obj, exc_tb = sys.exc_info()
