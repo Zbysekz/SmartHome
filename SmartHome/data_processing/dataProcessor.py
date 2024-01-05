@@ -62,8 +62,11 @@ class cDataProcessor(cThreadModule):
                     self.logger.log(f"-----------------ReceiveQueueSize:{self.receive_queue.qsize()}")
                     if self.receive_queue.qsize() > 500 and (time.time() - self.last_notification)>60*60:
                         self.last_notification = time.time()
-                        self.logger.log(f"Receive queue large! {self.receive_queue.qsize()}",
-                                        self.logger.CRITICAL)
+                        self.logger.log(f"Receive queue large! {self.receive_queue.qsize()}")
+                        cnt = 0
+                        while cnt<100:
+                            self.receive_queue.get(block=False)  ## throw away
+                            cnt = cnt + 1
                         
             try:
                 data = self.receive_queue.get(block=False)
