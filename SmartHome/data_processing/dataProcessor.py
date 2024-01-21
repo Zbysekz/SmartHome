@@ -147,8 +147,8 @@ class cDataProcessor(cThreadModule):
                                        writeNowDiff=0.1)
             if temp < 70:
                 self.mySQL.insertValue('temperature', 'powerwall cell ' + str(data[1]), temp,
-                                       periodicity=30 * MINUTE,
-                                       writeNowDiff=0.5)
+                                       periodicity=120 * MINUTE,
+                                       writeNowDiff=1)
         elif data[0] == 10:  # POWERWALL STATUS
             powerwall_stateMachineStatus = data[1]
             errorStatus = data[2]
@@ -363,8 +363,8 @@ class cDataProcessor(cThreadModule):
             temperature = cDataProcessor.correctNegative(data[1] * 256 + data[2])
 
             self.mySQL.insertValue('temperature', 'powerwall_thermostat', temperature / 100.0,
-                                   periodicity=5 * MINUTE,
-                                   writeNowDiff=0.1)
+                                   periodicity=300 * MINUTE,
+                                   writeNowDiff=3)
         elif data[0] == 109:  # data from cellar
             bits = data[1]
             bits2 = data[2]
@@ -495,8 +495,8 @@ class cDataProcessor(cThreadModule):
             name = 'old_freezer_thermostat'
 
             self.mySQL.insertValue('temperature', name, temperature / 100.0,
-                                   periodicity=60 * MINUTE,  # with correction
-                                   writeNowDiff=0.1)
+                                   periodicity=300 * MINUTE,  # with correction
+                                   writeNowDiff=5)
         elif data[0] == 113:  # data from victron inverter
 
             self.mySQL.insertValue('power', 'inverter', (data[1] * 256 + data[2]),
@@ -509,7 +509,7 @@ class cDataProcessor(cThreadModule):
                 self.commProcessor.send_clock(cDevice.get_ip("MARTHA_TENT", cCommProcessor.devices))
             self.mySQL.insertValue('temperature', 'martha_tent', (data[2] * 256 + data[3])/10.0,
                                    periodicity=120 * MINUTE,  # with correction
-                                   writeNowDiff=0.5)
+                                   writeNowDiff=1)
             self.mySQL.insertValue('humidity', 'martha_tent', (data[4] * 256 + data[5]) / 10.0,
                                    periodicity=120 * MINUTE,  # with correction
                                    writeNowDiff=2)
