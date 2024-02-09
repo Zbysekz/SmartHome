@@ -507,7 +507,9 @@ class cDataProcessor(cThreadModule):
             if reqClock_martha:
                 self.logger.log("Martha requested clock, sending...")
                 self.commProcessor.send_clock(cDevice.get_ip("MARTHA_TENT", cCommProcessor.devices))
-            self.mySQL.insertValue('temperature', 'martha_tent', (data[2] * 256 + data[3])/10.0,
+            temperature = cDataProcessor.correctNegative(data[2] * 256 + data[3])
+
+            self.mySQL.insertValue('temperature', 'martha_tent', temperature/10.0,
                                    periodicity=120 * MINUTE,  # with correction
                                    writeNowDiff=1)
             self.mySQL.insertValue('humidity', 'martha_tent', (data[4] * 256 + data[5]) / 10.0,
