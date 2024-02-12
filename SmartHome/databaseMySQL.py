@@ -247,9 +247,10 @@ class cMySQL:
         return values
     @ThreadingLockDecorator
     def insertValue(self, name, sensorName, value, timestamp=None, periodicity=0, writeNowDiff=1, onlyCurrent=False):
-        tt = time.time()
+        start_timestamp = time.time()
         self.logger.log(f"MySQL - inserting value {name} for {sensorName}", _verbosity=self.logger.FULL)
         try:
+            connection_timestamp = time.time()
             db, cursor = self.getConnection()
 
             if not timestamp:  # if not defined, set time now
@@ -269,9 +270,11 @@ class cMySQL:
             self.logger.log(f"Error while writing to database for measurement:{name} - {sensorName}, exception:")
             self.logger.log_exception(e)
             return False
-        diff = time.time() - tt
+        diff = time.time() - start_timestamp
         if diff > 1:
-            self.logger.log(f"SLOW - MySQL - done inserting value {name} took {'%.2f s'%diff}", _verbosity=self.logger.RICH)
+            self.logger.log(f"SLOW - MySQL - done inserting value {name} took {'%.2f s'%diff},"
+                            f"without conn:{time.time() - connection_timestamp}",
+                            _verbosity=self.logger.RICH)
         return True
 
     @ThreadingLockDecorator

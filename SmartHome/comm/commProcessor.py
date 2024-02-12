@@ -52,7 +52,7 @@ class cCommProcessor(cThreadModule):
                 nOfTries += 1
                 if (nOfTries > 30):
                     raise Exception('Too much tries to create TCP port', ' ')
-                print("Trying to create TCP port again..")
+                print(f"Trying to create TCP port again..{repr(e)}")
 
                 time.sleep(10)
 
