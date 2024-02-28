@@ -33,6 +33,10 @@ class MainWindow(QMainWindow):
         self.c = Communicate()
         self.c.closeApp.connect(self.close)
         self.c.cellarParameter.connect(self.cellar_parameter_set)
+
+        self.btnPowerwallReset.clicked.connect(self.ePowerwallReset)
+        self.btnPowerwallRun.clicked.connect(self.ePowerwallRun)
+
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
         self.MySQL = cMySQL()
@@ -68,6 +72,13 @@ class MainWindow(QMainWindow):
 
         self.all_params += self.cellar_params
         self.show()
+
+    def ePowerwallReset(self):
+        self.SendData("13", address=IP_POWERWALL)
+
+    def ePowerwallRun(self):
+        self.SendData("10", address=IP_POWERWALL)
+
 
     def cellar_parameter_set(self, id, val, val2):
         self.SendData(id + "," + val + "," + val2, address=IP_CELLAR)

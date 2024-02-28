@@ -46,9 +46,9 @@ class cMySQL:
 
     def init_db(self):
         return mysql.connector.connect(
-            host="127.0.0.1",
-            user="mainScript",
-            password="mainScript",
+            host="192.168.0.3",
+            user="terminal",
+            password="terminal",
             database="db1",
             connection_timeout=10
         )
@@ -114,6 +114,7 @@ class cMySQL:
 
     @ThreadingLockDecorator
     def insertTxCommand(self, destination, data):
+        print(f"Sending tx command: {data} to {destination}")
         try:
             db, cursor = self.getConnection()
 
