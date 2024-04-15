@@ -36,6 +36,8 @@ class MainWindow(QMainWindow):
 
         self.btnPowerwallReset.clicked.connect(self.ePowerwallReset)
         self.btnPowerwallRun.clicked.connect(self.ePowerwallRun)
+        self.btnGarageSolar.clicked.connect(self.ePowerwallGarageSolar)
+        self.btnGarageGrid.clicked.connect(self.ePowerwallGarageGrid)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
@@ -79,6 +81,11 @@ class MainWindow(QMainWindow):
     def ePowerwallRun(self):
         self.SendData("10", address=IP_POWERWALL)
 
+    def ePowerwallGarageSolar(self):
+        self.SendData("20,1", address=IP_POWERWALL)
+
+    def ePowerwallGarageGrid(self):
+        self.SendData("20,0", address=IP_POWERWALL)
 
     def cellar_parameter_set(self, id, val, val2):
         self.SendData(id + "," + val + "," + val2, address=IP_CELLAR)

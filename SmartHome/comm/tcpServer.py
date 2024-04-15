@@ -65,6 +65,7 @@ class cTCPServer(cThreadModule):
             if device is None:
                 self.logger.log(f"Unknown device was trying to connect! IP:{ip}")
                 return
+            device.mark_activity()
             self.logger.log(f'Device {str(device)} was connected', Logger.RICH)
             if not device.online:
                 self.logger.log(f'New device {str(device)} was connected', Logger.NORMAL)
