@@ -143,8 +143,8 @@ class cDataProcessor(cThreadModule):
 
             if voltage < 5:
                 self.mySQL.insertValue('voltage', 'powerwall cell ' + str(data[1]), voltage,
-                                       periodicity=30 * MINUTE,
-                                       writeNowDiff=0.1)
+                                       periodicity=10 * MINUTE,
+                                       writeNowDiff=0.05)
             if temp < 70:
                 self.mySQL.insertValue('temperature', 'powerwall cell ' + str(data[1]), temp,
                                        periodicity=120 * MINUTE,
