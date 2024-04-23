@@ -82,7 +82,7 @@ class cCommProcessor(cThreadModule):
                 self.logger.log(f"Lost critical device! {str(device)}", Logger.CRITICAL)
             else:
                 self.logger.log(f"Lost device! {str(device)}", Logger.NORMAL)
-            self.TCP_server.RemoveOnlineDevice(device.IP)
+            self.TCP_server.RemoveOnlineDevice(self.mySQL, device.ip_address)
 
 
         # check if there are data in mysql that we want to send
