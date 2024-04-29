@@ -17,7 +17,7 @@ class Communicate(QObject):
 
 IP_RACKUNO = "192.168.0.5"
 IP_POWERWALL = "192.168.0.12"
-IP_SERVER = "192.168.0.3"
+IP_SERVER = "172.22.219.198"
 IP_CELLAR = "192.168.0.33"
 
 SINGLE_VALUE = 1
@@ -38,6 +38,8 @@ class MainWindow(QMainWindow):
         self.btnPowerwallRun.clicked.connect(self.ePowerwallRun)
         self.btnGarageSolar.clicked.connect(self.ePowerwallGarageSolar)
         self.btnGarageGrid.clicked.connect(self.ePowerwallGarageGrid)
+        self.btnHouseSolar.clicked.connect(self.ePowerwallHouseSolar)
+        self.btnHouseGrid.clicked.connect(self.ePowerwallHouseGrid)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
@@ -86,7 +88,13 @@ class MainWindow(QMainWindow):
 
     def ePowerwallGarageGrid(self):
         self.SendData("20,0", address=IP_POWERWALL)
-
+        
+    def ePowerwallHouseSolar(self):
+        self.SendData("4", address=IP_RACKUNO)	
+        
+    def ePowerwallHouseGrid(self):
+        self.SendData("3", address=IP_RACKUNO)	
+	
     def cellar_parameter_set(self, id, val, val2):
         self.SendData(id + "," + val + "," + val2, address=IP_CELLAR)
 
