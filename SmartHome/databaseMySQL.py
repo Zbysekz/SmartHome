@@ -296,11 +296,11 @@ class cMySQL:
 
         return True
     @ThreadingLockDecorator
-    def insertDailySolarCons(self,value):
+    def insertDailySolarCons(self, id,  value):
         try:
             db, cursor = self.getConnection()
 
-            args = (value,)
+            args = (id, value)
             res = cursor.callproc('DailySolarCons', args)
 
             db.commit()

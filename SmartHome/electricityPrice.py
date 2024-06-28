@@ -185,5 +185,5 @@ def Log(msg):
 #yearPrice(powerHighTariff_wh, findYearConsForCashAdvance(2200)[1]) / 12
 if __name__ == "__main__":
 
-    run();
+    run()
     

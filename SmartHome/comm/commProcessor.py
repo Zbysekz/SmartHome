@@ -27,7 +27,8 @@ class cCommProcessor(cThreadModule):
                cDevice('VICTRON_INVERTER', '192.168.0.16', MINUTE * 10),
                cDevice('MARTHA_TENT', '192.168.0.37', MINUTE * 10),
                cDevice('ISPINDEL1', '192.168.0.34', MINUTE * 120),
-               cDevice('OLD_FRIDGE_THERMOSTAT', '192.168.0.36', MINUTE * 600)}
+               cDevice('OLD_FRIDGE_THERMOSTAT', '192.168.0.36', MINUTE * 600),
+               cDevice('GEIGER_MULLER_COUNTER', '192.168.0.39', 100, MINUTE * 10)}
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

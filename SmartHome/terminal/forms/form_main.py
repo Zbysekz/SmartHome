@@ -8,6 +8,7 @@ from PyQt5.QtCore import pyqtSignal, QObject
 from widgets.parameter import ParameterLine
 from databaseMySQL import cMySQL
 import datetime
+import struct
 
 class Communicate(QObject):
     closeApp = pyqtSignal()
@@ -39,6 +40,8 @@ class MainWindow(QMainWindow):
         self.btnGarageSolar.clicked.connect(self.ePowerwallGarageSolar)
         self.btnGarageGrid.clicked.connect(self.ePowerwallGarageGrid)
 
+        self.btnTempCalib2.clicked.connect(self.eBMS_calib_set_temp)
+
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
         self.MySQL = cMySQL()
@@ -51,19 +54,19 @@ class MainWindow(QMainWindow):
                      ["brewhouse_chillPump_onOff", "3", SINGLE_VALUE],
                      ["fan_onOff", "4", SINGLE_VALUE],
                      ["brewhouse_polybox_setpoint", "5", DOUBLE_VALUE],
-                     ["brewhouse_fermentor_autMan", "6", SINGLE_VALUE],
+                     ["brewhouse_ferm_autMan", "6", SINGLE_VALUE],
                      ["brewhouse_fermentor_setpoint", "7", DOUBLE_VALUE],
-                     ["brewhouse_fermentor_heating", "8", SINGLE_VALUE],
+                     ["brewhouse_ferm_heat_onOff", "8", SINGLE_VALUE],
                      ["garden1_autMan", "20", SINGLE_VALUE],
                      ["garden2_autMan", "21", SINGLE_VALUE],
                      ["garden3_autMan", "22", SINGLE_VALUE],
                      ["garden1_onOff", "23", SINGLE_VALUE],
                      ["garden2_onOff", "24", SINGLE_VALUE],
                      ["garden3_onOff", "25", SINGLE_VALUE],
-                     ["garden2_duration_min", "28", SINGLE_VALUE],
-                     ["garden3_duration_min", "29", SINGLE_VALUE],
-                     ["garden_morning_h", "30", SINGLE_VALUE],
-                     ["garden_evening_h", "31", SINGLE_VALUE],]
+                     ["garden2_watering_duration_min", "28", SINGLE_VALUE],
+                     ["garden3_watering_duration_min", "29", SINGLE_VALUE],
+                     ["garden_watering_morning_h", "30", SINGLE_VALUE],
+                     ["garden_watering_evening_h", "31", SINGLE_VALUE],]
         self.cellar_params = []
         layout = self.cellarLayout.layout()
         for name, id, type in cellar_wd:
@@ -89,6 +92,16 @@ class MainWindow(QMainWindow):
 
     def cellar_parameter_set(self, id, val, val2):
         self.SendData(id + "," + val + "," + val2, address=IP_CELLAR)
+
+    def eBMS_calib_set_temp(self):
+        buffer = struct.pack('f', float(self.eTempCalib.value()))
+        buffer_str = str(buffer[0]) + "," + str(buffer[1]) + "," + str(buffer[2]) + "," + str(
+            buffer[3])
+        self.SendData("5," + str(self.eAddr.value()) + "," + buffer_str, address=IP_POWERWALL)
+
+        buffer = struct.pack('f', float(self.eTempCalib2.value()))
+        buffer_str = str(buffer[0])+","+str(buffer[1])+","+str(buffer[2])+","+str(buffer[3])
+        self.SendData("16,"+str(self.eAddr.value())+","+buffer_str, address=IP_POWERWALL)
 
     def SendData(self, data, address=None):
         self.MySQL.insertTxCommand(address, data)
@@ -123,3 +136,7 @@ class MainWindow(QMainWindow):
                     continue
                 if (datetime.datetime.utcnow() - last_update).total_seconds() < 3600:
                     self.all_params[idx].update(value)
+
+                    # try to find also hysteresis for double values
+                    if self.all_params[idx].type == DOUBLE_VALUE:
+                        self.all_params[idx].update2(values[name.replace("setpoint", "hysteresis")][0])

@@ -79,7 +79,7 @@
                 </widget>
                </item>
                <item row="8" column="3">
-                <widget class="QPushButton" name="pushButton_5">
+                <widget class="QPushButton" name="btnTempCalib2">
                  <property name="text">
                   <string>temp calib</string>
                  </property>
@@ -133,10 +133,27 @@
                <item row="8" column="2">
                 <layout class="QHBoxLayout" name="horizontalLayout_3">
                  <item>
-                  <widget class="QDoubleSpinBox" name="doubleSpinBox_8"/>
+                  <widget class="QDoubleSpinBox" name="eTempCalib">
+                   <property name="decimals">
+                    <number>3</number>
+                   </property>
+                   <property name="minimum">
+                    <double>-999999.989999999990687</double>
+                   </property>
+                   <property name="maximum">
+                    <double>999999.989999999990687</double>
+                   </property>
+                  </widget>
                  </item>
                  <item>
-                  <widget class="QDoubleSpinBox" name="doubleSpinBox_9"/>
+                  <widget class="QDoubleSpinBox" name="eTempCalib2">
+                   <property name="minimum">
+                    <double>-999999.989999999990687</double>
+                   </property>
+                   <property name="maximum">
+                    <double>999999.989999999990687</double>
+                   </property>
+                  </widget>
                  </item>
                 </layout>
                </item>
@@ -157,10 +174,27 @@
                <item row="7" column="2">
                 <layout class="QHBoxLayout" name="horizontalLayout_2">
                  <item>
-                  <widget class="QDoubleSpinBox" name="doubleSpinBox_6"/>
+                  <widget class="QDoubleSpinBox" name="doubleSpinBox_6">
+                   <property name="decimals">
+                    <number>3</number>
+                   </property>
+                   <property name="minimum">
+                    <double>-999999.989999999990687</double>
+                   </property>
+                   <property name="maximum">
+                    <double>999999.989999999990687</double>
+                   </property>
+                  </widget>
                  </item>
                  <item>
-                  <widget class="QDoubleSpinBox" name="doubleSpinBox_7"/>
+                  <widget class="QDoubleSpinBox" name="doubleSpinBox_7">
+                   <property name="minimum">
+                    <double>-999999.989999999990687</double>
+                   </property>
+                   <property name="maximum">
+                    <double>999999.989999999990687</double>
+                   </property>
+                  </widget>
                  </item>
                 </layout>
                </item>
@@ -181,7 +215,7 @@
                 <widget class="QSpinBox" name="spinBox_5"/>
                </item>
                <item row="3" column="1">
-                <widget class="QSpinBox" name="spinBox"/>
+                <widget class="QSpinBox" name="eAddr"/>
                </item>
                <item row="1" column="0">
                 <widget class="QPushButton" name="btnGarageGrid">

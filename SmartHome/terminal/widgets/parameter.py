@@ -32,3 +32,5 @@ class ParameterLine(QWidget):
 
     def update(self, value):
         self.label_real.setText(str(value))
+    def update2(self, value2):
+        self.label_real_2.setText(str(value2))

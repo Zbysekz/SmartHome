@@ -37,7 +37,8 @@ class cTCPServer(cThreadModule):
         self.devices = None
 
     def init(self):
-        self.logger.log('tcp server init')
+        self.logger.log(f'tcp server init - opening {parameters.SERVER_PORT} port on '
+                        f'{parameters.SERVER_IP}')
         # socket.setdefaulttimeout(5)
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.setblocking(0)
@@ -161,24 +162,23 @@ class cTCPServer(cThreadModule):
 
     def send(self, data, destination, crc16=True):  # put in send queue
 
-        if len(self.sendQueue) >= self.TXQUEUELIMIT_PER_DEVICE:  # if buffer is at least that full
-            cnt = sum([msg[1] == destination for msg in self.sendQueue])  # how much are with same address
-            if cnt >= self.TXQUEUELIMIT_PER_DEVICE:  # this device will become offline
+        device = cDevice.get_device(destination, self.devices)
 
-                self.RemoveOnlineDevice(self.mySQL, destination)
-                device = cDevice.get_device(destination, self.devices)
-                if device:
-                    device.online = False
-                # now remove the oldest message and further normally append newest
-                oldMsgs = [msg for msg in self.sendQueue if msg[1] == destination]
+        if not device.online:
+            if len(self.sendQueue) >= self.TXQUEUELIMIT_PER_DEVICE:  # if buffer is at least that full
+                cnt = sum([msg[1] == destination for msg in self.sendQueue])  # how much are with same address
+                if cnt >= self.TXQUEUELIMIT_PER_DEVICE:  # this device will become offline
+                    self.logger.log(f"Limit for TX queue per device was reached! {device.name}")
+                    # now remove the oldest message and further normally append newest
+                    oldMsgs = [msg for msg in self.sendQueue if msg[1] == destination]
 
-                if len(oldMsgs) > 0:
-                    self.sendQueue.remove(oldMsgs[0])
+                    if len(oldMsgs) > 0:
+                        self.sendQueue.remove(oldMsgs[0])
 
-        if len(self.sendQueue) < self.TXQUEUELIMIT:
-            self.sendQueue.append((serialData.CreatePacket(data, crc16), destination))
-        else:
-            self.logger.log("MAXIMUM TX QUEUE LIMIT REACHED!!")
+            if len(self.sendQueue) < self.TXQUEUELIMIT:
+                self.sendQueue.append((serialData.CreatePacket(data, crc16), destination))
+            else:
+                self.logger.log("MAXIMUM TX QUEUE LIMIT REACHED!!")
 
     def RemoveOnlineDevice(self, MySQL, destination):
         device = cDevice.get_device(destination, self.devices)

@@ -59,7 +59,7 @@ class cDataProcessor(cThreadModule):
             if time.time() - self.printQueueSize > 60:
                 self.printQueueSize = time.time()
                 if self.receive_queue.qsize() > 10:
-                    self.logger.log(f"-----------------ReceiveQueueSize:{self.receive_queue.qsize()}")
+                    self.logger.log(f"-----------------ReceiveQueueSize:{self.receive_queue.qsize()}", Logger.RICH)
                     if self.receive_queue.qsize() > 500 and (time.time() - self.last_notification)>60*60:
                         self.last_notification = time.time()
                         self.logger.log(f"Receive queue large! {self.receive_queue.qsize()}")
@@ -145,16 +145,17 @@ class cDataProcessor(cThreadModule):
                 self.mySQL.insertValue('voltage', 'powerwall cell ' + str(data[1]), voltage,
                                        periodicity=10 * MINUTE,
                                        writeNowDiff=0.05)
-            if temp < 70:
-                self.mySQL.insertValue('temperature', 'powerwall cell ' + str(data[1]), temp,
-                                       periodicity=120 * MINUTE,
-                                       writeNowDiff=1)
+            #if temp < 70:
+            self.mySQL.insertValue('temperature', 'powerwall cell ' + str(data[1]), temp,
+                                   periodicity=120 * MINUTE,
+                                   writeNowDiff=1)
         elif data[0] == 10:  # POWERWALL STATUS
             powerwall_stateMachineStatus = data[1]
             errorStatus = data[2]
             errorStatus_cause = data[3]
-            solarConnected = (data[4] & 0x01) != 0
+            # solarConnected = (data[4] & 0x01) != 0 not used
             heating = (data[4] & 0x02) != 0
+            garage_contactor = (data[4] & 0x04) != 0
             err_module_no = data[5]
 
             self.mySQL.insertValue('status', 'powerwall_stateMachineStatus',
@@ -166,7 +167,7 @@ class cDataProcessor(cThreadModule):
             self.mySQL.insertValue('status', 'powerwall_errorStatus_cause', errorStatus_cause,
                                    periodicity=60 * MINUTE,
                                    writeNowDiff=1)
-            self.mySQL.insertValue('status', 'powerwall_solarConnected', solarConnected,
+            self.mySQL.insertValue('status', 'powerwall_garage_contactor', garage_contactor,
                                    periodicity=60 * MINUTE,
                                    writeNowDiff=1)
             self.mySQL.insertValue('status', 'powerwall_heating', heating, periodicity=60 * MINUTE,
@@ -309,41 +310,63 @@ class cDataProcessor(cThreadModule):
             self.house_security.PIR_sensor_data_receive()
 
         elif data[0] == 106:  # data from powerwall ESP
-            batteryStatus = data[13] * 256 + data[14]
-            self.mySQL.insertValue('status', 'powerwallEpeverBatteryStatus', batteryStatus,
-                                   periodicity=6 * HOUR,
+            epever_statuses = data[1]
+            self.mySQL.insertValue('status', f'powerwallEpeverStatuses', epever_statuses,
+                                   periodicity=3 * HOUR,
                                    writeNowDiff=1)
-            self.mySQL.insertValue('status', 'powerwallEpeverChargerStatus',
-                                   data[15] * 256 + data[16],
-                                   periodicity=6 * HOUR,
-                                   writeNowDiff=1)
-            self.logger.log("status inserted", _verbosity=Logger.FULL)
-            if batteryStatus == 0 and (
-                    self.currentValues.get(
-                        'status_powerwall_stateMachineStatus') == 10 or self.currentValues.get(
-                'status_powerwall_stateMachineStatus') == 20):  # valid only if epever reports battery ok and battery is really connected
-                powerwallVolt = (data[1] * 256 + data[2]) / 100.0
-                self.mySQL.insertValue('voltage', 'powerwallSum', powerwallVolt,
-                                       periodicity=60 * MINUTE,
-                                       writeNowDiff=0.5)
-                soc = calculatePowerwallSOC(powerwallVolt)
-                self.mySQL.insertValue('status', 'powerwallSoc', soc, periodicity=2 * HOUR,
-                                       writeNowDiff=1)
 
-            temperature = cDataProcessor.correctNegative(data[3] * 256 + data[4])
+            MODULES_CNT = 5
+            offset = 2
+            #self.logger.log(f"ESP RECEIVED {data}")
+            cons_logged = False
+            if len(data) >= (2 + 16*MODULES_CNT):
+                powers = [0.0] * MODULES_CNT
+                powerwallVolt = 0.0
+                powerwallVoltSum = 0.0
+                powerwallVoltSum_cnt = 0
+                for i in range(1, MODULES_CNT+1):
+                    batteryStatus = data[offset+12] * 256 + data[offset+13]
+                    self.mySQL.insertValue('status', f'powerwallEpeverBatteryStatus{i}', batteryStatus,
+                                           periodicity=6 * HOUR,
+                                           writeNowDiff=1)
+                    self.mySQL.insertValue('status', f'powerwallEpeverChargerStatus{i}',
+                                           data[offset+14] * 256 + data[offset+15],
+                                           periodicity=6 * HOUR,
+                                           writeNowDiff=1)
+                    if batteryStatus == 0 and (
+                            self.currentValues.get(
+                                'status_powerwall_stateMachineStatus') in (10, 20)):  # valid only if epever reports battery ok and battery is really connected
+                        powerwallVolt = (data[offset] * 256 + data[offset+1]) / 100.0
+                        self.mySQL.insertValue('voltage', f'powerwallSum{i}', powerwallVolt,
+                                               periodicity=60 * MINUTE,
+                                               writeNowDiff=0.5)
+                        powerwallVoltSum += powerwallVolt
+                        powerwallVoltSum_cnt += 1
+                    temperature = cDataProcessor.correctNegative(data[offset+2] * 256 + data[offset+3])
 
-            self.mySQL.insertValue('temperature', 'powerwallOutside', temperature / 100.0,
-                                   periodicity=30 * MINUTE,
-                                   writeNowDiff=2)
-            solarPower = (data[5] * 16777216 + data[6] * 65536 + data[7] * 256 + data[8]) / 100.0
-            self.mySQL.insertValue('power', 'solar', solarPower)
+                    self.mySQL.insertValue('temperature', f'powerwallOutside{i}', temperature / 100.0,
+                                           periodicity=30 * MINUTE,
+                                           writeNowDiff=2)
+                    powers[i-1] = (data[offset+4] * 16777216 + data[offset+5] * 65536 + data[offset+6] * 256 + data[offset+7]) / 100.0
+                    self.mySQL.insertValue('power', f'solar{i}', powers[i-1])
 
-            if batteryStatus == 0 and time.time() - self.tmrConsPowerwall > 3600:  # each hour
-                self.logger.log("Daily solar cons", _verbosity=Logger.RICH)
-                self.tmrConsPowerwall = time.time()
-                self.mySQL.insertDailySolarCons((data[9] * 16777216 + data[10] * 65536 + data[
-                    11] * 256 + data[12]) * 10.0)  # in 0.01 kWh
+                    if batteryStatus == 0 and time.time() - self.tmrConsPowerwall > 3600:  # each hour
+                        self.logger.log("Daily solar cons", _verbosity=Logger.RICH)
+                        cons_logged = True
+                        self.mySQL.insertDailySolarCons(i, (data[offset+8] * 16777216 + data[offset+9] * 65536 + data[
+                            offset+10] * 256 + data[offset+11]) * 10.0)  # in 0.01 kWh
+                    offset += 16
+                if cons_logged:  # we have logged consumptions, reset timer
+                    self.tmrConsPowerwall = time.time()
+
+                self.mySQL.insertValue('power', 'solar', sum(powers))
+
+                if powerwallVoltSum_cnt != 0 and powerwallVoltSum != 0.0:
+                    soc = calculatePowerwallSOC(powerwallVoltSum/powerwallVoltSum_cnt)
+                    self.mySQL.insertValue('status', 'powerwallSoc', soc, periodicity=2 * HOUR,
+                                           writeNowDiff=1)
                 self.logger.log("process completed", _verbosity=Logger.RICH)
+
 
         elif data[0] == 107:  # data from brewhouse
             self.mySQL.insertValue('temperature', 'brewhouse_horkaVoda',
@@ -381,7 +404,12 @@ class cDataProcessor(cThreadModule):
             temp_polybox = cDataProcessor.correctNegative(data[18] * 256 + data[19])
             temp_cellar = cDataProcessor.correctNegative(data[20] * 256 + data[21])
             temp_fermentor = cDataProcessor.correctNegative(data[22] * 256 + data[23])
-            pump_activations_per_h = cDataProcessor.correctNegative(data[24] * 256 + data[25])
+            pump_activations_per_h = data[24] * 256 + data[25]
+
+            garden2_watering_duration = data[26] * 256 + data[27]
+            garden3_watering_duration = data[28] * 256 + data[29]
+            garden_watering_morning_hour = data[30] * 256 + data[31]
+            garden_watering_evening_hour = data[32] * 256 + data[33]
 
             bits_list = {
                 "params_valid": bool(bits & (1 << 0)),
@@ -429,8 +457,7 @@ class cDataProcessor(cThreadModule):
                 "brewhouse_fermentor_setpoint": fermentor_setpoint,
                 "brewhouse_polybox": temp_polybox,
                 "brewhouse_cellar": temp_cellar,
-                "brewhouse_fermentor": temp_fermentor
-
+                "brewhouse_fermentor": temp_fermentor,
             }
             for name, val in temp_list.items():
                 insert_for_temps(name, val)
@@ -456,6 +483,24 @@ class cDataProcessor(cThreadModule):
                                    pump_activations_per_h / 10.0,
                                    periodicity=60 * MINUTE,  # with correction
                                    writeNowDiff=1)
+            self.mySQL.insertValue('status', 'garden2_watering_duration_min',
+                                   garden2_watering_duration,
+                                   periodicity=600 * MINUTE,  # with correction
+                                   writeNowDiff=1)
+
+            self.mySQL.insertValue('status', 'garden3_watering_duration_min',
+                                    garden3_watering_duration,
+                                   periodicity=600 * MINUTE,  # with correction
+                                   writeNowDiff=1)
+            self.mySQL.insertValue('status', 'garden_watering_morning_h',
+                                    garden_watering_morning_hour,
+                                   periodicity=600 * MINUTE,  # with correction
+                                   writeNowDiff=1)
+            self.mySQL.insertValue('status', 'garden_watering_evening_h',
+                                    garden_watering_evening_hour,
+                                   periodicity=600 * MINUTE,  # with correction
+                                   writeNowDiff=1)
+
 
 
         elif data[0] == 110:  # data from iSpindel
@@ -510,15 +555,19 @@ class cDataProcessor(cThreadModule):
             temperature = cDataProcessor.correctNegative(data[2] * 256 + data[3])
 
             self.mySQL.insertValue('temperature', 'martha_tent', temperature/10.0,
-                                   periodicity=120 * MINUTE,  # with correction
+                                   periodicity=120 * MINUTE,
                                    writeNowDiff=1)
             self.mySQL.insertValue('humidity', 'martha_tent', (data[4] * 256 + data[5]) / 10.0,
-                                   periodicity=120 * MINUTE,  # with correction
+                                   periodicity=120 * MINUTE,
                                    writeNowDiff=2)
             self.mySQL.insertValue('gas', 'martha_tent', (data[6] * 256 + data[7]),
-                                   periodicity=120 * MINUTE,  # with correction
+                                   periodicity=120 * MINUTE,
                                    writeNowDiff=10)
-
+        elif data[0] == 115:  # data from Geiger-Muller counter
+            CPM = data[1]*256 + data[2]
+            self.mySQL.insertValue('radioactivity', f'geiger_muller_counter', CPM,
+                                   periodicity=6 * HOUR,
+                                   writeNowDiff=5)
         elif data[0] == 0 and data[1] == 1:  # live event
             self.logger.log("Live event!", Logger.FULL)
         elif data[0] < 4 and len(data) >= 2:  # events for keyboard
