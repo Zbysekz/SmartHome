@@ -91,7 +91,7 @@ class cTCPServer(cThreadModule):
                 self.logger.log("Exception:")
                 self.logger.log(''.join('!! ' + line for line in lines))
 
-    def ReceiveThread(self, conn, device):
+    def ReceiveThread(self, conn, device): # this thread starts, when some device connect to server
         try:
             # if you have something to send, send it
             sendWasPerformed = False
@@ -103,7 +103,7 @@ class cTCPServer(cThreadModule):
                     conn.send(tx[0])
 
                     sendWasPerformed = True
-                    self.logger.log(f"Sending tx data to {str(device)} data:{tx[0]}", Logger.RICH)
+                    self.logger.log(f"Sending tx data to {str(device)} data:{tx[0]}", Logger.NORMAL)
 
             self.sendQueue = queueNotForThisIp  # replace items with the items that we haven't sent
 
@@ -160,11 +160,11 @@ class cTCPServer(cThreadModule):
 
         conn.close()
 
-    def send(self, data, destination, crc16=True):  # put in send queue
+    def send(self, data, destination, crc16=True) -> bool:  # put in send queue
 
         device = cDevice.get_device(destination, self.devices)
 
-        if not device.online:
+        if device.online:
             if len(self.sendQueue) >= self.TXQUEUELIMIT_PER_DEVICE:  # if buffer is at least that full
                 cnt = sum([msg[1] == destination for msg in self.sendQueue])  # how much are with same address
                 if cnt >= self.TXQUEUELIMIT_PER_DEVICE:  # this device will become offline
@@ -177,9 +177,12 @@ class cTCPServer(cThreadModule):
 
             if len(self.sendQueue) < self.TXQUEUELIMIT:
                 self.sendQueue.append((serialData.CreatePacket(data, crc16), destination))
+                return True
             else:
                 self.logger.log("MAXIMUM TX QUEUE LIMIT REACHED!!")
 
+        self.logger.log(f"Sending to {device.name} failed, device is not online!")
+        return False
     def RemoveOnlineDevice(self, MySQL, destination):
         device = cDevice.get_device(destination, self.devices)
         if device is None:
