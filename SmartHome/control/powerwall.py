@@ -30,7 +30,8 @@ class cPowerwallControl(cThreadModule):
         self.powerwall_last_full = False
         self.powerwall_last_fail = False
         self.tmr_slow_control = 0
-        self.auto_powerwall_tmr_command_exec = 0
+        self.auto_powerwall_tmr_command_exec_garage = 0
+        self.auto_powerwall_tmr_command_exec_house = 0
 
     def _handle(self):
         self.ControlPowerwall()
@@ -46,41 +47,74 @@ class cPowerwallControl(cThreadModule):
         summerTime = 3 < datetimeNow.month < 10
 
         if summerTime:
-            upperRunThreshold = 70
-            lowerStopThreshold = 30
-        else:
-            upperRunThreshold = 90
-            lowerStopThreshold = 40
+            house_upperRunThreshold = 70
+            house_lowerStopThreshold = 30
 
-        solarPowered = currentValues[
+            garage_upperRunThreshold = 70
+            garage_lowerStopThreshold = 40
+        else:
+            house_upperRunThreshold = 90
+            house_lowerStopThreshold = 40
+
+            garage_upperRunThreshold = 90
+            garage_lowerStopThreshold = 45
+
+        house_solarPowered = currentValues[
                            'status_rackUno_stateMachineStatus'] == 3
-        time_inhibit = time.time() - self.auto_powerwall_tmr_command_exec > 60 * 5  # 5 min
+        garage_solarPowered = currentValues[
+                           'status_powerwall_garage_contactor'] == 1
+
+        time_inhibit_house_cmd = time.time() - self.auto_powerwall_tmr_command_exec_house > 60 * 5  # 5 min
+        time_inhibit_garage_cmd = time.time() - self.auto_powerwall_tmr_command_exec_garage > 60 * 5  # 5 min
+        # HOUSE CONTROL
         # if enough SoC to run
-        if (time_inhibit and not solarPowered and
+        if (time_inhibit_house_cmd and not house_solarPowered and
                 currentValues['status_powerwall_stateMachineStatus'] in [10, 20] and \
                 currentValues[
-                    'status_powerwallSoc'] > upperRunThreshold):  # more than 70% SoC
-            self.logger.log("Auto powerwall control - Switching to solar")
+                    'status_powerwallSoc'] > house_upperRunThreshold):  # more than 70% SoC
+            self.logger.log("Auto powerwall control - House switching to solar")
             # MySQL.insertTxCommand(IP_POWERWALL, "10")  # RUN command
             self.mySQL.insertTxCommand(cDevice.get_ip("RACKUNO", cCommProcessor.devices),
                                        "4")  # Switch to SOLAR command
-            self.auto_powerwall_tmr_command_exec = time.time()
+            self.auto_powerwall_tmr_command_exec_house = time.time()
         # if below SoC
-        elif solarPowered and currentValues['status_powerwall_stateMachineStatus'] in [10,
+        elif time_inhibit_house_cmd and house_solarPowered and currentValues['status_powerwall_stateMachineStatus'] in [10,
                                                                                        20] and \
                 currentValues[
-                    'status_powerwallSoc'] <= lowerStopThreshold:  # less than xx% SoC
-            self.logger.log("Auto powerwall control - Switching to grid")
+                    'status_powerwallSoc'] <= house_lowerStopThreshold:  # less than xx% SoC
+            self.logger.log("Auto powerwall control - House switching to grid")
             self.mySQL.insertTxCommand(cDevice.get_ip("RACKUNO", cCommProcessor.devices),
                                        "3")  # Switch to GRID command
-            self.auto_powerwall_tmr_command_exec = time.time()
+            self.auto_powerwall_tmr_command_exec_house = time.time()
+
+        # GARAGE CONTROL
+        # if enough SoC to run
+        if (time_inhibit_garage_cmd and not garage_solarPowered and
+                currentValues['status_powerwall_stateMachineStatus'] in [10, 20] and \
+                currentValues[
+                    'status_powerwallSoc'] > garage_upperRunThreshold):  # more than 70% SoC
+            self.logger.log("Auto powerwall control - Garage switching to solar")
+
+            self.mySQL.insertTxCommand(cDevice.get_ip("POWERWALL", cCommProcessor.devices),
+                                       "20,1")  # Switch to SOLAR command
+            self.auto_powerwall_tmr_command_exec_garage = time.time()
+        # if below SoC
+        elif time_inhibit_garage_cmd and garage_solarPowered and currentValues[
+            'status_powerwall_stateMachineStatus'] in [10,
+                                                       20] and \
+                currentValues[
+                    'status_powerwallSoc'] <= garage_lowerStopThreshold:  # less than xx% SoC
+            self.logger.log("Auto powerwall control - Garage switching to grid")
+            self.mySQL.insertTxCommand(cDevice.get_ip("POWERWALL", cCommProcessor.devices),
+                                       "20,0")  # Switch to GRID command
+            self.auto_powerwall_tmr_command_exec_garage = time.time()
 
         if currentValues['status_powerwall_stateMachineStatus'] == 99:
             if not self.powerwall_last_fail:
                 self.logger.log("Powerwall in error state!", Logger.CRITICAL)
             self.powerwall_last_fail = True
 
-            if solarPowered:  # prevent immediate solar connect after error recovery
+            if house_solarPowered:  # prevent immediate solar connect after error recovery
                 self.mySQL.insertTxCommand(cDevice.get_ip("RACKUNO", cCommProcessor.devices),
                                            "3")  # Switch to GRID command
 
@@ -99,6 +133,6 @@ class cPowerwallControl(cThreadModule):
         solarPowered = currentValues[
             'status_rackUno_stateMachineStatus'] == 3
         # if we are running from solar power
-        if solarPowered and currentValues['status_powerwall_stateMachineStatus'] not in (10, 20):
+        if house_solarPowered and currentValues['status_powerwall_stateMachineStatus'] not in (10, 20):
             self.logger.log(f"Auto powerwall control - powerwall not in proper state - shutdown. status {currentValues['status_powerwall_stateMachineStatus']}")
             self.mySQL.insertTxCommand(cDevice.get_ip("RACKUNO", cCommProcessor.devices), "3")  # Switch to GRID command

@@ -105,11 +105,11 @@ class MainWindow(QMainWindow):
         buffer = struct.pack('f', float(self.eTempCalib.value()))
         buffer_str = str(buffer[0]) + "," + str(buffer[1]) + "," + str(buffer[2]) + "," + str(
             buffer[3])
-        self.SendData("5," + str(self.eAddr.value()) + "," + buffer_str, address=IP_POWERWALL)
+        self.SendData("5," + str(self.eAddr3.value()) + "," + buffer_str, address=IP_POWERWALL)
 
         buffer = struct.pack('f', float(self.eTempCalib2.value()))
         buffer_str = str(buffer[0])+","+str(buffer[1])+","+str(buffer[2])+","+str(buffer[3])
-        self.SendData("16,"+str(self.eAddr.value())+","+buffer_str, address=IP_POWERWALL)
+        self.SendData("16,"+str(self.eAddr3.value())+","+buffer_str, address=IP_POWERWALL)
 
     def SendData(self, data, address=None):
         self.MySQL.insertTxCommand(address, data)

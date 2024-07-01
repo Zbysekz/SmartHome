@@ -543,10 +543,18 @@ class cDataProcessor(cThreadModule):
                                    periodicity=300 * MINUTE,  # with correction
                                    writeNowDiff=5)
         elif data[0] == 113:  # data from victron inverter
+            status = data[1]
 
-            self.mySQL.insertValue('power', 'inverter', (data[1] * 256 + data[2]),
+            self.logger.log("VICTRON:")
+            self.logger.log(data)
+            #if status & 0x01 == 0:  # valid data
+            self.mySQL.insertValue('power', 'inverter', (data[2] * 256 + data[3]),
                                    periodicity=5 * MINUTE,  # with correction
                                    writeNowDiff=50)
+            # self.mySQL.insertValue('status', 'inverter', status,
+            #                        periodicity=6 * HOUR,
+            #                        writeNowDiff=1)
+
         elif data[0] == 114:  # data from martha tent
             reqClock_martha = data[1]
             if reqClock_martha:
