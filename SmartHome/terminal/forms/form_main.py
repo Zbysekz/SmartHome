@@ -18,8 +18,9 @@ class Communicate(QObject):
 
 IP_RACKUNO = "192.168.0.5"
 IP_POWERWALL = "192.168.0.12"
-IP_SERVER = "172.22.219.198"
+IP_SERVER = "192.168.0.3" #"172.22.219.198"
 IP_CELLAR = "192.168.0.33"
+IP_METEO = "192.168.0.10"
 
 SINGLE_VALUE = 1
 DOUBLE_VALUE = 2
@@ -43,6 +44,8 @@ class MainWindow(QMainWindow):
         self.btnHouseGrid.clicked.connect(self.ePowerwallHouseGrid)
 
         self.btnTempCalib2.clicked.connect(self.eBMS_calib_set_temp)
+
+        self.btnMeteoAwake.clicked.connect(self.eMeteo_stay_awake)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
@@ -80,6 +83,8 @@ class MainWindow(QMainWindow):
         self.all_params += self.cellar_params
         self.show()
 
+    def eMeteo_stay_awake(self):
+        self.SendData("0", address=IP_METEO)
     def ePowerwallReset(self):
         self.SendData("13", address=IP_POWERWALL)
 

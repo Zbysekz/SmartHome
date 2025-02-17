@@ -72,6 +72,7 @@ def main():
     try:
 
         logger.log("Entry point main.py")
+        logger.log(f"Verbosity set up to:{parameters.VERBOSITY}")
 
         threading.excepthook = exception_in_thread
 

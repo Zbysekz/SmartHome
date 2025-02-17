@@ -51,7 +51,15 @@
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_3">
              <item>
-              <layout class="QVBoxLayout" name="houseLayout"/>
+              <layout class="QVBoxLayout" name="houseLayout">
+               <item>
+                <widget class="QPushButton" name="btnMeteoAwake">
+                 <property name="text">
+                  <string>Meteostation - stay awake</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </item>
             </layout>
            </widget>

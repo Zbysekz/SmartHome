@@ -122,16 +122,42 @@ class cDataProcessor(cThreadModule):
 
         elif data[0] == 101:  # data from meteostations
             meteoTemp = cDataProcessor.correctNegative((data[1] * 256 + data[2]))
+            meteoTemp2 = cDataProcessor.correctNegative((data[8] * 256 + data[9]))
 
-            self.mySQL.insertValue('temperature', 'meteostation 1', meteoTemp / 100,
+            self.mySQL.insertValue('temperature', 'meteostation', meteoTemp / 100,
                                    periodicity=60 * MINUTE,
                                    writeNowDiff=0.5)
-            self.mySQL.insertValue('pressure', 'meteostation 1',
+            self.mySQL.insertValue('pressure', 'meteostation',
                                    (data[3] * 65536 + data[4] * 256 + data[5]) / 100,
                                    periodicity=50 * MINUTE, writeNowDiff=100)
-            self.mySQL.insertValue('voltage', 'meteostation 1', (data[6] * 256 + data[7]) / 1000,
+            self.mySQL.insertValue('voltage', 'meteostation', (data[6] * 256 + data[7]) / 10,
                                    periodicity=50 * MINUTE,
                                    writeNowDiff=0.2)
+            self.mySQL.insertValue('temperature', 'meteostation2', meteoTemp2 / 100,
+                                   periodicity=60 * MINUTE,
+                                   writeNowDiff=0.5)
+            self.mySQL.insertValue('rain_mm_per_h', 'meteostation', (data[10] * 256 + data[11]) / 100,
+                                   periodicity=50 * MINUTE,
+                                   writeNowDiff=0.1)
+            self.mySQL.insertValue('rain_mm_accumulated', 'meteostation', (data[12] * 256 + data[13]) / 10,
+                                   periodicity=1 * MINUTE,
+                                   writeNowDiff=0.1)
+            self.mySQL.insertValue('wind_speed_avg', 'meteostation',
+                                   (data[14] * 256 + data[15]) / 10,
+                                   periodicity=5 * MINUTE,
+                                   writeNowDiff=0.1)
+            self.mySQL.insertValue('wind_speed', 'meteostation',
+                                   (data[16] * 256 + data[17]) / 10,
+                                   periodicity=5 * MINUTE,
+                                   writeNowDiff=0.1)
+            self.mySQL.insertValue('wind_speed_max', 'meteostation',
+                                   (data[18] * 256 + data[19]) / 10,
+                                   periodicity=5 * MINUTE,
+                                   writeNowDiff=0.1)
+            self.mySQL.insertValue('humidity', 'meteostation',
+                                   (data[20] * 256 + data[21]) / 10,
+                                   periodicity=50 * MINUTE,
+                                   writeNowDiff=1)
 
         elif data[0] > 10 and data[0] <= 40:  # POWERWALL
             voltage = (data[2] * 256 + data[3]) / 100
@@ -516,15 +542,18 @@ class cDataProcessor(cThreadModule):
 
             name = 'iSpindel_' + str(data[1])
 
-            self.mySQL.insertValue('temperature', name, temperature / 100.0,
-                                   periodicity=60 * MINUTE,  # with correction
-                                   writeNowDiff=0.1)
-            self.mySQL.insertValue('gravity', name, gravity / 1000.0,
-                                   periodicity=30 * MINUTE,  # with correction
-                                   writeNowDiff=0.1)
-            self.mySQL.insertValue('voltage', name, voltage / 1000.0,
-                                   periodicity=60 * MINUTE,  # with correction
-                                   writeNowDiff=0.1)
+            if temperature != 0:
+                self.mySQL.insertValue('temperature', name, temperature / 100.0,
+                                       periodicity=60 * MINUTE,  # with correction
+                                       writeNowDiff=0.1)
+            if gravity != 0:
+                self.mySQL.insertValue('gravity', name, gravity / 1000.0,
+                                       periodicity=30 * MINUTE,  # with correction
+                                       writeNowDiff=0.1)
+            if voltage != 0:
+                self.mySQL.insertValue('voltage', name, voltage / 1000.0,
+                                       periodicity=60 * MINUTE,  # with correction
+                                       writeNowDiff=0.1)
         elif data[0] == 111:  # data from chiller
             temperature = cDataProcessor.correctNegative(data[1] * 256 + data[2])
 

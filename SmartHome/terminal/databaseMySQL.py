@@ -46,7 +46,7 @@ class cMySQL:
 
     def init_db(self):
         return mysql.connector.connect(
-            host="172.22.219.198",
+            host="192.168.0.3",
             user="terminal",
             password="terminal",
             database="db1",

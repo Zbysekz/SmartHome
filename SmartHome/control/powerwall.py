@@ -32,6 +32,7 @@ class cPowerwallControl(cThreadModule):
         self.tmr_slow_control = 0
         self.auto_powerwall_tmr_command_exec_garage = 0
         self.auto_powerwall_tmr_command_exec_house = 0
+        self.powerwall_last_full_tmr = 0
 
     def _handle(self):
         self.ControlPowerwall()
@@ -47,17 +48,17 @@ class cPowerwallControl(cThreadModule):
         summerTime = 3 < datetimeNow.month < 10
 
         if summerTime:
+            house_upperRunThreshold = 60
+            house_lowerStopThreshold = 30
+
+            garage_upperRunThreshold = 60
+            garage_lowerStopThreshold = 35
+        else:
             house_upperRunThreshold = 70
             house_lowerStopThreshold = 30
 
             garage_upperRunThreshold = 70
             garage_lowerStopThreshold = 40
-        else:
-            house_upperRunThreshold = 90
-            house_lowerStopThreshold = 40
-
-            garage_upperRunThreshold = 90
-            garage_lowerStopThreshold = 45
 
         house_solarPowered = currentValues[
                            'status_rackUno_stateMachineStatus'] == 3
