@@ -174,7 +174,7 @@ class cMySQL:
             self.closeDBIfNeeded(db)
 
         except Exception as e:
-            self.logger.log("Error while writing to database for getPriceData, exception:")
+            self.logger.log("Error while reading price data from database, exception:")
             self.logger.log_exception(e)
             return None
 

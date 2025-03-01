@@ -44,15 +44,15 @@ class Logger:
             if _verbosity == Logger.CRITICAL:
                 if len(self.queue) == 0:
                     if all_members:
-                        if not Logger.phone.SendSMS(parameters.PETA_NUMBER, txt):  # no success
-                            self.queue += [[parameters.PETA_NUMBER, txt]]
+                        if not Logger.phone.SendSMS(parameters.SECOND_NUMBER, txt):  # no success
+                            self.queue += [[parameters.SECOND_NUMBER, txt]]
                     if not Logger.phone.SendSMS(parameters.MY_NUMBER1, txt):  # no success
                         self.queue += [[parameters.MY_NUMBER1, txt]]
 
                 else:
                     if len(self.queue) < 4:
                         if all_members:
-                            self.queue += [[parameters.PETA_NUMBER, txt]]
+                            self.queue += [[parameters.SECOND_NUMBER, txt]]
                         self.queue += [[parameters.MY_NUMBER1, txt]]
 
     def log_exception(self, e):

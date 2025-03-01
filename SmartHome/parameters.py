@@ -12,7 +12,7 @@ class Parameters:
     ON_RASPBERRY = platform.machine() != "x86_64"
 
     #MY_NUMBER1 = "+420602187490"
-    #PETA_NUMBER = "+420777438947"
+    #SECOND_NUMBER = "+420777438947"
 
     def __init__(self):
         config = configparser.ConfigParser()
