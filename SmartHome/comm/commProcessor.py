@@ -16,7 +16,7 @@ class cCommProcessor(cThreadModule):
     devices = {cDevice('METEO', '192.168.0.10', HOUR * 3),
                cDevice('KEYBOARD', '192.168.0.11', 120),
                cDevice('ROOMBA', '192.168.0.13'),
-               cDevice('RACKUNO', '192.168.0.5', 200),
+               cDevice('RACKUNO', '192.168.0.5', 200, critical=True),
                cDevice('PIR_SENSOR', '192.168.0.14', MINUTE * 10),
                cDevice('SERVER', '192.168.0.3'),  # it is localhost
                cDevice('POWERWALL', '192.168.0.12', 100, critical=True),

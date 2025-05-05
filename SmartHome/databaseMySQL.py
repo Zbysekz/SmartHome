@@ -12,6 +12,8 @@ from logger import Logger
 from parameters import parameters
 import traceback
 
+notificator_receiver_email = 'zbysekzapadlik@seznam.cz'
+
 thisScriptPath = str(pathlib.Path(__file__).parent.absolute())
 
 
@@ -508,6 +510,21 @@ class cMySQL:
             return None
 
         return
+
+    def add_to_notificator_queue(self, subject, text):
+        try:
+            db, cursor = self.getConnection()
+
+            sql = (f"INSERT INTO db1.notificator_queue (receiver, subject, message, state) "
+                   f"VALUES({notificator_receiver_email}, {subject}, {text}, 'CREATED');)")
+            cursor.execute(sql)
+            db.commit()
+            cursor.close()
+            self.closeDBIfNeeded(db)
+
+        except Exception as e:
+            self.logger.log("Error while writing to notificator queue, exception:")
+            self.logger.log_exception(e)
 
 if __name__=="__main__":
     print("run")

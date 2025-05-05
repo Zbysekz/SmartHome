@@ -1,12 +1,10 @@
-import threading
 from datetime import datetime
 import pathlib
-import traceback
 import os
 import sys
-from parameters import parameters
+from databaseMySQL import cMySQL
 
-send_SMS = True
+send_notification = True
 rootPath = str(pathlib.Path(__file__).parent.absolute())
 
 class Logger:
@@ -18,12 +16,13 @@ class Logger:
     phone = None
 
     def __init__(self, filename="main", verbosity=NORMAL):
+        self.mySQL = cMySQL()
         self.filename = filename
         self._terminate = False
         self.queue = []
         self.verbosity = verbosity
 
-    def log(self, txt, _verbosity=NORMAL, all_members=False):
+    def log(self, txt, _verbosity=NORMAL):
         if _verbosity > self.verbosity:
             return
         print(str(txt))
@@ -38,22 +37,21 @@ class Logger:
         with open(f"{path}/{self.filename}.log", "a") as file:
             file.write(datetimeStr + " >> " + str(txt) + "\n")
 
-        if send_SMS:
-            if self.phone is None:
-                return
+        if send_notification:
             if _verbosity == Logger.CRITICAL:
-                if len(self.queue) == 0:
-                    if all_members:
-                        if not Logger.phone.SendSMS(parameters.SECOND_NUMBER, txt):  # no success
-                            self.queue += [[parameters.SECOND_NUMBER, txt]]
-                    if not Logger.phone.SendSMS(parameters.MY_NUMBER1, txt):  # no success
-                        self.queue += [[parameters.MY_NUMBER1, txt]]
+                self.mySQL.add_to_notificator_queue(subject='SmartHome critical error', text=txt)
+                #if len(self.queue) == 0:
+                    # if all_members:
+                    #     if not Logger.phone.SendSMS(parameters.SECOND_NUMBER, txt):  # no success
+                    #         self.queue += [[parameters.SECOND_NUMBER, txt]]
+                    # if not Logger.phone.SendSMS(parameters.MY_NUMBER1, txt):  # no success
+                    #     self.queue += [[parameters.MY_NUMBER1, txt]]
 
-                else:
-                    if len(self.queue) < 4:
-                        if all_members:
-                            self.queue += [[parameters.SECOND_NUMBER, txt]]
-                        self.queue += [[parameters.MY_NUMBER1, txt]]
+                # else:
+                #     if len(self.queue) < 4:
+                #         if all_members:
+                #             self.queue += [[parameters.SECOND_NUMBER, txt]]
+                #         self.queue += [[parameters.MY_NUMBER1, txt]]
 
     def log_exception(self, e):
         exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -68,13 +66,13 @@ class Logger:
         # Log(str(e))
         # Log(str(exc_type) +" : "+ str(fname) + " : " +str(exc_tb.tb_lineno))
 
-    def sendQueue(self):
-        try:
-            if len(self.queue) > 0:
-                if Logger.phone.SendSMS(self.queue[0][0], self.queue[0][1]):
-                    self.queue.pop(0)  # pop only in case of success
-        except Exception as e:
-            self.log_exception(e)
+    # def sendQueue(self):
+    #     try:
+    #         if len(self.queue) > 0:
+    #             if Logger.phone.SendSMS(self.queue[0][0], self.queue[0][1]):
+    #                 self.queue.pop(0)  # pop only in case of success
+    #     except Exception as e:
+    #         self.log_exception(e)
        # if not self._terminate:  # do not continue if app terminated
          #   threading.Timer(60, self.sendQueue).start()
 

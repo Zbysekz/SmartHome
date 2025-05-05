@@ -125,7 +125,7 @@ class cPowerwallControl(cThreadModule):
         if currentValues[
             'status_powerwallSoc'] > 95:
             if not self.powerwall_last_full and time.time() - self.powerwall_last_full_tmr > 3600 * 6:
-                # self.logger.log("Baterie powerwall je skoro plna! PAL TO!!!", Logger.CRITICAL, all_members = True)
+                # self.logger.log("Baterie powerwall je skoro plna! PAL TO!!!", Logger.CRITICAL)
                 self.powerwall_last_full_tmr = time.time()
             self.powerwall_last_full = True
         else:

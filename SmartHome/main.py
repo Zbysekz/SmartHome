@@ -121,8 +121,6 @@ def main():
             if not cThreadModule.checkTermination():
                 break
 
-            logger.sendQueue()  # send sms from logger
-
             time.sleep(5)
         except KeyboardInterrupt:
             logger.log("Interrupted by user! quitting...")
