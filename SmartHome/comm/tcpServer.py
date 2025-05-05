@@ -23,7 +23,9 @@ sys.path.append(parent)
 class cTCPServer(cThreadModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.logger = Logger("tcpServer", parameters.VERBOSITY)
+        self.mySQL = cMySQL()
+
+        self.logger = Logger("tcpServer", parameters.VERBOSITY, mySQL=self.mySQL)
         self.conn = ''
         self.s = ''
         self.BUFFER_SIZE = 256  # Normally 1024, but we want fast response
@@ -33,7 +35,7 @@ class cTCPServer(cThreadModule):
 
         self.tmrPrintBufferStat = time.time()
         self.data_received_callback = None
-        self.mySQL = cMySQL()
+
         self.devices = None
 
     def init(self):

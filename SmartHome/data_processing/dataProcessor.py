@@ -21,7 +21,7 @@ class cDataProcessor(cThreadModule):
     def __init__(self, phone, **kwargs):
         super().__init__(**kwargs)
         self.mySQL = cMySQL()
-        self.logger = Logger("dataProcessor", verbosity=parameters.VERBOSITY)
+        self.logger = Logger("dataProcessor", verbosity=parameters.VERBOSITY, mySQL=self.mySQL)
         self.phone = phone
         self.house_security = None
         self.house_control = None

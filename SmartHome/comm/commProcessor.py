@@ -32,12 +32,14 @@ class cCommProcessor(cThreadModule):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.logger = Logger("commProcessor", verbosity=parameters.VERBOSITY)
+        self.mySQL = cMySQL()
+
+        self.logger = Logger("commProcessor", verbosity=parameters.VERBOSITY, mySQL=self.mySQL)
 
         self.keyboardRefreshCnt = 0
         self.wifiCheckCnt = 0
 
-        self.mySQL = cMySQL()
+
         self.logger.log(f"Initializing TCP port {parameters.SERVER_PORT} on IP:{parameters.SERVER_IP} ...")
         self.TCP_server = cTCPServer(period_s=1)
         self.TCP_server.devices = cCommProcessor.devices

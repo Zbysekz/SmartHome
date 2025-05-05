@@ -64,8 +64,9 @@ cycleTime = 0
 cycleTime_max = 0
 # -----------------------------------------------
 
-logger = Logger("main", verbosity=parameters.VERBOSITY)
 MySQL = cMySQL()
+logger = Logger("main", verbosity=parameters.VERBOSITY, mySQL=MySQL)
+
 cThreadModule.logger = logger
 ###############################################################################################################
 def main():

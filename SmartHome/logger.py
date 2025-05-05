@@ -2,7 +2,6 @@ from datetime import datetime
 import pathlib
 import os
 import sys
-from databaseMySQL import cMySQL
 
 send_notification = True
 rootPath = str(pathlib.Path(__file__).parent.absolute())
@@ -15,8 +14,8 @@ class Logger:
 
     phone = None
 
-    def __init__(self, filename="main", verbosity=NORMAL):
-        self.mySQL = cMySQL()
+    def __init__(self, filename="main", verbosity=NORMAL, mySQL=None):
+        self.mySQL = mySQL
         self.filename = filename
         self._terminate = False
         self.queue = []
@@ -38,7 +37,7 @@ class Logger:
             file.write(datetimeStr + " >> " + str(txt) + "\n")
 
         if send_notification:
-            if _verbosity == Logger.CRITICAL:
+            if _verbosity == Logger.CRITICAL and self.mySQL:
                 self.mySQL.add_to_notificator_queue(subject='SmartHome critical error', text=txt)
                 #if len(self.queue) == 0:
                     # if all_members:

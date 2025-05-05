@@ -20,7 +20,9 @@ INHIBITED_ROOM_TEMPERATURE = 20.0  # °C
 class cHouseControl(cThreadModule):
     def __init__(self, dataProcessor, **kwargs):
         super().__init__(**kwargs)
-        self.logger = Logger("houseControl", verbosity=parameters.VERBOSITY)
+        self.mySQL = cMySQL()
+
+        self.logger = Logger("houseControl", verbosity=parameters.VERBOSITY, mySQL=self.mySQL)
         if parameters.ON_RASPBERRY:
             self.logger.log("Initializing pin for PC button & gas alarm...")
             GPIO.setwarnings(False)
@@ -30,7 +32,6 @@ class cHouseControl(cThreadModule):
         self.logger.log("Ok")
         self.tmrPriceCalc = 0
         self.tmrVentHeatControl = 0
-        self.mySQL = cMySQL()
 
         self.dataProcessor = dataProcessor
         self.house_security = None
