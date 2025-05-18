@@ -74,7 +74,7 @@ class cCommProcessor(cThreadModule):
 
         if self.wifiCheckCnt >= 30:
             self.wifiCheckCnt = 0
-            if not self.TCP_server.Ping("192.168.0.4"):
+            if not self.TCP_server.Ping("192.168.0.1"):
                 self.logger.log("UNABLE TO REACH ROUTER!")
         else:
             self.wifiCheckCnt += 1
@@ -113,6 +113,7 @@ class cCommProcessor(cThreadModule):
                 self.logger.log("MySQL - getTXbuffer - Exception:")
                 self.logger.log_exception(e)
         self.mySQL.PersistentDisconnect()
+
     def ExecuteTxCommand(self, data):
         if data[0] == 0:  # resetAlarm
             self.logger.log("Alarm deactivated by Tx interface.")

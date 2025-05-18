@@ -23,7 +23,7 @@ class cDevice:
 
     @classmethod
     def get_timeout_devices(cls, list):
-        return [device for device in list if device.handle_timeout()]
+        return [device for device in list if device.handle_timeout() and device.online]
 
     @classmethod
     def get_ip(cls, name, list):
