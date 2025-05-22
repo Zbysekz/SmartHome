@@ -36,21 +36,25 @@ class Logger:
         with open(f"{path}/{self.filename}.log", "a") as file:
             file.write(datetimeStr + " >> " + str(txt) + "\n")
 
-        if send_notification:
-            if _verbosity == Logger.CRITICAL and self.mySQL:
-                self.mySQL.add_to_notificator_queue(subject='SmartHome critical error', text=txt)
-                #if len(self.queue) == 0:
-                    # if all_members:
-                    #     if not Logger.phone.SendSMS(parameters.SECOND_NUMBER, txt):  # no success
-                    #         self.queue += [[parameters.SECOND_NUMBER, txt]]
-                    # if not Logger.phone.SendSMS(parameters.MY_NUMBER1, txt):  # no success
-                    #     self.queue += [[parameters.MY_NUMBER1, txt]]
+        try:
+            if send_notification:
+                if _verbosity == Logger.CRITICAL and self.mySQL:
+                    self.mySQL.add_to_notificator_queue(subject='SmartHome critical error', text=txt)
+                    #if len(self.queue) == 0:
+                        # if all_members:
+                        #     if not Logger.phone.SendSMS(parameters.SECOND_NUMBER, txt):  # no success
+                        #         self.queue += [[parameters.SECOND_NUMBER, txt]]
+                        # if not Logger.phone.SendSMS(parameters.MY_NUMBER1, txt):  # no success
+                        #     self.queue += [[parameters.MY_NUMBER1, txt]]
 
-                # else:
-                #     if len(self.queue) < 4:
-                #         if all_members:
-                #             self.queue += [[parameters.SECOND_NUMBER, txt]]
-                #         self.queue += [[parameters.MY_NUMBER1, txt]]
+                    # else:
+                    #     if len(self.queue) < 4:
+                    #         if all_members:
+                    #             self.queue += [[parameters.SECOND_NUMBER, txt]]
+                    #         self.queue += [[parameters.MY_NUMBER1, txt]]
+        except Exception as e:
+            with open(f"{path}/{self.filename}.log", "a") as file:
+                file.write(datetimeStr + " >> " + str(repr(e)) + "\n")
 
     def log_exception(self, e):
         exc_type, exc_obj, exc_tb = sys.exc_info()

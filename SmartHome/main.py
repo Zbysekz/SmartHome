@@ -119,7 +119,7 @@ def main():
     while True:
         try:
             houseSecurity.handle()
-            if not cThreadModule.checkTermination():
+            if cThreadModule.checkTermination():
                 break
 
             time.sleep(5)
@@ -127,13 +127,13 @@ def main():
             logger.log("Interrupted by user! quitting...")
             cThreadModule.terminateAll()
         except Exception as e:
-            logger.log("Unexpected exception! quitting...")
+            logger.log("Unexpected exception! quitting...", Logger.CRITICAL)
             logger.log_exception(e)
             cThreadModule.terminateAll()
         # ----------------------------------------------
 
 def exception_in_thread(args):
-    logger.log(f"Unexpected exception in thread! quitting...{args}", logger.CRITICAL)
+    logger.log(f"Unexpected exception in thread! quitting...{args}", Logger.CRITICAL)
     cThreadModule.terminateAll()
 
 ####################################################################################################################

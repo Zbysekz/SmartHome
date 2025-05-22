@@ -516,8 +516,8 @@ class cMySQL:
             db, cursor = self.getConnection()
 
             sql = (f"INSERT INTO db1.notificator_queue (receiver, subject, message, state) "
-                   f"VALUES('{notificator_receiver_email}', '{subject}', '{text}', 'CREATED');)")
-            cursor.execute(sql)
+                   f"VALUES((%s), (%s), (%s), 'CREATED');")
+            cursor.execute(sql, (notificator_receiver_email, subject, text))
             db.commit()
             cursor.close()
             self.closeDBIfNeeded(db)
