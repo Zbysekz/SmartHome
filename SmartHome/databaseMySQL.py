@@ -54,7 +54,7 @@ class cMySQL:
         #for line in traceback.format_stack():
         #    print(line.strip())
         return mysql.connector.connect(
-            host="localhost",
+            host=parameters.SERVER_IP,
             user="mainScript",
             password="mainScript",
             database="db1",
@@ -182,6 +182,46 @@ class cMySQL:
 
         return values
 
+    @ThreadingLockDecorator
+    def getSelfSuff(self, timeFrom, timeTo):
+        try:
+            db, cursor = self.getConnection()
+
+            cons = None
+            prod = None
+
+            sql = "SELECT SUM(value) FROM db1.measurements WHERE (source = 'lowTariff' OR source = 'stdTarriff') AND time > %s AND time < %s"
+            val = (timeFrom, timeTo)
+            cursor.execute(sql, val)
+
+            data = cursor.fetchall()
+
+            if data and len(data)>0:
+                cons = data[0][0]
+
+            sql = "SELECT SUM(value) FROM db1.measurements WHERE source like 'powerwallDaily%' AND time > %s AND time < %s"
+            val = (timeFrom, timeTo)
+            cursor.execute(sql, val)
+
+            data = cursor.fetchall()
+
+            if data and len(data)>0:
+                prod = data[0][0]
+
+            cursor.close()
+            self.closeDBIfNeeded(db)
+
+            if prod is not None and cons is not None and cons != 0:
+                selfSuf = prod*100 / (prod + cons)
+            else:
+                selfSuf = None
+
+        except Exception as e:
+            self.logger.log("Error while reading self sufficiency, exception:")
+            self.logger.log_exception(e)
+            return None
+
+        return selfSuf
 
     @ThreadingLockDecorator
     def getValues(self,kind, sensorName, timeFrom, timeTo, _sum = False):

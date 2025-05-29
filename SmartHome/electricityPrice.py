@@ -146,37 +146,46 @@ def run():
 
     priceData = MySQL.getPriceData()
 
-    #yearCons = findYearConsForCashAdvance(priceData['monthly_cash_advance'])
-    #price_kWh = priceData['monthly_cash_advance']*12/(yearCons[1]/1000)
-    price_kWh_high = A[25]/1000.0
-    price_kWh_low = A[26]/1000.0
-    Log("Cena kWh VT:"+str(price_kWh_high)+" Kč, NT:"+str(price_kWh_low)+" Kč")
-    
-    
-    lastDay_low_Wh,lastDay_std_Wh = getConsSumLastDay()
-    
-    Log("Spotřeba za včerejší den:"+str(int(lastDay_low_Wh))+" Wh "+str(int(lastDay_std_Wh))+" Wh")
+    if priceData is not None:
+        #yearCons = findYearConsForCashAdvance(priceData['monthly_cash_advance'])
+        #price_kWh = priceData['monthly_cash_advance']*12/(yearCons[1]/1000)
+        price_kWh_high = A[25]/1000.0
+        price_kWh_low = A[26]/1000.0
+        Log("Cena kWh VT:"+str(price_kWh_high)+" Kč, NT:"+str(price_kWh_low)+" Kč")
 
 
-    date_of_invoicing = str(priceData['date_of_invoicing'])
-    date_of_invoicing = datetime(2000+int(date_of_invoicing[0:2]), int(date_of_invoicing[2:4]),
-                                 int(date_of_invoicing[4:6]))
-    totalSum_low, totalSum_std = MySQL.getTotalSum(date_of_invoicing)
+        lastDay_low_Wh,lastDay_std_Wh = getConsSumLastDay()
 
-    Log("Suma of posledního vyúčtování -  nízký tarif: "+str(int(totalSum_low))+" Wh ; Vysoký tarif:"+str(int(totalSum_std))+" Wh")
-
-    yearPerc = percent(totalSum_std, totalSum_low, priceData['monthly_cash_advance'])
-    Log("Roční plnění:"+str(yearPerc)+"%")
-
-    #-----------------------
+        Log("Spotřeba za včerejší den:"+str(int(lastDay_low_Wh))+" Wh "+str(int(lastDay_std_Wh))+" Wh")
 
 
-    priceLastDay = price_kWh_high*lastDay_std_Wh/1000+price_kWh_low*lastDay_low_Wh/1000
-    Log("Cena  za včerejší den:" +str(int(priceLastDay)) + " Kč")
+        date_of_invoicing = str(priceData['date_of_invoicing'])
+        date_of_invoicing = datetime(2000+int(date_of_invoicing[0:2]), int(date_of_invoicing[2:4]),
+                                     int(date_of_invoicing[4:6]))
+        totalSum_low, totalSum_std = MySQL.getTotalSum(date_of_invoicing)
 
-    MySQL.updatePriceData("priceLastDay", priceLastDay)
-    MySQL.updatePriceData("yearPerc", yearPerc)
-    
+        Log("Suma of posledního vyúčtování -  nízký tarif: "+str(int(totalSum_low))+" Wh ; Vysoký tarif:"+str(int(totalSum_std))+" Wh")
+
+        yearPerc = percent(totalSum_std, totalSum_low, priceData['monthly_cash_advance'])
+        Log("Roční plnění:"+str(yearPerc)+"%")
+
+        #-----------------------
+
+
+        priceLastDay = price_kWh_high*lastDay_std_Wh/1000+price_kWh_low*lastDay_low_Wh/1000
+        Log("Cena  za včerejší den:" +str(int(priceLastDay)) + " Kč")
+
+        MySQL.updatePriceData("priceLastDay", priceLastDay)
+        MySQL.updatePriceData("yearPerc", yearPerc)
+
+        selfSuf = MySQL.getSelfSuff(datetime.now()-timedelta(days=30), datetime.now())
+        if selfSuf is not None:
+            Log(f"Soběstačnost: {selfSuf:.1f} %")
+        else:
+            Log("Chyba výpočtu soběstačnosti")
+        MySQL.updatePriceData("selfSufficiency", selfSuf)
+    else:
+        Log("Chyba výpočtu cen")
 
 
 def Log(msg):

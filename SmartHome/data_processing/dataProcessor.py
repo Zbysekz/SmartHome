@@ -11,7 +11,7 @@ from parameters import parameters
 from avg import cMovingAvg
 from comm.device import cDevice
 from comm.commProcessor import cCommProcessor
-
+import feels_like_temperature
 # for periodicity mysql inserts
 HOUR = 3600
 MINUTE = 60
@@ -121,10 +121,11 @@ class cDataProcessor(cThreadModule):
             self.house_security.keyboard_data_receive(doorSW)
 
         elif data[0] == 101:  # data from meteostations
-            meteoTemp = cDataProcessor.correctNegative((data[1] * 256 + data[2]))
-            meteoTemp2 = cDataProcessor.correctNegative((data[8] * 256 + data[9]))
-
-            self.mySQL.insertValue('temperature', 'meteostation', meteoTemp / 100,
+            meteoTemp = cDataProcessor.correctNegative((data[1] * 256 + data[2]))/100
+            meteoTemp2 = cDataProcessor.correctNegative((data[8] * 256 + data[9]))/100
+            meteoHumidity = (data[20] * 256 + data[21]) / 10
+            wind_speed_avg = (data[14] * 256 + data[15]) / 10 # in km/h
+            self.mySQL.insertValue('temperature', 'meteostation', meteoTemp,
                                    periodicity=60 * MINUTE,
                                    writeNowDiff=0.5)
             self.mySQL.insertValue('pressure', 'meteostation',
@@ -133,7 +134,7 @@ class cDataProcessor(cThreadModule):
             self.mySQL.insertValue('voltage', 'meteostation', (data[6] * 256 + data[7]) / 10,
                                    periodicity=50 * MINUTE,
                                    writeNowDiff=0.2)
-            self.mySQL.insertValue('temperature', 'meteostation2', meteoTemp2 / 100,
+            self.mySQL.insertValue('temperature', 'meteostation2', meteoTemp2,
                                    periodicity=60 * MINUTE,
                                    writeNowDiff=0.5)
             self.mySQL.insertValue('rain_mm_per_h', 'meteostation', (data[10] * 256 + data[11]) / 100,
@@ -143,7 +144,7 @@ class cDataProcessor(cThreadModule):
                                    periodicity=1 * MINUTE,
                                    writeNowDiff=0.1)
             self.mySQL.insertValue('wind_speed_avg', 'meteostation',
-                                   (data[14] * 256 + data[15]) / 10,
+                                   wind_speed_avg,
                                    periodicity=5 * MINUTE,
                                    writeNowDiff=0.1)
             self.mySQL.insertValue('wind_speed', 'meteostation',
@@ -155,9 +156,16 @@ class cDataProcessor(cThreadModule):
                                    periodicity=5 * MINUTE,
                                    writeNowDiff=0.1)
             self.mySQL.insertValue('humidity', 'meteostation',
-                                   (data[20] * 256 + data[21]) / 10,
+                                   meteoHumidity,
                                    periodicity=50 * MINUTE,
                                    writeNowDiff=1)
+
+            temperature_feels_like = feels_like_temperature.apparent_temp(
+                meteoTemp, meteoHumidity, wind_speed_avg/3.6)
+            self.mySQL.insertValue('temperature', 'apparent_temp',
+                                   temperature_feels_like,
+                                   periodicity=60 * MINUTE,
+                                   writeNowDiff=0.5)
 
         elif data[0] > 10 and data[0] <= 40:  # POWERWALL
             voltage = (data[2] * 256 + data[3]) / 100

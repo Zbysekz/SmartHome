@@ -22,7 +22,7 @@ class cHouseSecurity:
         self.locked = False
 
     def gas_alarm_detected(self):
-        self.logger.log("RPI GAS ALARM!!");
+        self.logger.log("RPI GAS ALARM!!")
         self.alarm |= cHouseSecurity.GAS_ALARM_RPI
         self.mySql.updateState("alarm", int(self.alarm))
         if self.alarm_last & cHouseSecurity.GAS_ALARM_RPI == 0:

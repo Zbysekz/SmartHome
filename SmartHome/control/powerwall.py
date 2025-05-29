@@ -24,7 +24,7 @@ class cPowerwallControl(cThreadModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.mySQL = cMySQL()
-        self.logger = Logger("powerwall", verbosity=parameters.VERBOSITY)
+        self.logger = Logger("powerwall", verbosity=parameters.VERBOSITY, mySQL=self.mySQL)
 
         self.dataProcessor = None
         self.powerwall_last_full = False
