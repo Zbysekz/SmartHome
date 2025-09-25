@@ -94,7 +94,7 @@ class cDataProcessor(cThreadModule):
             self.globalFlags = self.mySQL.getGlobalFlags()
 
         self.mySQL.PersistentDisconnect()
-        self.logger.log(f"LEAVING WITH -----------------ReceiveQueueSize:{self.receive_queue.qsize()}")
+        #self.logger.log(f"LEAVING WITH -----------------ReceiveQueueSize:{self.receive_queue.qsize()}")
         # -------------------------------------------------
 
     def process_incoming_data(self, data):
@@ -582,8 +582,8 @@ class cDataProcessor(cThreadModule):
         elif data[0] == 113:  # data from victron inverter
             status = data[1]
 
-            self.logger.log("VICTRON:")
-            self.logger.log(data)
+            #self.logger.log("VICTRON:")
+            #self.logger.log(data)
             #if status & 0x01 == 0:  # valid data
             self.mySQL.insertValue('power', 'inverter', (data[2] * 256 + data[3]),
                                    periodicity=5 * MINUTE,  # with correction
