@@ -17,6 +17,37 @@ PIN_GAS_ALARM = 23
 actualHeatingInhibition = False
 INHIBITED_ROOM_TEMPERATURE = 20.0  # °C
 
+
+def new_relative_humidity(rh_orig, t_orig, t_new):
+    """
+    Calculate the new relative humidity after a temperature change.
+
+    Parameters:
+    rh_orig (float): Original relative humidity in percent (e.g., 50 for 50%)
+    t_orig (float): Original temperature in Celsius
+    t_new (float): New temperature in Celsius
+
+    Returns:
+    float: New relative humidity in percent
+    """
+
+    def saturation_vapor_pressure(T):
+        # T in Celsius
+        if T != -237.3:
+            return 6.11 * 10 ** (7.5 * T / (237.3 + T))
+        return None
+    if rh_orig is None or t_orig is None or t_new is None:
+        return None
+    es_orig = saturation_vapor_pressure(t_orig)
+    es_new = saturation_vapor_pressure(t_new)
+    if es_orig is not None and es_new is not None and es_new != 0:
+        rh_new = rh_orig * es_orig / es_new
+    else:
+        rh_new = None
+    return rh_new
+# Example usage:
+# new_relative_humidity(50, 20, 30)
+
 class cHouseControl(cThreadModule):
     def __init__(self, dataProcessor, **kwargs):
         super().__init__(**kwargs)
@@ -88,15 +119,25 @@ class cHouseControl(cThreadModule):
             datetimeNow = datetime.now()
             dayTime = 7 < datetimeNow.hour < 21
             summerTime = 5 < datetimeNow.month < 9
-            afterSchool = datetimeNow.weekday()<5 and datetimeNow.hour > 8 and\
-                datetimeNow.hour < 10
 
             roomHumidity = self.dataProcessor.currentValues.get("humidity_PIR sensor")
+            outsideTemperature = self.dataProcessor.currentValues.get("temperature_meteostation")
+            roomTemperature = self.dataProcessor.currentValues.get("temperature_PIR sensor")
+            outsideHumidity = self.dataProcessor.currentValues.get("humidity_meteostation")
+
+            humidityFromOutsideHeated = new_relative_humidity(outsideHumidity, outsideTemperature,
+                                                              roomTemperature)
+
+            self.mySQL.insertValue('humidity_from_outside_heated', 'calculated',
+                                   humidityFromOutsideHeated,
+                                   periodicity=240 * 60,  # with correction
+                                   writeNowDiff=1,
+                                   onlyCurrent=True)
             if roomHumidity is None:
                 ventilationCommand = 99  # do not control
             else:
                 if not summerTime:  # COLD OUTSIDE
-                    if (roomHumidity >= 63.0 and dayTime) or (afterSchool and roomHumidity >= 61.0):
+                    if roomHumidity >= 63.0 and dayTime:
                         ventilationCommand = 4
                     elif roomHumidity >= 59.0 and dayTime:
                         ventilationCommand = 3
@@ -107,7 +148,7 @@ class cHouseControl(cThreadModule):
                     else:
                         ventilationCommand = 99
                 else:  # WARM OUTSIDE
-                    if afterSchool and roomHumidity >= 61.0:
+                    if roomHumidity >= 61.0:
                         ventilationCommand = 4
                     elif roomHumidity >= 60.0 and dayTime:
                         ventilationCommand = 3
@@ -120,6 +161,12 @@ class cHouseControl(cThreadModule):
                     else:
                         ventilationCommand = 99
 
+                # limit if there is lot of moisture outside and the temperature difference is small
+                if humidityFromOutsideHeated is not None:
+                    if ventilationCommand == 4 and roomHumidity - humidityFromOutsideHeated < 30.0:
+                        ventilationCommand = 3
+                    elif ventilationCommand == 3 and roomHumidity - humidityFromOutsideHeated < 20.0:
+                        ventilationCommand = 2
         else:
             ventilationCommand = 99
 
