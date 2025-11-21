@@ -125,9 +125,9 @@ def findYearConsForCashAdvance(monthlyCashAdvance):
     return powerHighTariff_wh, powerLowTariff_wh
     
 
-def getConsSumLastDay():
-    consLow = MySQL.getValues('consumption','lowTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),_sum=True)
-    consStd = MySQL.getValues('consumption','stdTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(1),datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),_sum=True)
+def getConsSumToday():
+    consLow = MySQL.getValues('consumption','lowTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),datetime.now(),_sum=True)
+    consStd = MySQL.getValues('consumption','stdTariff',datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),datetime.now(),_sum=True)
     
     
     consLow = 0 if consLow[0] is None else consLow[0]
@@ -135,6 +135,20 @@ def getConsSumLastDay():
     
     
     return [consLow,consStd]
+
+
+def getConsSumLastDay():
+    consLow = MySQL.getValues('consumption', 'lowTariff',
+                              datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(1),
+                              datetime.now().replace(hour=0, minute=0, second=0, microsecond=0), _sum=True)
+    consStd = MySQL.getValues('consumption', 'stdTariff',
+                              datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(1),
+                              datetime.now().replace(hour=0, minute=0, second=0, microsecond=0), _sum=True)
+
+    consLow = 0 if consLow[0] is None else consLow[0]
+    consStd = 0 if consStd[0] is None else consStd[0]
+
+    return [consLow, consStd]
     
 
 # cena za minulý den
@@ -156,7 +170,10 @@ def run():
 
         lastDay_low_Wh,lastDay_std_Wh = getConsSumLastDay()
 
-        Log("Spotřeba za včerejší den:"+str(int(lastDay_low_Wh))+" Wh "+str(int(lastDay_std_Wh))+" Wh")
+        today_low_Wh, today_std_Wh = getConsSumToday()
+
+        Log("Spotřeba za dnešní den:"+str(int(today_low_Wh))+" Wh "+str(int(today_std_Wh))+" Wh")
+        Log("Spotřeba za včerejší den:" + str(int(lastDay_low_Wh)) + " Wh " + str(int(lastDay_std_Wh)) + " Wh")
 
 
         date_of_invoicing = str(priceData['date_of_invoicing'])
@@ -171,10 +188,13 @@ def run():
 
         #-----------------------
 
-
+        priceToday = price_kWh_high * today_std_Wh / 1000 + price_kWh_low * today_low_Wh / 1000
         priceLastDay = price_kWh_high*lastDay_std_Wh/1000+price_kWh_low*lastDay_low_Wh/1000
+
+        Log("Cena  za dnešní den:" + str(int(priceToday)) + " Kč")
         Log("Cena  za včerejší den:" +str(int(priceLastDay)) + " Kč")
 
+        MySQL.updatePriceData("priceToday", priceToday)
         MySQL.updatePriceData("priceLastDay", priceLastDay)
         MySQL.updatePriceData("yearPerc", yearPerc)
 

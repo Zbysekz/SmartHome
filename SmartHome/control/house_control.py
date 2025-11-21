@@ -71,7 +71,7 @@ class cHouseControl(cThreadModule):
 
 
     def _handle(self):
-        if time.time() - self.tmrPriceCalc > 3600 * 4:  # each 4 hour
+        if time.time() - self.tmrPriceCalc > 3600 * 2:  # each 2 hours
             self.tmrPriceCalc = time.time()
             try:
                 electricityPrice.run()
