@@ -125,6 +125,7 @@ class cDataProcessor(cThreadModule):
             meteoTemp2 = cDataProcessor.correctNegative((data[8] * 256 + data[9]))/100
             meteoHumidity = (data[20] * 256 + data[21]) / 10
             wind_speed_avg = (data[14] * 256 + data[15]) / 10 # in km/h
+            wind_dir = data[22]
             self.mySQL.insertValue('temperature', 'meteostation', meteoTemp,
                                    periodicity=60 * MINUTE,
                                    writeNowDiff=0.5)
@@ -157,6 +158,10 @@ class cDataProcessor(cThreadModule):
                                    writeNowDiff=0.1)
             self.mySQL.insertValue('humidity', 'meteostation',
                                    meteoHumidity,
+                                   periodicity=50 * MINUTE,
+                                   writeNowDiff=1)
+            self.mySQL.insertValue('wind_dir', 'meteostation',
+                                   wind_dir,
                                    periodicity=50 * MINUTE,
                                    writeNowDiff=1)
 
@@ -588,9 +593,9 @@ class cDataProcessor(cThreadModule):
             self.mySQL.insertValue('power', 'inverter', (data[2] * 256 + data[3]),
                                    periodicity=5 * MINUTE,  # with correction
                                    writeNowDiff=50)
-            # self.mySQL.insertValue('status', 'inverter', status,
-            #                        periodicity=6 * HOUR,
-            #                        writeNowDiff=1)
+            self.mySQL.insertValue('status', 'inverter', status,
+                                   periodicity=6 * HOUR,
+                                   writeNowDiff=1)
 
         elif data[0] == 114:  # data from martha tent
             reqClock_martha = data[1]
