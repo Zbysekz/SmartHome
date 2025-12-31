@@ -97,7 +97,9 @@ class cTCPServer(cThreadModule):
 
         try:
             persistent_connection = device.name in ["RACKUNO"]
-            while persistent_connection:
+            once = True
+            while persistent_connection or once:
+                once = False
                 # if you have something to send, send it
                 sendWasPerformed = False
 
