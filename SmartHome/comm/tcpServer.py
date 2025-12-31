@@ -94,59 +94,65 @@ class cTCPServer(cThreadModule):
                 self.logger.log(''.join('!! ' + line for line in lines))
 
     def ReceiveThread(self, conn, device): # this thread starts, when some device connect to server
+
         try:
-            # if you have something to send, send it
-            sendWasPerformed = False
+            persistent_connection = device.name in ["RACKUNO"]
+            while persistent_connection:
+                # if you have something to send, send it
+                sendWasPerformed = False
 
-            queueNotForThisIp = [x for x in self.sendQueue if x[1] != device.ip_address]
+                queueNotForThisIp = [x for x in self.sendQueue if x[1] != device.ip_address]
 
-            for tx in self.sendQueue:
-                if tx[1] == device.ip_address:  # only if we have something to send to the address that has connected
-                    conn.send(tx[0])
+                for tx in self.sendQueue:
+                    if tx[1] == device.ip_address:  # only if we have something to send to the address that has connected
+                        conn.send(tx[0])
 
-                    sendWasPerformed = True
-                    self.logger.log(f"Sending tx data to {str(device)} data:{tx[0]}", Logger.NORMAL)
+                        sendWasPerformed = True
+                        self.logger.log(f"Sending tx data to {str(device)} data:{tx[0]}", Logger.NORMAL)
 
-            self.sendQueue = queueNotForThisIp  # replace items with the items that we haven't sent
+                self.sendQueue = queueNotForThisIp  # replace items with the items that we haven't sent
 
-            if not sendWasPerformed:
-                self.logger.log(f"Nothing to be send to this connected device {str(device)})", Logger.FULL)
+                if not sendWasPerformed:
+                    self.logger.log(f"Nothing to be send to this connected device {str(device)}", Logger.FULL)
 
-            conn.send(serialData.CreatePacket(
-                bytes([199])))  # ending packet - signalizing that we don't have anything to sent no more
+                if not persistent_connection:
+                    conn.send(serialData.CreatePacket(
+                        bytes([199])))  # ending packet - signalizing that we don't have anything to sent no more
 
-            time.sleep(0.5)  # give client some time to send me data
+                    time.sleep(0.5)  # give client some time to send me data
 
-            receiverInstance = serialData.Receiver()
-            tryit = 3
-            while tryit > 0:
-                # data receive
-                r, _, _ = select.select([conn], [], [], 4)
-                if r:
-                    data = conn.recv(self.BUFFER_SIZE)
-                else:
+                receiverInstance = serialData.Receiver()
+                tryit = 3
 
-                    tryit -= 1
-                    time.sleep(1)
-                    if tryit == 0:
-                        self.logger.log(f"Device {str(device)}) was connected,"
-                                        f" but haven't send any data.")
-                    continue
-                if not data:
-                    break
 
-                st = ""
-                for d in data:
-                    # if last received byte was ok, finish
-                    # client can send multiple complete packets
-                    isMeteostation = str(device.name) == "METEO"  # extra exception for meteostation
-                    if not receiverInstance.Receive(d, noCRC=isMeteostation):
-                        self.logger.log(f"Error receiving for {device.name} !")
-                    st += str(d) + ", "
+                while tryit > 0:
+                    # data receive
+                    r, _, _ = select.select([conn], [], [], 5)
+                    if r:
+                        data = conn.recv(self.BUFFER_SIZE)
+                    else:
+                        tryit -= 1
+                        if tryit == 0 and not persistent_connection:
+                            self.logger.log(f"Device {str(device)} was connected,"
+                                            f" but haven't send any data.")
+                        continue
+                    if not data:
+                        self.logger.log(f"Device: {str(device)} breaking with data None")
+                        break
 
-                self.logger.log("Received data:" + str(st), Logger.FULL)
-                while receiverInstance.getRcvdDataLen() > 0:
-                    self.data_received_callback(receiverInstance.getRcvdData())
+                    st = ""
+                    for d in data:
+                        # if last received byte was ok, finish
+                        # client can send multiple complete packets
+                        isMeteostation = str(device.name) == "METEO"  # extra exception for meteostation
+                        if not receiverInstance.Receive(d, noCRC=isMeteostation):
+                            self.logger.log(f"Error receiving for {device.name} !")
+                        st += str(d) + ", "
+                    if persistent_connection:
+                        device.mark_activity()
+                    self.logger.log("Received data:" + str(st), Logger.FULL)
+                    while receiverInstance.getRcvdDataLen() > 0:
+                        self.data_received_callback(receiverInstance.getRcvdData())
 
         except ConnectionResetError:
             if device.ip_address != "192.168.0.11":  # ignore keyboard reset errors
