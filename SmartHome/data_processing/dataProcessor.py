@@ -304,26 +304,6 @@ class cDataProcessor(cThreadModule):
                                    periodicity=6 * HOUR,
                                    writeNowDiff=1)
 
-            raw = data[7] * 256 + data[8]
-
-            # if dist_cm < 11:
-            #     waterTank_level = 100.0
-            # elif dist_cm > 191:
-            #     waterTank_level = 0.0
-            # else:
-            #     waterTank_level = (191.0 - dist_cm) / 180.0 * 100
-
-            waterTank_level = 100 * (
-                    -raw * 0.000244052235241 * raw + 0.093727045956581 * raw + 171.116013166274) / 180.0
-            waterTank_level = max(0, min(waterTank_level, 100))
-            self.avg_water_tank.append_value(waterTank_level)
-
-            self.mySQL.insertValue('status', 'waterTank_level', self.avg_water_tank.value,
-                                   periodicity=6 * HOUR,
-                                   writeNowDiff=1)
-            self.mySQL.insertValue('status', 'waterTank_level_raw', raw, periodicity=1 * HOUR,
-                                   writeNowDiff=10)
-
         elif data[0] == 104:  # data from PIR sensor
             tempPIR = (data[1] * 256 + data[2]) / 10.0
             tempPIR = tempPIR - 0.0  # calibration - SHT20 is precalibrated from factory
@@ -618,6 +598,27 @@ class cDataProcessor(cThreadModule):
             self.mySQL.insertValue('radioactivity', f'geiger_muller_counter', CPM,
                                    periodicity=6 * HOUR,
                                    writeNowDiff=5)
+        elif data[0] == 116:  # data from ultrasonic sensor - watertank
+            raw = data[1] * 256 + data[2]
+
+            # if dist_cm < 11:
+            #     waterTank_level = 100.0
+            # elif dist_cm > 191:
+            #     waterTank_level = 0.0
+            # else:
+            #     waterTank_level = (191.0 - dist_cm) / 180.0 * 100
+
+            waterTank_level = 100 * (
+                    -raw * 0.000244052235241 * raw + 0.093727045956581 * raw + 171.116013166274) / 180.0
+            waterTank_level = max(0, min(waterTank_level, 100))
+            self.avg_water_tank.append_value(waterTank_level)
+
+            self.mySQL.insertValue('status', 'waterTank_level', self.avg_water_tank.value,
+                                   periodicity=6 * HOUR,
+                                   writeNowDiff=1)
+            self.mySQL.insertValue('status', 'waterTank_level_raw', raw, periodicity=1 * HOUR,
+                                   writeNowDiff=10)
+
         elif data[0] == 0 and data[1] == 1:  # live event
             self.logger.log("Live event!", Logger.FULL)
         elif data[0] < 4 and len(data) >= 2:  # events for keyboard

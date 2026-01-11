@@ -28,7 +28,8 @@ class cCommProcessor(cThreadModule):
                cDevice('MARTHA_TENT', '192.168.0.37', MINUTE * 10),
                cDevice('ISPINDEL1', '192.168.0.34', MINUTE * 120),
                cDevice('OLD_FRIDGE_THERMOSTAT', '192.168.0.36', MINUTE * 600),
-               cDevice('GEIGER_MULLER_COUNTER', '192.168.0.39', MINUTE * 10)}
+               cDevice('GEIGER_MULLER_COUNTER', '192.168.0.39', MINUTE * 10),
+               cDevice('WATER_TANK_SENSOR', '192.168.0.17', MINUTE * 30)}
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
