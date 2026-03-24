@@ -80,14 +80,14 @@
                 </widget>
                </item>
                <item row="5" column="3">
-                <widget class="QPushButton" name="pushButton">
+                <widget class="QPushButton" name="btnNewAddr">
                  <property name="text">
                   <string>set new addr</string>
                  </property>
                 </widget>
                </item>
                <item row="8" column="3">
-                <widget class="QPushButton" name="btnTempCalib2">
+                <widget class="QPushButton" name="btnTempCalib">
                  <property name="text">
                   <string>temp calib</string>
                  </property>
@@ -101,7 +101,7 @@
                 </widget>
                </item>
                <item row="0" column="3">
-                <widget class="QPushButton" name="pushButton_2">
+                <widget class="QPushButton" name="btnProvision">
                  <property name="text">
                   <string>provision</string>
                  </property>
@@ -166,14 +166,14 @@
                 </layout>
                </item>
                <item row="7" column="3">
-                <widget class="QPushButton" name="pushButton_4">
+                <widget class="QPushButton" name="btnVoltCalib">
                  <property name="text">
                   <string>volt calib</string>
                  </property>
                 </widget>
                </item>
                <item row="3" column="3">
-                <widget class="QPushButton" name="pushButton_3">
+                <widget class="QPushButton" name="btnBlinkCell">
                  <property name="text">
                   <string>blink cell</string>
                  </property>
@@ -182,7 +182,7 @@
                <item row="7" column="2">
                 <layout class="QHBoxLayout" name="horizontalLayout_2">
                  <item>
-                  <widget class="QDoubleSpinBox" name="doubleSpinBox_6">
+                  <widget class="QDoubleSpinBox" name="eVoltCalib">
                    <property name="decimals">
                     <number>3</number>
                    </property>
@@ -195,7 +195,7 @@
                   </widget>
                  </item>
                  <item>
-                  <widget class="QDoubleSpinBox" name="doubleSpinBox_7">
+                  <widget class="QDoubleSpinBox" name="eVoltCalib2">
                    <property name="minimum">
                     <double>-999999.989999999990687</double>
                    </property>
@@ -207,7 +207,7 @@
                 </layout>
                </item>
                <item row="5" column="2">
-                <widget class="QSpinBox" name="spinBox_3"/>
+                <widget class="QSpinBox" name="eNewAddr"/>
                </item>
                <item row="7" column="1">
                 <widget class="QSpinBox" name="eAddr2"/>

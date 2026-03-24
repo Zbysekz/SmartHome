@@ -43,8 +43,9 @@ class MainWindow(QMainWindow):
         self.btnHouseSolar.clicked.connect(self.ePowerwallHouseSolar)
         self.btnHouseGrid.clicked.connect(self.ePowerwallHouseGrid)
 
-        self.btnTempCalib2.clicked.connect(self.eBMS_calib_set_temp)
-
+        self.btnVoltCalib.clicked.connect(self.eBMS_calib_set_volt)
+        self.btnTempCalib.clicked.connect(self.eBMS_calib_set_temp)
+        self.btnProvision.clicked.connect(self.eBMS_provision)
         self.btnMeteoAwake.clicked.connect(self.eMeteo_stay_awake)
 
         self.timer = QTimer()
@@ -105,6 +106,22 @@ class MainWindow(QMainWindow):
 	
     def cellar_parameter_set(self, id, val, val2):
         self.SendData(id + "," + val + "," + val2, address=IP_CELLAR)
+
+    def eBMS_provision(self):
+        self.SendData("2", address=IP_POWERWALL)
+
+# btnBlinkCell
+    #btnNewAddr
+    #eNewAddr
+    def eBMS_calib_set_volt(self):
+        buffer = struct.pack('f', float(self.eVoltCalib.value()))
+        buffer_str = str(buffer[0]) + "," + str(buffer[1]) + "," + str(buffer[2]) + "," + str(
+            buffer[3])
+        self.SendData("4," + str(self.eAddr2.value()) + "," + buffer_str, address=IP_POWERWALL)
+
+        buffer = struct.pack('f', float(self.eVoltCalib2.value()))
+        buffer_str = str(buffer[0])+","+str(buffer[1])+","+str(buffer[2])+","+str(buffer[3])
+        self.SendData("15,"+str(self.eAddr2.value())+","+buffer_str, address=IP_POWERWALL)
 
     def eBMS_calib_set_temp(self):
         buffer = struct.pack('f', float(self.eTempCalib.value()))
