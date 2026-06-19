@@ -608,8 +608,11 @@ class cDataProcessor(cThreadModule):
             # else:
             #     waterTank_level = (191.0 - dist_cm) / 180.0 * 100
 
-            waterTank_level = 100 * (
-                    -raw * 0.000244052235241 * raw + 0.093727045956581 * raw + 171.116013166274) / 180.0
+            #waterTank_level = 100 * (
+            #        -raw * 0.000244052235241 * raw + 0.093727045956581 * raw + 171.116013166274) / 180.0
+            OFFSET = -18 # offset between measured value from sensor and real measured value by hand
+            MAX_HEIGHT = 178 #cm
+            waterTank_level = 100.0*(MAX_HEIGHT - (raw + OFFSET))/MAX_HEIGHT
             waterTank_level = max(0, min(waterTank_level, 100))
             self.avg_water_tank.append_value(waterTank_level)
 
