@@ -9,11 +9,6 @@ class Parameters:
     config = configparser.ConfigParser()
     config.read('../config.ini')
 
-    ON_RASPBERRY = platform.machine() != "x86_64"
-
-    #MY_NUMBER1 = "+420602187490"
-    #SECOND_NUMBER = "+420777438947"
-
     def __init__(self):
         config = configparser.ConfigParser()
         configPath = os.path.join(rootPath, '../config.ini')

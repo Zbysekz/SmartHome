@@ -312,10 +312,7 @@ class cPhone(cThreadModule):
 
     def connect(self):
         self.logger.log("Initializing serial port...")
-        if not parameters.ON_RASPBERRY:
-            self.logger.log("Not on RPI system.. will not try to connect to phone!")
-            self.serPort = None
-            return
+
         self.serPort = serial.Serial(
 
             port='/dev/ttyS0',
@@ -403,8 +400,6 @@ class cPhone(cThreadModule):
         return rcvLines
 
     def _handle(self):
-        if not parameters.ON_RASPBERRY:
-            return
         self.Process()  # fast call
 
         if time.time() - self.tmrSignalInfo > 601:

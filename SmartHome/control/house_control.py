@@ -1,6 +1,4 @@
 from parameters import parameters
-if parameters.ON_RASPBERRY:
-    import RPi.GPIO as GPIO
 import time
 import electricityPrice
 import os
@@ -54,12 +52,7 @@ class cHouseControl(cThreadModule):
         self.mySQL = cMySQL()
 
         self.logger = Logger("houseControl", verbosity=parameters.VERBOSITY, mySQL=self.mySQL)
-        if parameters.ON_RASPBERRY:
-            self.logger.log("Initializing pin for PC button & gas alarm...")
-            GPIO.setwarnings(False)
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(PIN_BTN_PC, GPIO.OUT)
-            GPIO.setup(PIN_GAS_ALARM, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
         self.logger.log("Ok")
         self.tmrPriceCalc = 0
         self.tmrVentHeatControl = 0
