@@ -18,7 +18,7 @@ MINUTE = 60
 
 
 class cDataProcessor(cThreadModule):
-    def __init__(self, phone, **kwargs):
+    def __init__(self, phone=None, **kwargs):
         super().__init__(**kwargs)
         self.mySQL = cMySQL()
         self.logger = Logger("dataProcessor", verbosity=parameters.VERBOSITY, mySQL=self.mySQL)
@@ -661,7 +661,8 @@ class cDataProcessor(cThreadModule):
                     self.currentValues.get("temperature_PIR sensor"))
                 txt += ", room humid:{:.1f} %".format(self.currentValues.get("humidity_PIR sensor"))
 
-                self.phone.SendSMS(data[1], txt)
+                if self.phone:
+                    self.phone.SendSMS(data[1], txt)
                 self.logger.log("Get status by SMS command.")
             elif sms_text.startswith("lock"):
                 locked = True

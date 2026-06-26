@@ -8,7 +8,7 @@ class cHouseSecurity:
     GAS_ALARM_PIR = 0x04  # GAS alarm of the PIR sensor module
     PIR_ALARM = 0x08  # PIR sensor detected motion when system was locked
 
-    def __init__(self, logger, mySql, commProcessor, dataProcessor, phone):
+    def __init__(self, logger, mySql, commProcessor, dataProcessor, phone=None):
         self.logger = logger
         self.mySql = mySql
         self.commProcessor = commProcessor
@@ -25,7 +25,7 @@ class cHouseSecurity:
         self.logger.log("RPI GAS ALARM!!")
         self.alarm |= cHouseSecurity.GAS_ALARM_RPI
         self.mySql.updateState("alarm", int(self.alarm))
-        if self.alarm_last & cHouseSecurity.GAS_ALARM_RPI == 0:
+        if self.alarm_last & cHouseSecurity.GAS_ALARM_RPI == 0 and self.phone:
             self.phone.SendSMS(parameters.MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
         self.KeyboardRefresh(self.mySql)
         self.PIRSensorRefresh(self.mySql)
@@ -56,26 +56,12 @@ class cHouseSecurity:
                 self.alarm |= cHouseSecurity.DOOR_ALARM
                 self.alarmCounting = False
 
-                self.phone.SendSMS(parameters.MY_NUMBER1, "Home system: door ALARM !!")
+                if self.phone:
+                    self.phone.SendSMS(parameters.MY_NUMBER1, "Home system: door ALARM !!")
 
                 self.mySql.updateState("alarm", int(self.alarm))
                 self.commProcessor.KeyboardRefresh(self.alarm, self.locked)
                 self.commProcessor.PIRSensorRefresh(self.alarm, self.locked)
-
-    def CheckGasSensor(self):
-        if gasSensorPrepared:
-            if not GPIO.input(PIN_GAS_ALARM):
-                logger.log("RPI GAS ALARM!!");
-                alarm |= GAS_ALARM_RPI
-                MySQL.updateState("alarm", int(alarm))
-                if alarm_last & GAS_ALARM_RPI == 0:
-                    phone.SendSMS(Parameters.MY_NUMBER1, "Home system: fire/gas ALARM - RPI !!")
-                KeyboardRefresh(MySQL)
-                PIRSensorRefresh(MySQL)
-
-        else:
-            if time.time() - tmrPrepareGasSensor > 120:  # after 2 mins
-                gasSensorPrepared = True
 
     def keyboard_data_receive(self, doorSW):
         if doorSW and self.locked and (self.alarm & cHouseSecurity.DOOR_ALARM) == 0 and not self.alarmCounting:

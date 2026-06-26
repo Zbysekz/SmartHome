@@ -1,3 +1,4 @@
+# NOTE you have to manually copy to server and bump with pip
 pyserial
 pymysql
 mysql-connector
