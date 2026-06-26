@@ -26,6 +26,7 @@ from templates.threadModule import cThreadModule
 from control.house_security import cHouseSecurity
 from control.house_control import cHouseControl
 from control.powerwall import cPowerwallControl
+from control.health_check import cHealthCheck
 
 # -------------DEFINITIONS-----------------------
 RESTART_ON_EXCEPTION = True
@@ -84,6 +85,7 @@ def main():
         houseControl = cHouseControl(dataProcessor=dataProcessor, period_s=4)
         houseSecurity = cHouseSecurity(logger, MySQL, commProcessor, dataProcessor, phone)
         powerwallControl = cPowerwallControl(period_s=30)
+        healthCheck = cHealthCheck(period_s=30 * 60)
 
         powerwallControl.dataProcessor = dataProcessor
         houseControl.house_security = houseSecurity
@@ -114,6 +116,7 @@ def main():
     phone.handle()
     houseControl.handle()
     powerwallControl.handle()
+    healthCheck.handle()
 
     ######################## MAIN LOOP ####################################################################################
     while True:

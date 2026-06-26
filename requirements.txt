@@ -1,3 +1,4 @@
 pyserial
 pymysql
 mysql-connector
+psutil
