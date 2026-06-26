@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 import psutil
+from datetime import datetime, timezone
 from templates.threadModule import cThreadModule
 from parameters import parameters
 from logger import Logger
@@ -21,6 +23,7 @@ class cHealthCheck(cThreadModule):
         self._check_disks()
         self._check_cpu()
         self._check_ram()
+        self._check_backups()
 
     def _check_disks(self):
         for partition in psutil.disk_partitions():
@@ -50,3 +53,22 @@ class cHealthCheck(cThreadModule):
         free_gb = mem.available / (1024 ** 3)
         self.mySQL.insertValue('ram_free_gb', 'server', round(free_gb, 2),
                                periodicity=60 * 60, writeNowDiff=1)
+
+    def _check_backups(self):
+        self._update_backup_state('last_db_backup', parameters.RESTIC_PATH_DB)
+        self._update_backup_state('last_pc_backup', parameters.RESTIC_PATH_PC)
+
+    def _update_backup_state(self, state_column, restic_path):
+        snapshots_dir = os.path.join(restic_path, 'snapshots')
+        try:
+            files = os.listdir(snapshots_dir)
+            if not files:
+                self.logger.log(f"No snapshots found in {snapshots_dir}", Logger.CRITICAL)
+                return
+            latest_mtime = max(
+                os.path.getmtime(os.path.join(snapshots_dir, f)) for f in files
+            )
+            dt = datetime.fromtimestamp(latest_mtime, tz=timezone.utc)
+            self.mySQL.updateState(state_column, dt.strftime('%Y-%m-%d %H:%M:%S'))
+        except Exception as e:
+            self.logger.log(f"Failed to read restic snapshots at {snapshots_dir}: {e}")
