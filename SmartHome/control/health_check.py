@@ -24,6 +24,8 @@ class cHealthCheck(cThreadModule):
 
     def _check_disks(self):
         for partition in psutil.disk_partitions():
+            if partition.mountpoint.startswith('/snap'):
+                continue
             try:
                 usage = psutil.disk_usage(partition.mountpoint)
             except PermissionError:
