@@ -1,6 +1,7 @@
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QApplication
 import sys
+import signal
 from forms.form_main import MainWindow
 import os
 import pathlib
@@ -46,6 +47,8 @@ class cApp:
         msg.exec()
 
 if __name__ == '__main__':
+    # let Ctrl+C terminate the app instead of aborting inside the Qt event loop
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     app = cApp()
     app.run()

@@ -30,7 +30,9 @@ class ParameterLine(QWidget):
         else:
             self.callback_change.emit(str(self.id), str(self.spinBox.value()), str(int(self.doubleSpinBox.value()*10)))
 
-    def update(self, value):
+    def update(self, value, stale=False):
         self.label_real.setText(str(value))
-    def update2(self, value2):
+        self.label_real.setStyleSheet("color: gray;" if stale else "")
+    def update2(self, value2, stale=False):
         self.label_real_2.setText(str(value2))
+        self.label_real_2.setStyleSheet("color: gray;" if stale else "")

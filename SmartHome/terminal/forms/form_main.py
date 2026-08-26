@@ -164,9 +164,10 @@ class MainWindow(QMainWindow):
                     idx = [x.name for x in self.all_params].index(stripped)
                 except ValueError:
                     continue
-                if (datetime.datetime.utcnow() - last_update).total_seconds() < 3600:
-                    self.all_params[idx].update(value)
+                # always show the value, gray it out when older than 1 hour
+                stale = (datetime.datetime.utcnow() - last_update).total_seconds() >= 3600
+                self.all_params[idx].update(value, stale)
 
-                    # try to find also hysteresis for double values
-                    if self.all_params[idx].type == DOUBLE_VALUE:
-                        self.all_params[idx].update2(values[name.replace("setpoint", "hysteresis")][0])
+                # try to find also hysteresis for double values
+                if self.all_params[idx].type == DOUBLE_VALUE:
+                    self.all_params[idx].update2(values[name.replace("setpoint", "hysteresis")][0], stale)
